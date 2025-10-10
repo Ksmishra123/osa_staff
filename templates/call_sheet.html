@@ -1,0 +1,19 @@
+{% extends 'base.html' %}{% block content %}
+<div class='print-header'>
+<h1>Call Sheet — {{ ev.city }}</h1>
+<div class='meta'>
+<div><strong>Setup:</strong> {{ ev.setup_start.strftime('%Y-%m-%d %H:%M') if ev.setup_start else '' }}</div>
+<div><strong>Start:</strong> {{ ev.event_start.strftime('%Y-%m-%d %H:%M') if ev.event_start else '' }}</div>
+<div><strong>End:</strong> {{ ev.event_end.strftime('%Y-%m-%d %H:%M') if ev.event_end else '' }}</div>
+<div><strong>Venue:</strong> {{ ev.venue }}</div>
+<div><strong>Hotel:</strong> {{ ev.hotel }}</div>
+</div></div>
+<table class='table'><thead><tr><th>#</th><th>Position</th><th>Name</th><th>Email</th><th>Phone</th><th>Ack</th></tr></thead><tbody>
+{% for a in rows %}
+<tr><td>{{ a.position.display_order }}</td><td>{{ a.position.name }}</td>
+<td>{{ a.person.name }}</td><td>{{ a.person.email }}</td><td>{{ a.person.phone }}</td>
+<td>{{ 'Yes' if a.ack else 'No' }}</td></tr>
+{% endfor %}
+</tbody></table>
+<p class='print-note'>Print this page (Cmd/Ctrl + P) to save as PDF.</p>
+{% endblock %}
