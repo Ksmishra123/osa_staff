@@ -31,8 +31,11 @@ def login():
             login_user(User(p)); return redirect(url_for('me'))
         flash('Invalid password.'); return redirect(url_for('login'))
     return render_template('login.html')
-@app.route('/logout'); @login_required
-def logout(): logout_user(); return redirect(url_for('login'))
+@app.route('/logout')
+@login_required
+def logout(): 
+    logout_user()
+    return redirect(url_for('login'))
 @app.route('/')
 def index(): return redirect(url_for('me')) if current_user.is_authenticated else redirect(url_for('login'))
 @app.route('/me'); @login_required
