@@ -13,7 +13,7 @@ load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'dev-secret')
-
+init_db()
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
