@@ -43,28 +43,53 @@ def init():
     return "DB initialized. Run: python seed.py", 200
 
 
+#@app.route('/login', methods=['GET', 'POST'])
+#def login():
+#    db = SessionLocal()
+ #   if request.method == 'POST':
+  #      email = request.form.get('email', '').strip().lower()
+   #     password = request.form.get('password', '')
+    #    p = db.query(Person).filter(Person.email == email).first()
+     #   if not p:
+      #      flash('No user with that email.')
+       #     return redirect(url_for('login'))
+       # if not p.password_hash:
+       #     # first-time set
+       #     p.password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+       #     db.commit()
+      #  if bcrypt.checkpw(password.encode(), p.password_hash.encode()):
+     #       login_user(User(p))
+#            flash('Logged in.')
+  #          return redirect(url_for('me'))
+  #      flash('Invalid password.')
+  #      return redirect(url_for('login'))
+  #  return render_template('login.html')
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     db = SessionLocal()
     if request.method == 'POST':
-        email = request.form.get('email', '').strip().lower()
-        password = request.form.get('password', '')
-        p = db.query(Person).filter(Person.email == email).first()
-        if not p:
-            flash('No user with that email.')
+        try:
+            email = request.form.get('email','').strip().lower()
+            password = request.form.get('password','')
+            p = db.query(Person).filter(Person.email==email).first()
+            if not p:
+                flash('No user with that email.')
+                return redirect(url_for('login'))
+            if not p.password_hash:
+                p.password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+                db.commit()
+            if bcrypt.checkpw(password.encode(), p.password_hash.encode()):
+                login_user(User(p))
+                flash('Logged in.')
+                return redirect(url_for('me'))
+            flash('Invalid password.')
             return redirect(url_for('login'))
-        if not p.password_hash:
-            # first-time set
-            p.password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
-            db.commit()
-        if bcrypt.checkpw(password.encode(), p.password_hash.encode()):
-            login_user(User(p))
-            flash('Logged in.')
-            return redirect(url_for('me'))
-        flash('Invalid password.')
-        return redirect(url_for('login'))
+        except Exception as e:
+            app.logger.exception("Login failed")
+            # TEMP: show the exception so we see it in the browser while debugging
+            return f"Login error: {type(e).__name__}: {e}", 500
     return render_template('login.html')
-
 
 @app.route('/logout')
 @login_required
