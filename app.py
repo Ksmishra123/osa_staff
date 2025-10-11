@@ -233,6 +233,41 @@ def admin_assign(eid):
     }
     return render_template('assign.html', ev=ev, people=people, positions=positions, current=current_map)
 
+@app.route('/admin/people')
+@login_required
+def admin_people():
+    if not is_admin(): abort(403)
+    db = SessionLocal()
+    people = db.query(Person).order_by(Person.name.asc()).all()
+    return render_template('people.html', people=people)
+
+@app.route('/admin/people/new', methods=['GET', 'POST'])
+@login_required
+def admin_new_person():
+    if not is_admin(): abort(403)
+    if request.method == 'POST':
+        name = request.form.get('name','').strip()
+        email = request.form.get('email','').strip().lower()
+        phone = request.form.get('phone','').strip()
+        address = request.form.get('address','').strip()
+
+        errors = []
+        if not name: errors.append("Name is required.")
+        if not email: errors.append("Email is required.")
+        if errors:
+            for e in errors: flash(e)
+            return render_template('new_person.html')
+
+        import bcrypt
+        db = SessionLocal()
+        # default password = changeme (user can change later)
+        pwd_hash = bcrypt.hashpw(b'changeme', bcrypt.gensalt()).decode()
+        db.add(Person(name=name, email=email, phone=phone, address=address, password_hash=pwd_hash))
+        db.commit()
+        flash('Person created (initial password: changeme).')
+        return redirect(url_for('admin_people'))
+
+    return render_template('new_person.html')
 
 @app.route('/events/<int:eid>/call-sheet')
 @login_required

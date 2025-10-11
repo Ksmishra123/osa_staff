@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>New Person</h1>
+<form method="post" class="card">
+  <label>Name<br><input name="name" required></label>
+  <label>Email<br><input type="email" name="email" required></label>
+  <label>Phone<br><input name="phone"></label>
+  <label>Address<br><textarea name="address" rows="3"></textarea></label>
+  <button type="submit">Create</button>
+  <a href="{{ url_for('admin_people') }}" style="margin-left:8px;">Cancel</a>
+</form>
+{% endblock %}
+
