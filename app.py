@@ -37,8 +37,12 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 @app.route('/')
-def index(): return redirect(url_for('me')) if current_user.is_authenticated else redirect(url_for('login'))
-@app.route('/me'); @login_required
+def index(): 
+    if current_user.is_authenticated:
+        return redirect(url_for('me'))
+    return redirect(url_for('login'))
+@app.route('/me')
+@login_required
 def me():
     db=SessionLocal()
     rows=(db.query(Assignment).join(Event, Assignment.event_id==Event.id)
@@ -46,18 +50,21 @@ def me():
             .filter(Assignment.person_id==int(current_user.id))
             .order_by(Event.date.asc(), Position.display_order.asc()).all())
     return render_template('me.html', rows=rows)
-@app.route('/ack/<int:aid>', methods=['POST']); @login_required
+@app.route('/ack/<int:aid>', methods=['POST']
+@login_required
 def ack(aid):
     db=SessionLocal(); a=db.get(Assignment,aid)
     if not a or a.person_id!=int(current_user.id): abort(403)
     a.ack=True; db.commit(); flash('Acknowledged.'); return redirect(url_for('me'))
 def is_admin(): return current_user.is_authenticated and current_user.person.email==os.getenv('ADMIN_EMAIL','admin@example.com')
-@app.route('/admin/events'); @login_required
+@app.route('/admin/events')
+@login_required
 def admin_events():
     if not is_admin(): abort(403)
     db=SessionLocal(); evs=db.query(Event).order_by(Event.date.asc()).all()
     return render_template('events.html', events=evs)
-@app.route('/admin/events/<int:eid>/assign', methods=['GET','POST']); @login_required
+@app.route('/admin/events/<int:eid>/assign', methods=['GET','POST'])
+@login_required
 def admin_assign(eid):
     if not is_admin(): abort(403)
     db=SessionLocal(); ev=db.get(Event,eid)
@@ -71,7 +78,8 @@ def admin_assign(eid):
         db.commit(); flash('Assignments saved.'); return redirect(url_for('admin_events'))
     current={a.position_id:a.person_id for a in db.query(Assignment).filter(Assignment.event_id==eid).all()}
     return render_template('assign.html', ev=ev, people=people, positions=positions, current=current)
-@app.route('/events/<int:eid>/call-sheet'); @login_required
+@app.route('/events/<int:eid>/call-sheet')
+@login_required
 def call_sheet(eid):
     db=SessionLocal(); ev=db.get(Event,eid)
     rows=(db.query(Assignment).join(Position, Assignment.position_id==Position.id)
