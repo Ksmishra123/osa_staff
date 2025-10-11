@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>New Event</h1>
+
+<form method="post" class="card">
+  <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+    <label>City<span style="color:#c00">*</span><br>
+      <input type="text" name="city" required>
+    </label>
+
+    <label>Main Date/Time<span style="color:#c00">*</span><br>
+      <input type="datetime-local" name="date" required>
+    </label>
+
+    <label>Setup Start<br>
+      <input type="datetime-local" name="setup_start">
+    </label>
+
+    <label>Event Start<br>
+      <input type="datetime-local" name="event_start">
+    </label>
+
+    <label>Event End<br>
+      <input type="datetime-local" name="event_end">
+    </label>
+
+    <label>Venue (Address/Notes)<br>
+      <textarea name="venue" rows="3"></textarea>
+    </label>
+
+    <label>Hotel (Address/Notes)<br>
+      <textarea name="hotel" rows="3"></textarea>
+    </label>
+  </div>
+
+  <div style="margin-top:12px;">
+    <button type="submit">Create Event</button>
+    <a href="{{ url_for('admin_events') }}" style="margin-left:8px;">Cancel</a>
+  </div>
+</form>
+{% endblock %}
+

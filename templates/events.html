@@ -1,5 +1,11 @@
-{% extends 'base.html' %}{% block content %}
+{% extends 'base.html' %}
+{% block content %}
 <h1>Events (Admin)</h1>
+
+<p style="margin: 8px 0 16px;">
+  <a href="{{ url_for('admin_new_event') }}"><button type="button">+ New Event</button></a>
+</p>
+
 <table class='table'><thead><tr><th>Date</th><th>City</th><th>Setup</th><th>Start</th><th>End</th><th>Actions</th></tr></thead><tbody>
 {% for e in events %}
 <tr>

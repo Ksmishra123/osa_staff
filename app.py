@@ -132,6 +132,20 @@ def ack(aid):
     flash('Acknowledged.')
     return redirect(url_for('me'))
 
+def parse_dt(v: str):
+    """Accepts HTML datetime-local (YYYY-MM-DDTHH:MM) or 'YYYY-MM-DD HH:MM'. Empty -> None."""
+    if not v:
+        return None
+    v = v.strip()
+    try:
+        # from <input type="datetime-local">
+        if "T" in v:
+            return datetime.fromisoformat(v)
+        # fallback "YYYY-MM-DD HH:MM"
+        return datetime.strptime(v, "%Y-%m-%d %H:%M")
+    except Exception:
+        return None
+
 
 def is_admin():
     return (
@@ -148,6 +162,48 @@ def admin_events():
     db = SessionLocal()
     events = db.query(Event).order_by(Event.date.asc()).all()
     return render_template('events.html', events=events)
+@app.route('/admin/events/new', methods=['GET', 'POST'])
+@login_required
+def admin_new_event():
+    if not is_admin():
+        abort(403)
+
+    if request.method == 'POST':
+        city = request.form.get('city', '').strip()
+        date = parse_dt(request.form.get('date'))
+        setup_start = parse_dt(request.form.get('setup_start'))
+        event_start = parse_dt(request.form.get('event_start'))
+        event_end = parse_dt(request.form.get('event_end'))
+        venue = request.form.get('venue', '').strip()
+        hotel = request.form.get('hotel', '').strip()
+
+        errors = []
+        if not city:
+            errors.append("City is required.")
+        if not date:
+            errors.append("Date (main event date/time) is required.")
+
+        if errors:
+            for e in errors:
+                flash(e)
+            return render_template('new_event.html')
+
+        db = SessionLocal()
+        ev = Event(
+            city=city,
+            date=date,
+            setup_start=setup_start,
+            event_start=event_start,
+            event_end=event_end,
+            venue=venue,
+            hotel=hotel
+        )
+        db.add(ev)
+        db.commit()
+        flash('Event created.')
+        return redirect(url_for('admin_events'))
+
+    return render_template('new_event.html')
 
 
 @app.route('/admin/events/<int:eid>/assign', methods=['GET', 'POST'])
