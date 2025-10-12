@@ -11,16 +11,15 @@ from models import init_db, SessionLocal, Person, Event, Position, Assignment
 
 load_dotenv()
 
-@app.context_processor
-def inject_helpers():
-    return {"is_admin": is_admin}
-
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'dev-secret')
 init_db()
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
+@app.context_processor
+def inject_helpers():
+    return {"is_admin": is_admin}
 @app.context_processor
 def inject_now():
     return {'now': datetime.utcnow}
