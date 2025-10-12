@@ -1,19 +1,52 @@
 {% extends 'base.html' %}
 {% block content %}
 <h1>People (Admin)</h1>
-<p><a href="{{ url_for('admin_new_person') }}"><button type="button">+ New Person</button></a></p>
+
+<form method="get" action="{{ url_for('admin_people') }}" class="card" style="margin-bottom:12px; display:flex; gap:8px; align-items:center;">
+  <input type="text" name="q" placeholder="Search name, email, phone, airport…" value="{{ q or '' }}" style="flex:1;">
+  <button type="submit">Search</button>
+  {% if q %}
+    <a href="{{ url_for('admin_people') }}">Clear</a>
+  {% endif %}
+  <a href="{{ url_for('admin_new_person') }}" style="margin-left:auto;"><button type="button">+ New Person</button></a>
+</form>
+
 <table class="table">
-  <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Address</th></tr></thead>
+  <thead>
+    <tr>
+      <th>Headshot</th>
+      <th>Name</th>
+      <th>Email</th>
+      <th>Phone</th>
+      <th>Preferred Airport</th>
+      <th>Driving</th>
+      <th>Diet</th>
+      <th></th>
+    </tr>
+  </thead>
   <tbody>
     {% for p in people %}
-      <tr>
-        <td>{{ p.name }}</td>
-        <td>{{ p.email }}</td>
-        <td>{{ p.phone }}</td>
-        <td>{{ p.address }}</td>
-      </tr>
+    <tr>
+      <td>
+        {% if p.headshot_path %}
+          <img src="{{ p.headshot_path }}" alt="headshot" style="height:36px;">
+        {% endif %}
+      </td>
+      <td>{{ p.name }}</td>
+      <td>{{ p.email }}</td>
+      <td>{{ p.phone }}</td>
+      <td>{{ p.preferred_airport }}</td>
+      <td>
+        {% if p.willing_to_drive %}
+          {{ 'Own Car' if p.car_or_rental=='car' else ('Rental' if p.car_or_rental=='rental' else 'Yes') }}
+        {% else %}
+          No
+        {% endif %}
+      </td>
+      <td>{{ p.dietary_preference }}</td>
+      <td><a href="{{ url_for('admin_edit_person', pid=p.id) }}">View / Edit</a></td>
+    </tr>
     {% endfor %}
   </tbody>
 </table>
 {% endblock %}
-
