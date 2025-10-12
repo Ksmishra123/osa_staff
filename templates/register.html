@@ -1,12 +1,69 @@
 {% extends 'base.html' %}
 {% block content %}
 <h1>Create your account</h1>
-<form method="post" class="card" style="max-width:520px;">
-  <label>Name<br><input name="name" value="{{ name or '' }}" required></label>
-  <label>Email<br><input type="email" name="email" value="{{ email or '' }}" required></label>
-  <label>Password<br><input type="password" name="password" required></label>
-  <label>Confirm Password<br><input type="password" name="confirm" required></label>
-  <button type="submit">Create Account</button>
-  <a href="{{ url_for('login') }}" style="margin-left:8px;">Have an account? Log in</a>
+<form method="post" enctype="multipart/form-data" class="card" style="max-width:840px;">
+  <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
+
+    <label>Name<br>
+      <input name="name" value="{{ form.get('name','') }}" required>
+    </label>
+
+    <label>Email (login)<br>
+      <input type="email" name="email" value="{{ form.get('email','') }}" required>
+    </label>
+
+    <label>Password<br>
+      <input type="password" name="password" required>
+    </label>
+
+    <label>Confirm Password<br>
+      <input type="password" name="confirm" required>
+    </label>
+
+    <label>Phone Number<br>
+      <input name="phone" value="{{ form.get('phone','') }}">
+    </label>
+
+    <label>Date of Birth<br>
+      <input type="date" name="dob" value="{{ form.get('dob','') }}">
+    </label>
+
+    <label>Current Address<br>
+      <input name="address" value="{{ form.get('address','') }}">
+    </label>
+
+    <label>Preferred Airport<br>
+      <input name="preferred_airport" value="{{ form.get('preferred_airport','') }}">
+    </label>
+
+    <label>Willing to drive?<br>
+      <select name="willing_to_drive">
+        <option value="no" {% if form.get('willing_to_drive')=='no' %}selected{% endif %}>No</option>
+        <option value="yes" {% if form.get('willing_to_drive')=='yes' %}selected{% endif %}>Yes</option>
+      </select>
+    </label>
+
+    <label>If driving: Car or Rental?<br>
+      <select name="car_or_rental">
+        <option value="" {% if not form.get('car_or_rental') %}selected{% endif %}>—</option>
+        <option value="car" {% if form.get('car_or_rental')=='car' %}selected{% endif %}>Own Car</option>
+        <option value="rental" {% if form.get('car_or_rental')=='rental' %}selected{% endif %}>Rental Needed</option>
+      </select>
+    </label>
+
+    <label>Dietary Preference<br>
+      <input name="dietary_preference" value="{{ form.get('dietary_preference','') }}" placeholder="Vegetarian, Vegan, None, etc.">
+    </label>
+
+    <label>Headshot (png/jpg/jpeg/gif)<br>
+      <input type="file" name="headshot" accept=".png,.jpg,.jpeg,.gif">
+    </label>
+
+  </div>
+
+  <div style="margin-top:16px;">
+    <button type="submit">Create Account</button>
+    <a href="{{ url_for('login') }}" style="margin-left:8px;">Have an account? Log in</a>
+  </div>
 </form>
 {% endblock %}
