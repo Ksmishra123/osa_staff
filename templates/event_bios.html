@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>Print Bios — {{ ev.city }} ({{ ev.date.strftime('%Y-%m-%d') if ev.date else '' }})</h1>
+
+<form method="post" class="card">
+  <p>Select people to include, then click “Open Print View”.</p>
+  <table class="table">
+    <thead>
+      <tr>
+        <th style="width:40px;"></th>
+        <th>Name</th>
+        <th>Email</th>
+        <th>Phone</th>
+        <th>Preferred Airport</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in people %}
+      <tr>
+        <td><input type="checkbox" name="person_id" value="{{ p.id }}"></td>
+        <td>{{ p.name }}</td>
+        <td>{{ p.email }}</td>
+        <td>{{ p.phone }}</td>
+        <td>{{ p.preferred_airport }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div style="display:flex; gap:8px;">
+    <button type="submit">Open Print View</button>
+    <a href="{{ url_for('admin_events') }}">Back to Events</a>
+  </div>
+</form>
+{% endblock %}
