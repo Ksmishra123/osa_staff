@@ -138,10 +138,8 @@ def parse_dt(v: str):
         return None
     v = v.strip()
     try:
-        # from <input type="datetime-local">
         if "T" in v:
             return datetime.fromisoformat(v)
-        # fallback "YYYY-MM-DD HH:MM"
         return datetime.strptime(v, "%Y-%m-%d %H:%M")
     except Exception:
         return None
@@ -205,33 +203,46 @@ def admin_new_event():
 
     return render_template('new_event.html')
 
-
 @app.route('/admin/events/<int:eid>/assign', methods=['GET', 'POST'])
 @login_required
 def admin_assign(eid):
     if not is_admin():
         abort(403)
+
     db = SessionLocal()
     ev = db.get(Event, eid)
     people = db.query(Person).order_by(Person.name.asc()).all()
     positions = db.query(Position).order_by(Position.display_order.asc()).all()
 
     if request.method == 'POST':
-        # clear and re-add assignments for this event
+        # Clear existing assignments for this event, then re-add with transport fields
         db.query(Assignment).filter(Assignment.event_id == eid).delete()
+
         for p in positions:
             pid = request.form.get(f'pos_{p.id}')
-            if pid:
-                db.add(Assignment(event_id=eid, position_id=p.id, person_id=int(pid)))
+            if not pid:
+                continue
+            a = Assignment(
+                event_id=eid,
+                position_id=p.id,
+                person_id=int(pid),
+                transport_mode=request.form.get(f'pos_{p.id}_mode') or None,
+                transport_booking=request.form.get(f'pos_{p.id}_booking') or None,
+                arrival_ts=parse_dt(request.form.get(f'pos_{p.id}_arrival') or ""),
+                transport_notes=request.form.get(f'pos_{p.id}_notes') or None,
+            )
+            db.add(a)
+
         db.commit()
-        flash('Assignments saved.')
+        flash('Assignments saved (including transportation).')
         return redirect(url_for('admin_events'))
 
-    current_map = {
-        a.position_id: a.person_id
+    # Prefill current assignments + transport
+    currents = {
+        a.position_id: a
         for a in db.query(Assignment).filter(Assignment.event_id == eid).all()
     }
-    return render_template('assign.html', ev=ev, people=people, positions=positions, current=current_map)
+    return render_template('assign.html', ev=ev, people=people, positions=positions, current=currents)
 
 @app.route('/admin/people')
 @login_required
