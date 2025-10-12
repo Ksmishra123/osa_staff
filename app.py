@@ -18,9 +18,6 @@ login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
 @app.context_processor
-def inject_helpers():
-    return {"is_admin": is_admin}
-@app.context_processor
 def inject_now():
     return {'now': datetime.utcnow}
 
