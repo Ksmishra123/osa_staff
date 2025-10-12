@@ -2,61 +2,38 @@
 {% block content %}
 
 <style>
-/* Print-friendly call sheet */
 @media print {
-  body {
-    font-family: Arial, sans-serif;
-    color: #000;
+  @page {
+    size: A4;
+    margin: 1in;
   }
-  header, footer, button, a.btn {
-    display: none !important;
+  @page {
+    @top-center { content: "On Stage America - Call Sheet | {{ ev.city }}"; }
+    @bottom-center { content: "© On Stage America {{ now().year }} — Page " counter(page) " of " counter(pages); }
   }
-  table {
-    page-break-inside: avoid;
-  }
+  header, footer, button, .btn, .noprint { display: none !important; }
+  table { page-break-inside: avoid; }
 }
 
-.call-header {
-  text-align: center;
-  margin-bottom: 20px;
-}
+/* Screen styles */
+.call-header { text-align:center; margin-bottom:20px; }
+.call-header img { height:90px; margin-bottom:10px; }
+.call-header h1 { margin:0; font-size:26px; letter-spacing:.5px; font-weight:700; color:#333; }
+.call-details { text-align:center; font-size:15px; margin-bottom:25px; line-height:1.6; }
 
-.call-header img {
-  height: 80px;
-  margin-bottom: 10px;
-}
+.call-table { width:100%; border-collapse:collapse; margin-bottom:24px; }
+.call-table th, .call-table td { border:1px solid #ccc; padding:10px; }
+.call-table th { background:#f4f4f4; text-align:left; font-weight:bold; }
 
-.call-header h1 {
-  margin: 0;
-  font-size: 24px;
-  letter-spacing: 0.5px;
-}
+.section-title { margin:24px 0 8px; font-weight:700; }
 
-.call-details {
-  text-align: center;
-  font-size: 14px;
-  margin-bottom: 20px;
-}
-
-.call-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.call-table th, .call-table td {
-  border: 1px solid #ddd;
-  padding: 8px;
-}
-
-.call-table th {
-  background-color: #f4f4f4;
-  text-align: left;
-}
+.print-btn { display:inline-block; background:#d41d1d; color:#fff; padding:10px 18px; border:none; border-radius:5px; text-decoration:none; cursor:pointer; }
+.print-btn:hover { background:#b91515; }
 </style>
 
 <div class="call-header">
   <img src="{{ url_for('static', filename='OSA_Logo_Silver_Gold.png') }}" alt="On Stage America Logo">
-  <h1>On Stage America - Event Call Sheet</h1>
+  <h1>Event Call Sheet</h1>
 </div>
 
 <div class="call-details">
@@ -64,10 +41,12 @@
   <strong>Date:</strong> {{ ev.date.strftime('%B %d, %Y %I:%M %p') if ev.date else '' }}<br>
   {% if ev.venue %}<strong>Venue:</strong> {{ ev.venue }}<br>{% endif %}
   {% if ev.hotel %}<strong>Hotel:</strong> {{ ev.hotel }}<br>{% endif %}
-  {% if ev.event_start %}<strong>Start Time:</strong> {{ ev.event_start.strftime('%I:%M %p') }}{% endif %}
-  {% if ev.event_end %} &nbsp; | &nbsp; <strong>End Time:</strong> {{ ev.event_end.strftime('%I:%M %p') }}{% endif %}
+  {% if ev.event_start %}<strong>Start:</strong> {{ ev.event_start.strftime('%I:%M %p') }}{% endif %}
+  {% if ev.event_end %} &nbsp; | &nbsp; <strong>End:</strong> {{ ev.event_end.strftime('%I:%M %p') }}{% endif %}
 </div>
 
+<!-- Staff assignments -->
+<h2 class="section-title">Staffing</h2>
 <table class="call-table">
   <thead>
     <tr>
@@ -75,6 +54,7 @@
       <th>Name</th>
       <th>Phone</th>
       <th>Email</th>
+      <th>Ack</th>
     </tr>
   </thead>
   <tbody>
@@ -84,14 +64,39 @@
       <td>{{ a.person.name if a.person else '' }}</td>
       <td>{{ a.person.phone if a.person else '' }}</td>
       <td>{{ a.person.email if a.person else '' }}</td>
+      <td>{{ 'Yes' if a.ack else 'No' }}</td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
 
-<div style="text-align:center; margin-top:20px;">
-  <button onclick="window.print()" class="btn">🖨️ Print Call Sheet</button>
+<!-- Transportation details -->
+<h2 class="section-title">Transportation</h2>
+<table class="call-table">
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Mode</th>
+      <th>Flight / Booking</th>
+      <th>Arrival</th>
+      <th>Notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for a in rows %}
+    <tr>
+      <td>{{ a.person.name if a.person else '' }}</td>
+      <td>{{ a.transport_mode or '' }}</td>
+      <td>{{ a.transport_booking or '' }}</td>
+      <td>{% if a.arrival_ts %}{{ a.arrival_ts.strftime('%b %d, %Y %I:%M %p') }}{% endif %}</td>
+      <td>{{ a.transport_notes or '' }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<div style="text-align:center; margin-top:30px;" class="noprint">
+  <button onclick="window.print()" class="print-btn">🖨️ Print Call Sheet</button>
 </div>
 
 {% endblock %}
-
