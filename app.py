@@ -250,7 +250,7 @@ def account_profile():
         # Basic fields
         p.name = form.get('name','').strip() or p.name
         new_email = form.get('email','').strip().lower()
-        p.phone = form.get('phone','').strip()
+        p.phone = normalize_phone(form.get('phone',''))
         p.address = form.get('address','').strip()
         p.preferred_airport = form.get('preferred_airport','').strip()
         p.willing_to_drive = (form.get('willing_to_drive') == 'yes')
@@ -512,7 +512,7 @@ def admin_edit_person(pid):
         # Basic fields
         new_name = form.get('name','').strip()
         new_email = form.get('email','').strip().lower()
-        p.phone = form.get('phone','').strip()
+        p.phone = normalize_phone(form.get('phone',''))
         p.address = form.get('address','').strip()
         p.preferred_airport = form.get('preferred_airport','').strip()
         p.willing_to_drive = (form.get('willing_to_drive') == 'yes')
