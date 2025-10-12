@@ -1,16 +1,53 @@
-{% extends 'base.html' %}{% block content %}
-<h1>Assign Staff — {{ ev.city }} ({{ ev.date.strftime('%Y-%m-%d') }})</h1>
-<form method='post' class='card'>
-<table class='table'><thead><tr><th>Position</th><th>Person</th></tr></thead><tbody>
-{% for p in positions %}
-<tr><td>{{ p.name }}</td><td>
-<select name='pos_{{ p.id }}'><option value=''>— Unassigned —</option>
-{% for person in people %}
-<option value='{{ person.id }}' {% if current.get(p.id)==person.id %}selected{% endif %}>{{ person.name }}</option>
-{% endfor %}
-</select></td></tr>
-{% endfor %}
-</tbody></table>
-<button type='submit'>Save Assignments</button>
+{% extends 'base.html' %}
+{% block content %}
+<h1>Assign Staff — {{ ev.city }} ({{ ev.date.strftime('%Y-%m-%d') if ev.date else '' }})</h1>
+
+<form method="post" class="card">
+  <table class="table">
+    <thead>
+      <tr>
+        <th style="width:200px;">Position</th>
+        <th style="width:240px;">Person</th>
+        <th style="width:140px;">Transport Mode</th>
+        <th style="width:160px;">Flight / Booking</th>
+        <th style="width:200px;">Arrival (local)</th>
+        <th>Notes</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in positions %}
+      {% set cur = current.get(p.id) %}
+      <tr>
+        <td>{{ p.name }}</td>
+        <td>
+          <select name="pos_{{ p.id }}">
+            <option value="">— Unassigned —</option>
+            {% for person in people %}
+              <option value="{{ person.id }}" {% if cur and cur.person_id==person.id %}selected{% endif %}>{{ person.name }}</option>
+            {% endfor %}
+          </select>
+        </td>
+        <td>
+          <input name="pos_{{ p.id }}_mode" placeholder="Flight / Drive / Train"
+                 value="{{ cur.transport_mode if cur and cur.transport_mode else '' }}">
+        </td>
+        <td>
+          <input name="pos_{{ p.id }}_booking" placeholder="AA123 / PNR / etc."
+                 value="{{ cur.transport_booking if cur and cur.transport_booking else '' }}">
+        </td>
+        <td>
+          <input type="datetime-local" name="pos_{{ p.id }}_arrival"
+                 value="{% if cur and cur.arrival_ts %}{{ cur.arrival_ts.strftime('%Y-%m-%dT%H:%M') }}{% endif %}">
+        </td>
+        <td>
+          <input name="pos_{{ p.id }}_notes" placeholder="Pickup at 2pm / baggage / etc."
+                 value="{{ cur.transport_notes if cur and cur.transport_notes else '' }}">
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <button type="submit">Save Assignments</button>
 </form>
 {% endblock %}
