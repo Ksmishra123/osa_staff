@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<style>
+@media print {
+  @page { size: A4; margin: 1in; }
+  @page { 
+    @top-center { content: "On Stage America — Staff Bios | {{ ev.city }}"; }
+    @bottom-center { content: "© On Stage America {{ now().year }} — Page " counter(page) " of " counter(pages); }
+  }
+  header, nav, .noprint { display:none !important; }
+}
+.bio-header { text-align:center; margin-bottom:20px; }
+.bio-header img { height:90px; margin-bottom:10px; }
+.bio-header h1 { margin:0; font-size:26px; font-weight:700; color:#333; }
+.person-card { page-break-inside: avoid; border:1px solid #ddd; padding:14px; border-radius:8px; margin:12px 0; }
+.person-flex { display:flex; gap:16px; align-items:flex-start; }
+.person-flex img { height:110px; width:110px; object-fit:cover; border-radius:6px; border:1px solid #ccc; }
+.person-info h2 { margin:0 0 6px 0; }
+.meta { font-size:14px; color:#333; margin-bottom:8px; }
+.bio { white-space:pre-wrap; line-height:1.5; }
+</style>
+
+<div class="bio-header">
+  <img src="{{ url_for('static', filename='OSA_Logo_Silver_Gold.png') }}" alt="On Stage America Logo">
+  <h1>Staff Bios</h1>
+  <div>{{ ev.city }}{% if ev.date %} — {{ ev.date.strftime('%B %d, %Y') }}{% endif %}</div>
+</div>
+
+{% for p in people %}
+  <div class="person-card">
+    <div class="person-flex">
+      {% if p.headshot_path %}
+        <img src="{{ p.headshot_path }}" alt="headshot">
+      {% endif %}
+      <div class="person-info">
+        <h2>{{ p.name }}</h2>
+        <div class="meta">
+          {% if p.phone %}<strong>Phone:</strong> {{ p.phone }} &nbsp; {% endif %}
+          {% if p.email %}<strong>Email:</strong> {{ p.email }} &nbsp; {% endif %}
+          {% if p.preferred_airport %}<strong>Airport:</strong> {{ p.preferred_airport }}{% endif %}
+        </div>
+        <div class="bio">{{ p.bio or '—' }}</div>
+      </div>
+    </div>
+  </div>
+{% endfor %}
+
+<div class="noprint" style="text-align:center; margin-top:20px;">
+  <button onclick="window.print()">🖨️ Print</button>
+  <a href="{{ url_for('admin_event_bios', eid=ev.id) }}" style="margin-left:8px;">Back</a>
+</div>
+
+{% endblock %}
