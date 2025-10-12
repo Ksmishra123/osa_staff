@@ -56,6 +56,10 @@ def load_user(user_id):
 @app.teardown_appcontext
 def remove_session(exc=None):
     SessionLocal.remove()
+@app.context_processor
+def inject_nav_flags():
+    # exposes a boolean you can use in templates
+    return {"has_register": 'register' in app.view_functions}
 
 # -----------------------------------------------------------------------------
 # Helpers
