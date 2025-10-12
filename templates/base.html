@@ -24,8 +24,11 @@
     <nav>
       {% if current_user.is_authenticated %}
         <a href='{{ url_for('me') }}'>My Assignments</a>
+        <a href='{{ url_for('account_profile') }}'>My Profile</a>
+        <a href='{{ url_for('change_password') }}'>Change Password</a>
         {% if is_admin() %}
           <a href='{{ url_for('admin_events') }}'>Admin</a>
+          <a href='{{ url_for('admin_people') }}'>People</a>
         {% endif %}
         <a href='{{ url_for('logout') }}'>Logout</a>
       {% else %}
