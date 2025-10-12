@@ -221,6 +221,82 @@ def register():
         return redirect(url_for('me'))
 
     return render_template('register.html', form={})
+# -----------------------------------------------------------------------------
+# Update Profile
+# -----------------------------------------------------------------------------
+
+@app.route('/account/profile', methods=['GET', 'POST'])
+@login_required
+def account_profile():
+    db = SessionLocal()
+    p = db.get(Person, int(current_user.id))
+    if not p:
+        abort(404)
+
+    if request.method == 'POST':
+        form = request.form
+
+        # Basic fields
+        p.name = form.get('name','').strip() or p.name
+        new_email = form.get('email','').strip().lower()
+        p.phone = form.get('phone','').strip()
+        p.address = form.get('address','').strip()
+        p.preferred_airport = form.get('preferred_airport','').strip()
+        p.willing_to_drive = (form.get('willing_to_drive') == 'yes')
+        p.car_or_rental = form.get('car_or_rental','').strip() if p.willing_to_drive else None
+        p.dietary_preference = form.get('dietary_preference','').strip()
+
+        # DOB
+        dob_str = form.get('dob','').strip()
+        if dob_str:
+            try:
+                p.dob = datetime.strptime(dob_str, "%Y-%m-%d").date()
+            except Exception:
+                flash("Could not parse Date of Birth (use YYYY-MM-DD).")
+
+        # Email change (ensure uniqueness)
+        if new_email and new_email != p.email:
+            if db.query(Person).filter(Person.email == new_email).first():
+                flash("That email is already in use by another account.")
+                return render_template('profile.html', person=p)
+            p.email = new_email
+
+        # Headshot removal
+        if form.get('remove_headshot') == 'on' and p.headshot_path:
+            try:
+                old_fn = p.headshot_path.split('/')[-1]
+                old_abs = os.path.join(UPLOAD_DIR, old_fn)
+                if os.path.exists(old_abs):
+                    os.remove(old_abs)
+            except Exception:
+                pass
+            p.headshot_path = None
+
+        # New headshot upload
+        file = request.files.get('headshot')
+        if file and file.filename:
+            if not allowed_headshot(file.filename):
+                flash("Headshot must be an image (png, jpg, jpeg, gif).")
+                return render_template('profile.html', person=p)
+            # remove old file if present
+            if p.headshot_path:
+                try:
+                    old_fn = p.headshot_path.split('/')[-1]
+                    old_abs = os.path.join(UPLOAD_DIR, old_fn)
+                    if os.path.exists(old_abs):
+                        os.remove(old_abs)
+                except Exception:
+                    pass
+            fname = secure_filename(f"{int(datetime.utcnow().timestamp())}_{file.filename}")
+            file.save(os.path.join(UPLOAD_DIR, fname))
+            p.headshot_path = f"/uploads/{fname}"
+
+        db.commit()
+        flash("Profile updated.")
+        return redirect(url_for('account_profile'))
+
+    # GET
+    return render_template('profile.html', person=p)
 
 # -----------------------------------------------------------------------------
 # Change password
