@@ -17,6 +17,9 @@ init_db()
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
+@app.context_processor
+def inject_now():
+    return {'now': datetime.utcnow}
 
 class User(UserMixin):
     def __init__(self, person):
