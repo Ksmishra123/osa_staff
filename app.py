@@ -268,6 +268,39 @@ def admin_new_person():
         return redirect(url_for('admin_people'))
 
     return render_template('new_person.html')
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    db = SessionLocal()
+    if request.method == 'POST':
+        name = request.form.get('name', '').strip()
+        email = request.form.get('email', '').strip().lower()
+        password = request.form.get('password', '')
+        confirm  = request.form.get('confirm', '')
+
+        # Basic validation
+        errors = []
+        if not name: errors.append("Name is required.")
+        if not email: errors.append("Email is required.")
+        if not password: errors.append("Password is required.")
+        if password != confirm: errors.append("Passwords do not match.")
+        if db.query(Person).filter(Person.email == email).first():
+            errors.append("An account with that email already exists. Try logging in.")
+
+        if errors:
+            for e in errors: flash(e)
+            return render_template('register.html', name=name, email=email)
+
+        # Create new user
+        phash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+        person = Person(name=name, email=email, password_hash=phash)
+        db.add(person); db.commit()
+
+        # Auto-login
+        login_user(User(person))
+        flash('Account created. Welcome!')
+        return redirect(url_for('me'))
+
+    return render_template('register.html')
 
 @app.route('/events/<int:eid>/call-sheet')
 @login_required
