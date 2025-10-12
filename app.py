@@ -1,5 +1,6 @@
 import os
 import bcrypt
+import re
 from datetime import datetime, date
 from flask import (
     Flask, render_template, redirect, url_for, request, flash, abort,
@@ -34,6 +35,16 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 def allowed_headshot(filename: str) -> bool:
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_HEADSHOT_EXTS
+
+def normalize_phone(raw: str) -> str:
+    """Normalize any phone input to (XXX) XXX-XXXX if 10 digits."""
+    if not raw:
+        return None
+    digits = re.sub(r"\D", "", raw)  # strip non-digits
+    if len(digits) == 10:
+        return f"({digits[:3]}) {digits[3:6]}-{digits[6:]}"
+    return raw.strip()
+
 
 # -----------------------------------------------------------------------------
 # Auth setup
