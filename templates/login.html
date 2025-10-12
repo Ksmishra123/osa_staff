@@ -5,5 +5,8 @@
 <label>Password<br><input type='password' name='password' required></label>
 <button type='submit'>Login</button>
 </form>
-<p class='hint'>First login sets your password (demo).</p>
+<p class="hint">
+  First login sets your password (if an admin pre-added you), or
+  <a href="{{ url_for('register') }}">create a new account</a>.
+</p>
 {% endblock %}
