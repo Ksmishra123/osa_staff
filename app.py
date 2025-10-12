@@ -477,6 +477,48 @@ def admin_assign(eid):
         for a in db.query(Assignment).filter(Assignment.event_id == eid).all()
     }
     return render_template('assign.html', ev=ev, people=people, positions=positions, current=currents)
+from sqlalchemy.orm import joinedload
+
+@app.route('/admin/events/<int:eid>/bios', methods=['GET', 'POST'])
+@login_required
+def admin_event_bios(eid):
+    if not is_admin():
+        abort(403)
+    db = SessionLocal()
+    ev = db.get(Event, eid)
+    if not ev:
+        abort(404)
+
+    # People assigned to this event
+    assigns = (
+        db.query(Assignment)
+          .options(joinedload(Assignment.person), joinedload(Assignment.position))
+          .filter(Assignment.event_id == eid)
+          .order_by(Position.display_order.asc())
+          .all()
+    )
+    # De-dupe people (same person may hold multiple positions)
+    people_map = {}
+    for a in assigns:
+        if a.person:
+            people_map[a.person.id] = a.person
+    people = sorted(people_map.values(), key=lambda p: (p.name or '').lower())
+
+    if request.method == 'POST':
+        ids = request.form.getlist('person_id')
+        if not ids:
+            flash("Select at least one person to print bios.")
+            return render_template('event_bios.html', ev=ev, people=people)
+        # Load selected people in original order as submitted
+        id_ints = [int(i) for i in ids]
+        selected = db.query(Person).filter(Person.id.in_(id_ints)).all()
+        # preserve checkbox order
+        selected_by_id = {p.id: p for p in selected}
+        ordered = [selected_by_id[i] for i in id_ints if i in selected_by_id]
+        return render_template('bios_print.html', ev=ev, people=ordered)
+
+    # GET: show selector
+    return render_template('event_bios.html', ev=ev, people=people)
 
 # -----------------------------------------------------------------------------
 # Admin: People
