@@ -29,6 +29,7 @@ class Person(Base):
     willing_to_drive = Column(Boolean, default=False)
     car_or_rental = Column(String(10), nullable=True)       # "car" or "rental"
     dietary_preference = Column(String(100), nullable=True)
+    bio = Column(Text, nullable=True)
     headshot_path = Column(String(255), nullable=True)      # /uploads/<filename>
     password_hash=Column(String, default='')
     assignments=relationship('Assignment', back_populates='person', cascade='all,delete')
