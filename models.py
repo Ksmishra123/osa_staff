@@ -15,8 +15,14 @@ def init_db():
 class Person(Base):
     __tablename__='people'
     id=Column(Integer, primary_key=True); name=Column(String, nullable=False)
-    address=Column(Text); phone=Column(String)
     email=Column(String, unique=True, nullable=False)
+    dob = Column(Date, nullable=True)                       # date of birth
+    address = Column(String(255), nullable=True)
+    preferred_airport = Column(String(50), nullable=True)
+    willing_to_drive = Column(Boolean, default=False)
+    car_or_rental = Column(String(10), nullable=True)       # "car" or "rental"
+    dietary_preference = Column(String(100), nullable=True)
+    headshot_path = Column(String(255), nullable=True)      # /uploads/<filename>
     password_hash=Column(String, default='')
     assignments=relationship('Assignment', back_populates='person', cascade='all,delete')
 class Position(Base):
