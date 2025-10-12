@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>Edit Person</h1>
+
+<form method="post" enctype="multipart/form-data" class="card" style="max-width:900px;">
+  <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
+
+    <label>Name<br>
+      <input name="name" value="{{ person.name or '' }}" required>
+    </label>
+
+    <label>Email (login)<br>
+      <input type="email" name="email" value="{{ person.email or '' }}" required>
+    </label>
+
+    <label>Phone Number<br>
+      <input name="phone" value="{{ person.phone or '' }}">
+    </label>
+
+    <label>Date of Birth<br>
+      <input type="date" name="dob" value="{{ person.dob.strftime('%Y-%m-%d') if person.dob else '' }}">
+    </label>
+
+    <label>Current Address<br>
+      <input name="address" value="{{ person.address or '' }}">
+    </label>
+
+    <label>Preferred Airport<br>
+      <input name="preferred_airport" value="{{ person.preferred_airport or '' }}">
+    </label>
+
+    <label>Willing to drive?<br>
+      <select name="willing_to_drive">
+        <option value="no" {% if not person.willing_to_drive %}selected{% endif %}>No</option>
+        <option value="yes" {% if person.willing_to_drive %}selected{% endif %}>Yes</option>
+      </select>
+    </label>
+
+    <label>If driving: Car or Rental?<br>
+      <select name="car_or_rental">
+        <option value="" {% if not person.car_or_rental %}selected{% endif %}>—</option>
+        <option value="car" {% if person.car_or_rental=='car' %}selected{% endif %}>Own Car</option>
+        <option value="rental" {% if person.car_or_rental=='rental' %}selected{% endif %}>Rental Needed</option>
+      </select>
+    </label>
+
+    <label>Dietary Preference<br>
+      <input name="dietary_preference" value="{{ person.dietary_preference or '' }}" placeholder="Vegetarian, Vegan, None, etc.">
+    </label>
+
+    <div>
+      <label>Headshot (png/jpg/jpeg/gif)<br>
+        <input type="file" name="headshot" accept=".png,.jpg,.jpeg,.gif">
+      </label>
+      {% if person.headshot_path %}
+        <div style="margin-top:8px;">
+          <img src="{{ person.headshot_path }}" alt="headshot" style="height:80px; vertical-align:middle; margin-right:8px;">
+          <label style="display:inline-flex; align-items:center; gap:6px;">
+            <input type="checkbox" name="remove_headshot"> Remove current headshot
+          </label>
+        </div>
+      {% endif %}
+    </div>
+
+  </div>
+
+  <div style="margin-top:16px; display:flex; gap:12px; align-items:center;">
+    <button type="submit">Save Changes</button>
+    <a href="{{ url_for('admin_people') }}">Back to People</a>
+
+    <label style="margin-left:auto; display:inline-flex; gap:6px; align-items:center;">
+      <input type="checkbox" name="reset_password">
+      Reset password to <code>changeme</code>
+    </label>
+  </div>
+</form>
+
+{% endblock %}
