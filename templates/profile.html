@@ -58,6 +58,10 @@
           <label style="display:inline-flex; align-items:center; gap:6px;">
             <input type="checkbox" name="remove_headshot"> Remove current headshot
           </label>
+          <label>Bio (short professional bio)<br>
+                <textarea name="bio" rows="5" placeholder="Emcee/Judge with 10+ years, specialties, awards, etc.">{{ person.bio or '' }}</textarea>
+          </label>
+
         </div>
       {% endif %}
     </div>
