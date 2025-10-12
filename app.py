@@ -257,6 +257,7 @@ def account_profile():
         p.willing_to_drive = (form.get('willing_to_drive') == 'yes')
         p.car_or_rental = form.get('car_or_rental','').strip() if p.willing_to_drive else None
         p.dietary_preference = form.get('dietary_preference','').strip()
+        p.bio = form.get('bio','').strip()
 
         # DOB
         dob_str = form.get('dob','').strip()
@@ -521,6 +522,7 @@ def admin_edit_person(pid):
         p.willing_to_drive = (form.get('willing_to_drive') == 'yes')
         p.car_or_rental = form.get('car_or_rental','').strip() if p.willing_to_drive else None
         p.dietary_preference = form.get('dietary_preference','').strip()
+        p.bio = form.get('bio','').strip()
 
         # DOB
         dob_str = form.get('dob','').strip()
