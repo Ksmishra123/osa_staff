@@ -1,6 +1,13 @@
 import os
 from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, Boolean, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker, scoped_session
+# near the top of models.py
+from sqlalchemy import (
+    create_engine, Column, Integer, String, Boolean, DateTime,
+    ForeignKey, Text, Date   # ← add Date (and Text if not present)
+)
+from sqlalchemy.orm import relationship, sessionmaker, scoped_session, declarative_base
+
 Base = declarative_base()
 SessionLocal = scoped_session(sessionmaker(autocommit=False, autoflush=False))
 def get_engine():
