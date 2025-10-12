@@ -307,12 +307,24 @@ def register():
 def call_sheet(eid):
     db = SessionLocal()
     ev = db.get(Event, eid)
+    if not ev:
+        abort(404)
+
+    # Allow if admin or the current user is assigned to this event
+    allowed = is_admin() or db.query(Assignment).filter(
+        Assignment.event_id == eid,
+        Assignment.person_id == int(current_user.id)
+    ).count() > 0
+
+    if not allowed:
+        abort(403)
+
     rows = (
         db.query(Assignment)
-        .join(Position, Assignment.position_id == Position.id)
-        .filter(Assignment.event_id == eid)
-        .order_by(Position.display_order.asc())
-        .all()
+          .join(Position, Assignment.position_id == Position.id)
+          .filter(Assignment.event_id == eid)
+          .order_by(Position.display_order.asc())
+          .all()
     )
     return render_template('call_sheet.html', ev=ev, rows=rows)
 
