@@ -14,7 +14,8 @@
 <td>{{ e.setup_start.strftime('%Y-%m-%d %H:%M') if e.setup_start else '' }}</td>
 <td>{{ e.event_start.strftime('%Y-%m-%d %H:%M') if e.event_start else '' }}</td>
 <td>{{ e.event_end.strftime('%Y-%m-%d %H:%M') if e.event_end else '' }}</td>
-<td><a href='{{ url_for('admin_assign', eid=e.id) }}'>Assign</a> | <a href='{{ url_for('call_sheet', eid=e.id) }}' target='_blank'>Call Sheet</a></td>
+<td><a href='{{ url_for('admin_assign', eid=e.id) }}'>Assign</a> | <a href='{{ url_for('call_sheet', eid=e.id) }}' target='_blank'>Call Sheet</a><a href="{{ url_for('admin_event_bios', eid=e.id) }}">Print Bios</a>
+</td>
 </tr>{% endfor %}
 </tbody></table>
 {% endblock %}
