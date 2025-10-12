@@ -1,6 +1,7 @@
 import os
 import bcrypt
 import re
+from sqlalchemy.orm import joinedload
 from datetime import datetime, date
 from flask import (
     Flask, render_template, redirect, url_for, request, flash, abort,
@@ -358,8 +359,10 @@ def me():
     db = SessionLocal()
     rows = (
         db.query(Assignment)
-        .join(Event, Assignment.event_id == Event.id)
-        .join(Position, Assignment.position_id == Position.id)
+        .options(
+            joinedload(Assignment.event),
+            joinedload(Assignment.position)
+        )
         .filter(Assignment.person_id == int(current_user.id))
         .order_by(Event.date.asc(), Position.display_order.asc())
         .all()
@@ -630,13 +633,15 @@ def call_sheet(eid):
         abort(403)
 
     rows = (
-        db.query(Assignment)
-          .join(Position, Assignment.position_id == Position.id)
-          .join(Person, Assignment.person_id == Person.id, isouter=True)
-          .filter(Assignment.event_id == eid)
-          .order_by(Position.display_order.asc())
-          .all()
-    )
+    db.query(Assignment)
+      .options(
+          joinedload(Assignment.person),
+          joinedload(Assignment.position)
+      )
+      .filter(Assignment.event_id == eid)
+      .order_by(Position.display_order.asc())
+      .all()
+)
     return render_template('call_sheet.html', ev=ev, rows=rows)
 
 # -----------------------------------------------------------------------------
