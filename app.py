@@ -472,8 +472,100 @@ def admin_people():
     if not is_admin():
         abort(403)
     db = SessionLocal()
-    people = db.query(Person).order_by(Person.name.asc()).all()
-    return render_template('people.html', people=people)
+    q = (request.args.get('q') or '').strip()
+    query = db.query(Person)
+    if q:
+        like = f"%{q}%"
+        # search by name, email, phone, preferred airport
+        query = query.filter(
+            (Person.name.ilike(like)) |
+            (Person.email.ilike(like)) |
+            (Person.phone.ilike(like)) |
+            (Person.preferred_airport.ilike(like))
+        )
+    people = query.order_by(Person.name.asc()).all()
+    return render_template('people.html', people=people, q=q)
+
+@app.route('/admin/people/<int:pid>', methods=['GET', 'POST'])
+@login_required
+def admin_edit_person(pid):
+    if not is_admin():
+        abort(403)
+    db = SessionLocal()
+    p = db.get(Person, pid)
+    if not p:
+        abort(404)
+
+    if request.method == 'POST':
+        form = request.form
+        # Basic fields
+        new_name = form.get('name','').strip()
+        new_email = form.get('email','').strip().lower()
+        p.phone = form.get('phone','').strip()
+        p.address = form.get('address','').strip()
+        p.preferred_airport = form.get('preferred_airport','').strip()
+        p.willing_to_drive = (form.get('willing_to_drive') == 'yes')
+        p.car_or_rental = form.get('car_or_rental','').strip() if p.willing_to_drive else None
+        p.dietary_preference = form.get('dietary_preference','').strip()
+
+        # DOB
+        dob_str = form.get('dob','').strip()
+        if dob_str:
+            try:
+                p.dob = datetime.strptime(dob_str, "%Y-%m-%d").date()
+            except Exception:
+                flash("Could not parse Date of Birth (use YYYY-MM-DD).")
+
+        # Name & email with uniqueness check
+        if new_name:
+            p.name = new_name
+        if new_email and new_email != p.email:
+            if db.query(Person).filter(Person.email == new_email, Person.id != p.id).first():
+                flash("That email is already in use by another account.")
+                return render_template('edit_person.html', person=p)
+            p.email = new_email
+
+        # Headshot removal
+        if form.get('remove_headshot') == 'on' and p.headshot_path:
+            try:
+                old_fn = p.headshot_path.split('/')[-1]
+                old_abs = os.path.join(UPLOAD_DIR, old_fn)
+                if os.path.exists(old_abs):
+                    os.remove(old_abs)
+            except Exception:
+                pass
+            p.headshot_path = None
+
+        # New headshot upload
+        file = request.files.get('headshot')
+        if file and file.filename:
+            if not allowed_headshot(file.filename):
+                flash("Headshot must be an image (png, jpg, jpeg, gif).")
+                return render_template('edit_person.html', person=p)
+            # remove old if exists
+            if p.headshot_path:
+                try:
+                    old_fn = p.headshot_path.split('/')[-1]
+                    old_abs = os.path.join(UPLOAD_DIR, old_fn)
+                    if os.path.exists(old_abs):
+                        os.remove(old_abs)
+                except Exception:
+                    pass
+            fname = secure_filename(f"{int(datetime.utcnow().timestamp())}_{file.filename}")
+            file.save(os.path.join(UPLOAD_DIR, fname))
+            p.headshot_path = f"/uploads/{fname}"
+
+        # Optional: reset password to 'changeme'
+        if form.get('reset_password') == 'on':
+            p.password_hash = bcrypt.hashpw(b'changeme', bcrypt.gensalt()).decode()
+            flash("Password reset to 'changeme'.")
+
+        db.commit()
+        flash("Person updated.")
+        return redirect(url_for('admin_edit_person', pid=p.id))
+
+    # GET
+    return render_template('edit_person.html', person=p)
 
 @app.route('/admin/people/new', methods=['GET', 'POST'])
 @login_required
