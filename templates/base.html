@@ -30,9 +30,10 @@
         <a href='{{ url_for('logout') }}'>Logout</a>
       {% else %}
         <a href='{{ url_for('login') }}'>Login</a>
-        {% if 'register' in current_app.view_functions %}
+       {% if has_register %}
           <a href='{{ url_for('register') }}'>Register</a>
-        {% endif %}
+       {% endif %}
+
       {% endif %}
     </nav>
   </header>
