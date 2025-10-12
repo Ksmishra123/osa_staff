@@ -1,19 +1,52 @@
-{% extends 'base.html' %}{% block content %}
+{% extends 'base.html' %}
+
+{% block content %}
 <h1>My Assignments</h1>
-{% if rows|length == 0 %}<p>No assignments yet.</p>
+
+{% if rows and rows|length > 0 %}
+<table class="table" style="width:100%; border-collapse:collapse;">
+  <thead>
+    <tr style="background:#f5f5f5;">
+      <th style="padding:8px;">Date</th>
+      <th style="padding:8px;">City</th>
+      <th style="padding:8px;">Position</th>
+      <th style="padding:8px;">Setup</th>
+      <th style="padding:8px;">Start</th>
+      <th style="padding:8px;">End</th>
+      <th style="padding:8px;">Acknowledged</th>
+      <th style="padding:8px;">Call Sheet</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for a in rows %}
+    <tr style="border-bottom:1px solid #ddd;">
+      <td style="padding:8px;">{{ a.event.date.strftime('%Y-%m-%d %H:%M') if a.event.date else '' }}</td>
+      <td style="padding:8px;">{{ a.event.city }}</td>
+      <td style="padding:8px;">{{ a.position.name }}</td>
+      <td style="padding:8px;">{{ a.event.setup_start.strftime('%Y-%m-%d %H:%M') if a.event.setup_start else '' }}</td>
+      <td style="padding:8px;">{{ a.event.event_start.strftime('%Y-%m-%d %H:%M') if a.event.event_start else '' }}</td>
+      <td style="padding:8px;">{{ a.event.event_end.strftime('%Y-%m-%d %H:%M') if a.event.event_end else '' }}</td>
+
+      <td style="padding:8px; text-align:center;">
+        {% if a.ack %}
+          ✅
+        {% else %}
+          <form method="post" action="{{ url_for('ack', aid=a.id) }}">
+            <button type="submit">Acknowledge</button>
+          </form>
+        {% endif %}
+      </td>
+
+      <td style="padding:8px; text-align:center;">
+        <a href="{{ url_for('call_sheet', eid=a.event_id) }}" target="_blank">Open</a>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
 {% else %}
-<table class='table'><thead><tr><th>Date</th><th>City</th><th>Position</th><th>Setup</th><th>Start</th><th>End</th><th>Ack</th></tr></thead><tbody>
-{% for a in rows %}
-<tr>
-<td>{{ a.event.date.strftime('%Y-%m-%d %H:%M') if a.event.date else '' }}</td>
-<td>{{ a.event.city }}</td>
-<td>{{ a.position.name }}</td>
-<td>{{ a.event.setup_start.strftime('%Y-%m-%d %H:%M') if a.event.setup_start else '' }}</td>
-<td>{{ a.event.event_start.strftime('%Y-%m-%d %H:%M') if a.event.event_start else '' }}</td>
-<td>{{ a.event.event_end.strftime('%Y-%m-%d %H:%M') if a.event.event_end else '' }}</td>
-<td>{% if a.ack %}✅{% else %}<form method='post' action='{{ url_for('ack', aid=a.id) }}'><button type='submit'>Acknowledge</button></form>{% endif %}</td>
-</tr>
-{% endfor %}
-</tbody></table>
+  <p>You don’t have any assignments yet.</p>
 {% endif %}
+
 {% endblock %}
