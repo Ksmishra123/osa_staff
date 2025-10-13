@@ -680,23 +680,20 @@ def admin_new_person():
 def call_sheet(eid):
     db = SessionLocal()
     ev = db.get(Event, eid)
-    if not ev:
-        abort(404)
+    if not ev: abort(404)
 
     allowed = is_admin() or db.query(Assignment).filter(
         Assignment.event_id == eid,
         Assignment.person_id == int(current_user.id)
     ).count() > 0
-    if not allowed:
-        abort(403)
+    if not allowed: abort(403)
 
     Pos = aliased(Position)
-
     rows = (
         db.query(Assignment)
           .join(Pos, Assignment.position_id == Pos.id)
           .options(
-              joinedload(Assignment.person),
+              joinedload(Assignment.person),     # <-- required
               joinedload(Assignment.position)
           )
           .filter(Assignment.event_id == eid)
