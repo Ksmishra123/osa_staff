@@ -37,14 +37,24 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 def allowed_headshot(filename: str) -> bool:
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_HEADSHOT_EXTS
 
-def normalize_phone(raw: str) -> str:
-    """Normalize any phone input to (XXX) XXX-XXXX if 10 digits."""
+def normalize_phone(raw: str) -> str | None:
+    """
+    Normalize to (XXX) XXX-XXXX.
+    Accepts digits with optional leading +1.
+    Returns None for empty input; returns original trimmed if not 10 or 11(+1) digits.
+    """
     if not raw:
         return None
-    digits = re.sub(r"\D", "", raw)  # strip non-digits
+    s = str(raw).strip()
+    digits = re.sub(r"\D", "", s)
+    # Strip leading country code 1
+    if len(digits) == 11 and digits.startswith("1"):
+        digits = digits[1:]
     if len(digits) == 10:
         return f"({digits[:3]}) {digits[3:6]}-{digits[6:]}"
-    return raw.strip()
+    # Fallback: keep as-is so we don't lose data
+    return s
+
 
 
 # -----------------------------------------------------------------------------
@@ -177,8 +187,7 @@ def register():
         email = form.get('email', '').strip().lower()
         password = form.get('password', '')
         confirm  = form.get('confirm', '')
-
-        phone = form.get('phone','').strip()
+        phone = normalize_phone(form.get('phone',''))
         address = form.get('address','').strip()
         preferred_airport = form.get('preferred_airport','').strip()
         willing_to_drive = form.get('willing_to_drive') == 'yes'
