@@ -20,19 +20,25 @@ def init_db():
     SessionLocal.configure(bind=engine)
     Base.metadata.create_all(bind=engine); return engine
 class Person(Base):
-    __tablename__='people'
-    id=Column(Integer, primary_key=True); name=Column(String, nullable=False)
-    email=Column(String, unique=True, nullable=False)
-    dob = Column(Date, nullable=True)                       # date of birth
-    address = Column(String(255), nullable=True)
-    preferred_airport = Column(String(50), nullable=True)
-    willing_to_drive = Column(Boolean, default=False)
-    car_or_rental = Column(String(10), nullable=True)       # "car" or "rental"
-    dietary_preference = Column(String(100), nullable=True)
-    bio = Column(Text, nullable=True)
-    headshot_path = Column(String(255), nullable=True)      # /uploads/<filename>
-    password_hash=Column(String, default='')
-    assignments=relationship('Assignment', back_populates='person', cascade='all,delete')
+    __tablename__ = 'people'
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False)
+    email = Column(String, unique=True, nullable=False)
+    password_hash = Column(String, nullable=False)
+
+    # ✅ new or missing fields
+    phone = Column(String)                     # (917) 555-1212
+    address = Column(String)
+    dob = Column(Date)
+    preferred_airport = Column(String)
+    willing_to_drive = Column(Boolean)
+    car_or_rental = Column(String)
+    dietary_preference = Column(String)
+    headshot_path = Column(String)
+    bio = Column(Text)
+
+    assignments = relationship('Assignment', back_populates='person', cascade='all, delete-orphan')
+
 class Position(Base):
     __tablename__='positions'
     id=Column(Integer, primary_key=True); name=Column(String, unique=True, nullable=False)
