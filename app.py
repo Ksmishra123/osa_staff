@@ -504,15 +504,21 @@ def admin_event_bios(eid):
     if not ev:
         abort(404)
 
-    # People assigned to this event
+    # Load assignments for this event, eager-load person & position, stable ordering
+    Pos = aliased(Position)
     assigns = (
         db.query(Assignment)
-          .options(joinedload(Assignment.person), joinedload(Assignment.position))
+          .join(Pos, Assignment.position_id == Pos.id)
+          .options(
+              joinedload(Assignment.person),
+              joinedload(Assignment.position)
+          )
           .filter(Assignment.event_id == eid)
-          .order_by(Position.display_order.asc())
+          .order_by(Pos.display_order.asc())
           .all()
     )
-    # De-dupe people (same person may hold multiple positions)
+
+    # Unique people list (a person could hold multiple positions)
     people_map = {}
     for a in assigns:
         if a.person:
@@ -524,16 +530,17 @@ def admin_event_bios(eid):
         if not ids:
             flash("Select at least one person to print bios.")
             return render_template('event_bios.html', ev=ev, people=people)
-        # Load selected people in original order as submitted
+
         id_ints = [int(i) for i in ids]
         selected = db.query(Person).filter(Person.id.in_(id_ints)).all()
-        # preserve checkbox order
         selected_by_id = {p.id: p for p in selected}
         ordered = [selected_by_id[i] for i in id_ints if i in selected_by_id]
+
         return render_template('bios_print.html', ev=ev, people=ordered)
 
-    # GET: show selector
+    # GET: selection screen
     return render_template('event_bios.html', ev=ev, people=people)
+
 
 # -----------------------------------------------------------------------------
 # Admin: People
