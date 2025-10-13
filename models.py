@@ -54,6 +54,7 @@ class Event(Base):
     event_start=Column(DateTime); event_end=Column(DateTime)
     venue=Column(Text); hotel=Column(Text)
     assignments=relationship('Assignment', back_populates='event', cascade='all,delete')
+    hotels = relationship("Hotel", back_populates="event", cascade="all, delete-orphan")
 
 class Assignment(Base):
     __tablename__='assignments'
