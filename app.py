@@ -37,25 +37,6 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 def allowed_headshot(filename: str) -> bool:
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_HEADSHOT_EXTS
 
-def normalize_phone(raw: str) -> str | None:
-    """
-    Normalize to (XXX) XXX-XXXX.
-    Accepts digits with optional leading +1.
-    Returns None for empty input; returns original trimmed if not 10 or 11(+1) digits.
-    """
-    if not raw:
-        return None
-    s = str(raw).strip()
-    digits = re.sub(r"\D", "", s)
-    # Strip leading country code 1
-    if len(digits) == 11 and digits.startswith("1"):
-        digits = digits[1:]
-    if len(digits) == 10:
-        return f"({digits[:3]}) {digits[3:6]}-{digits[6:]}"
-    # Fallback: keep as-is so we don't lose data
-    return s
-
-
 
 # -----------------------------------------------------------------------------
 # Auth setup
@@ -86,6 +67,17 @@ def inject_nav_flags():
 # -----------------------------------------------------------------------------
 # Helpers
 # -----------------------------------------------------------------------------
+import re
+def normalize_phone(raw: str) -> str | None:
+    if not raw: return None
+    s = str(raw).strip()
+    digits = re.sub(r"\D", "", s)
+    if len(digits) == 11 and digits.startswith("1"):
+        digits = digits[1:]
+    if len(digits) == 10:
+        return f"({digits[:3]}) {digits[3:6]}-{digits[6:]}"
+    return s
+
 def parse_dt(v: str):
     """Accepts HTML datetime-local (YYYY-MM-DDTHH:MM) or 'YYYY-MM-DD HH:MM'. Empty -> None."""
     if not v:
@@ -182,67 +174,74 @@ def logout():
 def register():
     db = SessionLocal()
     if request.method == 'POST':
-        form = request.form
-        name = form.get('name', '').strip()
-        email = form.get('email', '').strip().lower()
-        password = form.get('password', '')
-        confirm  = form.get('confirm', '')
-        phone = normalize_phone(form.get('phone',''))
-        address = form.get('address','').strip()
-        preferred_airport = form.get('preferred_airport','').strip()
-        willing_to_drive = form.get('willing_to_drive') == 'yes'
-        car_or_rental = form.get('car_or_rental','').strip() if willing_to_drive else None
-        dietary_preference = form.get('dietary_preference','').strip()
+        try:
+            form = request.form
+            name = (form.get('name') or '').strip()
+            email = (form.get('email') or '').strip().lower()
+            password = form.get('password') or ''
+            confirm  = form.get('confirm') or ''
 
-        # DOB from <input type="date">
-        dob = None
-        dob_str = form.get('dob','').strip()
-        if dob_str:
-            try:
-                dob = datetime.strptime(dob_str, "%Y-%m-%d").date()
-            except Exception:
-                pass
+            phone = normalize_phone(form.get('phone',''))
+            address = (form.get('address') or '').strip()
+            preferred_airport = (form.get('preferred_airport') or '').strip()
+            willing_to_drive = (form.get('willing_to_drive') == 'yes')
+            car_or_rental = (form.get('car_or_rental') or '').strip() if willing_to_drive else None
+            dietary_preference = (form.get('dietary_preference') or '').strip()
 
-        errors = []
-        if not name: errors.append("Name is required.")
-        if not email: errors.append("Email is required.")
-        if not password: errors.append("Password is required.")
-        if password != confirm: errors.append("Passwords do not match.")
-        if db.query(Person).filter(Person.email == email).first():
-            errors.append("An account with that email already exists. Try logging in.")
+            # DOB (from <input type="date">). Accept empty.
+            dob = None
+            dob_str = (form.get('dob') or '').strip()
+            if dob_str:
+                try:
+                    dob = datetime.strptime(dob_str, "%Y-%m-%d").date()
+                except Exception:
+                    flash("Could not parse Date of Birth (use YYYY-MM-DD).")
 
-        # Optional headshot upload
-        headshot_path = None
-        file = request.files.get('headshot')
-        if file and file.filename:
-            if not allowed_headshot(file.filename):
-                errors.append("Headshot must be an image (png, jpg, jpeg, gif).")
-            else:
-                fname = secure_filename(f"{int(datetime.utcnow().timestamp())}_{file.filename}")
-                save_path = os.path.join(UPLOAD_DIR, fname)
-                file.save(save_path)
-                headshot_path = f"/uploads/{fname}"
+            errors = []
+            if not name: errors.append("Name is required.")
+            if not email: errors.append("Email is required.")
+            if not password: errors.append("Password is required.")
+            if password != confirm: errors.append("Passwords do not match.")
+            if db.query(Person).filter(Person.email == email).first():
+                errors.append("An account with that email already exists. Try logging in.")
 
-        if errors:
-            for e in errors: flash(e)
-            return render_template('register.html', form=form)
+            # Optional headshot upload
+            headshot_path = None
+            file = request.files.get('headshot')
+            if file and file.filename:
+                if not allowed_headshot(file.filename):
+                    errors.append("Headshot must be an image (png, jpg, jpeg, gif).")
+                else:
+                    os.makedirs(UPLOAD_DIR, exist_ok=True)
+                    fname = secure_filename(f"{int(datetime.utcnow().timestamp())}_{file.filename}")
+                    file.save(os.path.join(UPLOAD_DIR, fname))
+                    headshot_path = f"/uploads/{fname}"
 
-        phash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
-        person = Person(
-            name=name, email=email, password_hash=phash,
-            phone=phone, address=address, preferred_airport=preferred_airport,
-            willing_to_drive=willing_to_drive, car_or_rental=car_or_rental,
-            dietary_preference=dietary_preference, dob=dob,
-            headshot_path=headshot_path
-        )
-        db.add(person)
-        db.commit()
+            if errors:
+                for e in errors: flash(e)
+                return render_template('register.html', form=form)
 
-        login_user(User(person))
-        flash('Account created. Welcome!')
-        return redirect(url_for('me'))
+            phash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+            person = Person(
+                name=name, email=email, password_hash=phash,
+                phone=phone, address=address, preferred_airport=preferred_airport,
+                willing_to_drive=willing_to_drive, car_or_rental=car_or_rental,
+                dietary_preference=dietary_preference, dob=dob,
+                headshot_path=headshot_path
+            )
+            db.add(person); db.commit()
+
+            login_user(User(person))
+            flash('Account created. Welcome!')
+            return redirect(url_for('me'))
+
+        except Exception as e:
+            app.logger.exception("Register failed")
+            # TEMP: surface the error so we can see what’s wrong
+            return f"Register error: {type(e).__name__}: {e}", 500
 
     return render_template('register.html', form={})
+
 # -----------------------------------------------------------------------------
 # Update Profile
 # -----------------------------------------------------------------------------
