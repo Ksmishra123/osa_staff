@@ -1,7 +1,7 @@
 import os
 import bcrypt
 import re
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, aliased
 from datetime import datetime, date
 from flask import (
     Flask, render_template, redirect, url_for, request, flash, abort,
