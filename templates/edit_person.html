@@ -58,14 +58,15 @@
           <label style="display:inline-flex; align-items:center; gap:6px;">
             <input type="checkbox" name="remove_headshot"> Remove current headshot
           </label>
-          <label>Bio<br>
-              <textarea name="bio" rows="6">{{ person.bio or '' }}</textarea>
-          </label>
-
+         
         </div>
       {% endif %}
     </div>
-
+    <div>
+       <label>Bio<br>
+              <textarea name="bio" rows="6">{{ person.bio or '' }}</textarea>
+          </label>
+    </div>
   </div>
 
   <div style="margin-top:16px; display:flex; gap:12px; align-items:center;">
