@@ -18,7 +18,7 @@
 </style>
 
 <div class="bio-header">
-  <img src="{{ url_for('static', filename='osa_logo.png') }}" alt="On Stage America Logo">
+  <img src="{{ url_for('static', filename='OSA_Logo_Silver_Gold.png') }}" alt="On Stage America Logo">
   <h1>Staff Bios</h1>
   <div>{{ ev.city }}{% if ev.date %} — {{ ev.date.strftime('%B %d, %Y') }}{% endif %}</div>
 </div>
@@ -31,11 +31,11 @@
       {% endif %}
       <div class="person-info">
         <h2>{{ p.name }}</h2>
-        <div class="meta">
-          {% if p.phone %}<strong>Phone:</strong> {{ p.phone }} &nbsp; {% endif %}
-          {% if p.email %}<strong>Email:</strong> {{ p.email }} &nbsp; {% endif %}
-          {% if p.preferred_airport %}<strong>Airport:</strong> {{ p.preferred_airport }}{% endif %}
-        </div>
+       # <div class="meta">
+       #   {% if p.phone %}<strong>Phone:</strong> {{ p.phone }} &nbsp; {% endif %}
+       #   {% if p.email %}<strong>Email:</strong> {{ p.email }} &nbsp; {% endif %}
+       #   {% if p.preferred_airport %}<strong>Airport:</strong> {{ p.preferred_airport }}{% endif %}
+       # </div>
         <div class="bio">{{ p.bio or '—' }}</div>
       </div>
     </div>
