@@ -15,10 +15,12 @@ def get_engine():
     if db_url.startswith('mysql://') and 'charset' not in db_url:
         db_url += ('&' if '?' in db_url else '?') + 'charset=utf8mb4'
     return create_engine(db_url, pool_pre_ping=True)
+
 def init_db():
     engine = get_engine()
     SessionLocal.configure(bind=engine)
     Base.metadata.create_all(bind=engine); return engine
+
 class Person(Base):
     __tablename__ = 'people'
     id = Column(Integer, primary_key=True)
@@ -44,6 +46,7 @@ class Position(Base):
     id=Column(Integer, primary_key=True); name=Column(String, unique=True, nullable=False)
     display_order=Column(Integer, nullable=False)
     assignments=relationship('Assignment', back_populates='position', cascade='all,delete')
+
 class Event(Base):
     __tablename__='events'
     id=Column(Integer, primary_key=True); date=Column(DateTime, nullable=False)
@@ -51,6 +54,7 @@ class Event(Base):
     event_start=Column(DateTime); event_end=Column(DateTime)
     venue=Column(Text); hotel=Column(Text)
     assignments=relationship('Assignment', back_populates='event', cascade='all,delete')
+
 class Assignment(Base):
     __tablename__='assignments'
     id=Column(Integer, primary_key=True)
@@ -64,3 +68,36 @@ class Assignment(Base):
     event=relationship('Event', back_populates='assignments')
     position=relationship('Position', back_populates='assignments')
     person=relationship('Person', back_populates='assignments')
+
+class Hotel(Base):
+    __tablename__ = "hotels"
+    id = Column(Integer, primary_key=True)
+    event_id = Column(Integer, ForeignKey("events.id"), nullable=False)
+    name = Column(String, nullable=False)
+    address = Column(Text)
+    phone = Column(String)
+    notes = Column(Text)
+
+    event = relationship("Event", back_populates="hotels")
+    rooms = relationship("Room", back_populates="hotel", cascade="all, delete-orphan")
+
+class Room(Base):
+    __tablename__ = "rooms"
+    id = Column(Integer, primary_key=True)
+    hotel_id = Column(Integer, ForeignKey("hotels.id"), nullable=False)
+    room_number = Column(String)
+    check_in = Column(Date)
+    check_out = Column(Date)
+    confirmation = Column(String)
+
+    hotel = relationship("Hotel", back_populates="rooms")
+    occupants = relationship("Roommate", back_populates="room", cascade="all, delete-orphan")
+
+class Roommate(Base):
+    __tablename__ = "roommates"
+    id = Column(Integer, primary_key=True)
+    room_id = Column(Integer, ForeignKey("rooms.id"), nullable=False)
+    person_id = Column(Integer, ForeignKey("people.id"), nullable=False)
+
+    room = relationship("Room", back_populates="occupants")
+    person = relationship("Person")
