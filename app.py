@@ -235,7 +235,8 @@ def register():
             dietary_preference=dietary_preference, dob=dob,
             headshot_path=headshot_path
         )
-        db.add(person); db.commit()
+        db.add(person)
+        db.commit()
 
         login_user(User(person))
         flash('Account created. Welcome!')
