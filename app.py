@@ -358,15 +358,21 @@ def index():
 @login_required
 def me():
     db = SessionLocal()
+
+    Ev = aliased(Event)
+    Pos = aliased(Position)
+
     rows = (
         db.query(Assignment)
-        .options(
-            joinedload(Assignment.event),
-            joinedload(Assignment.position)
-        )
-        .filter(Assignment.person_id == int(current_user.id))
-        .order_by(Event.date.asc(), Position.display_order.asc())
-        .all()
+          .join(Ev, Assignment.event_id == Ev.id)
+          .join(Pos, Assignment.position_id == Pos.id)
+          .options(
+              joinedload(Assignment.event),
+              joinedload(Assignment.position)
+          )
+          .filter(Assignment.person_id == int(current_user.id))
+          .order_by(Ev.date.asc(), Pos.display_order.asc())
+          .all()
     )
     return render_template('me.html', rows=rows)
 
@@ -667,26 +673,28 @@ def call_sheet(eid):
     if not ev:
         abort(404)
 
-    # Allow if admin or the current user is assigned to this event
     allowed = is_admin() or db.query(Assignment).filter(
         Assignment.event_id == eid,
         Assignment.person_id == int(current_user.id)
     ).count() > 0
-
     if not allowed:
         abort(403)
 
+    Pos = aliased(Position)
+
     rows = (
-    db.query(Assignment)
-      .options(
-          joinedload(Assignment.person),
-          joinedload(Assignment.position)
-      )
-      .filter(Assignment.event_id == eid)
-      .order_by(Position.display_order.asc())
-      .all()
-)
+        db.query(Assignment)
+          .join(Pos, Assignment.position_id == Pos.id)
+          .options(
+              joinedload(Assignment.person),
+              joinedload(Assignment.position)
+          )
+          .filter(Assignment.event_id == eid)
+          .order_by(Pos.display_order.asc())
+          .all()
+    )
     return render_template('call_sheet.html', ev=ev, rows=rows)
+
 
 # -----------------------------------------------------------------------------
 # Dev entrypoint
