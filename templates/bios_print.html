@@ -4,10 +4,6 @@
 <style>
 @media print {
   @page { size: A4; margin: 1in; }
-  @page { 
-    @top-center { content: "On Stage America — Staff Bios | {{ ev.city }}"; }
-    @bottom-center { content: "© On Stage America {{ now().year }} — Page " counter(page) " of " counter(pages); }
-  }
   header, nav, .noprint { display:none !important; }
 }
 .bio-header { text-align:center; margin-bottom:20px; }
@@ -22,7 +18,7 @@
 </style>
 
 <div class="bio-header">
-  <img src="{{ url_for('static', filename='OSA_Logo_Silver_Gold.png') }}" alt="On Stage America Logo">
+  <img src="{{ url_for('static', filename='osa_logo.png') }}" alt="On Stage America Logo">
   <h1>Staff Bios</h1>
   <div>{{ ev.city }}{% if ev.date %} — {{ ev.date.strftime('%B %d, %Y') }}{% endif %}</div>
 </div>
