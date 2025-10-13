@@ -1,9 +1,10 @@
 {% extends 'base.html' %}
 {% block content %}
-<h1>Print Bios — {{ ev.city }} ({{ ev.date.strftime('%Y-%m-%d') if ev.date else '' }})</h1>
+<h1>Print Bios — {{ ev.city }}{% if ev.date %} ({{ ev.date.strftime('%Y-%m-%d') }}){% endif %}</h1>
 
 <form method="post" class="card">
   <p>Select people to include, then click “Open Print View”.</p>
+
   <table class="table">
     <thead>
       <tr>
