@@ -180,7 +180,7 @@ def register():
             email = (form.get('email') or '').strip().lower()
             password = form.get('password') or ''
             confirm  = form.get('confirm') or ''
-
+            
             phone = normalize_phone(form.get('phone',''))
             address = (form.get('address') or '').strip()
             preferred_airport = (form.get('preferred_airport') or '').strip()
@@ -216,7 +216,7 @@ def register():
                     fname = secure_filename(f"{int(datetime.utcnow().timestamp())}_{file.filename}")
                     file.save(os.path.join(UPLOAD_DIR, fname))
                     headshot_path = f"/uploads/{fname}"
-
+            bio = (form.get('bio') or '').strip()
             if errors:
                 for e in errors: flash(e)
                 return render_template('register.html', form=form)
