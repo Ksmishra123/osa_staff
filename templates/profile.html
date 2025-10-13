@@ -59,16 +59,15 @@
             <input type="checkbox" name="remove_headshot"> Remove current headshot
           </label>
         </div>
-      <div>
-        <label>Bio (short professional bio)<br>
-                <textarea name="bio" rows="5" placeholder="Emcee/Judge with 10+ years, specialties, awards, etc.">{{ person.bio or '' }}</textarea>
-          </label>
-      </div>
+      
         {% endif %}
     </div>
-
+    <div>
+    <label>Bio (short professional bio)<br>
+                <textarea name="bio" rows="5" placeholder="Emcee/Judge with 10+ years, specialties, awards, etc.">{{ person.bio or '' }}</textarea>
+          </label>
   </div>
-
+  </div>
   <div style="margin-top:16px;">
     <button type="submit">Save Changes</button>
     <a href="{{ url_for('me') }}" style="margin-left:8px;">Back to My Assignments</a>
