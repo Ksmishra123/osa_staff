@@ -639,6 +639,7 @@ def admin_edit_person(pid):
         if form.get('reset_password') == 'on':
             p.password_hash = bcrypt.hashpw(b'changeme', bcrypt.gensalt()).decode()
             flash("Password reset to 'changeme'.")
+            p.bio = (form.get('bio') or '').strip()
 
         db.commit()
         flash("Person updated.")
