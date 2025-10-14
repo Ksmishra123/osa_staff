@@ -20,11 +20,13 @@ from flask import send_file, make_response  # already have?
 
 import os, threading
 from io import BytesIO
-try:
-    from xhtml2pdf import pisa
-    HAVE_PDF = True
-except Exception as e:
-    HAVE_PDF = False
+from flask import send_file
+from reportlab.lib.pagesizes import letter
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
+from reportlab.lib.units import inch
+import os
 
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
@@ -77,13 +79,6 @@ def remove_session(exc=None):
 def inject_nav_flags():
     # exposes a boolean you can use in templates
     return {"has_register": 'register' in app.view_functions}
-
-def html_to_pdf(html: str) -> BytesIO:
-    """Return a BytesIO PDF from an HTML string using xhtml2pdf."""
-    pdf = BytesIO()
-    pisa.CreatePDF(html, dest=pdf)  # returns an object, but we just use pdf
-    pdf.seek(0)
-    return pdf
 
 # -----------------------------------------------------------------------------
 # Helpers
@@ -146,15 +141,6 @@ def send_email_async(to_email: str, subject: str, html: str):
             app.logger.exception("Email send failed")
     threading.Thread(target=_send, daemon=True).start()
 from flask import current_app
-
-def xhtml_link_callback(uri, rel):
-    # Convert /static/... to real filesystem path for xhtml2pdf
-    if uri.startswith('/static/'):
-        return os.path.join(current_app.root_path, 'static', uri[len('/static/'):])
-    # Uploaded headshots
-    if uri.startswith('/uploads/'):
-        return os.path.join('/data', uri[len('/uploads/'):])
-    return uri
 
 def html_to_pdf(html: str) -> BytesIO:
     pdf = BytesIO()
@@ -889,8 +875,6 @@ def call_sheet(eid):
 
 @app.route('/events/<int:eid>/call-sheet.pdf')
 @login_required
-if not HAVE_PDF:
-    abort(503, description="PDF engine not available; contact admin.")
 def call_sheet_pdf(eid):
     db = SessionLocal()
     ev = db.get(Event, eid)
@@ -921,11 +905,118 @@ def call_sheet_pdf(eid):
           .all()
     )
 
-    # Render a print-friendly template (no nav)
-    html = render_template('call_sheet_pdf.html', ev=ev, rows=rows, hotels=hotels)
-    pdf = html_to_pdf(html)
+    pdf_io = build_call_sheet_pdf(ev, rows, hotels)
     filename = f"CallSheet_{ev.city}_{ev.date.strftime('%Y%m%d') if ev.date else 'event'}.pdf"
-    return send_file(pdf, mimetype='application/pdf', as_attachment=True, download_name=filename)
+    return send_file(pdf_io, mimetype='application/pdf', as_attachment=True, download_name=filename)
+
+def build_call_sheet_pdf(ev, rows, hotels):
+    """
+    Build a PDF for the call sheet using ReportLab and return BytesIO.
+    """
+    buf = BytesIO()
+    doc = SimpleDocTemplate(
+        buf, pagesize=letter,
+        topMargin=36, bottomMargin=36, leftMargin=36, rightMargin=36
+    )
+
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle(name="TitleBig", parent=styles["Title"], fontSize=18, leading=22, alignment=1))
+    styles.add(ParagraphStyle(name="H2", parent=styles["Heading2"], fontSize=13, spaceBefore=12, spaceAfter=6))
+
+    story = []
+
+    # Header with logo
+    logo_path = os.path.join(app.root_path, 'static', 'osa_logo.png')
+    if os.path.exists(logo_path):
+        img = Image(logo_path, width=1.6*inch, height=1.0*inch)
+        img.hAlign = 'CENTER'
+        story.append(img)
+        story.append(Spacer(1, 6))
+
+    title_text = f"Call Sheet — {ev.city}"
+    if ev.date:
+        title_text += f" — {ev.date.strftime('%B %d, %Y')}"
+    story.append(Paragraph(title_text, styles["TitleBig"]))
+    story.append(Spacer(1, 10))
+
+    # Assignments table
+    story.append(Paragraph("Assignments", styles["H2"]))
+    data = [["Position", "Name", "Phone", "Email", "Transport"]]
+    for a in rows:
+        trans_bits = []
+        if a.transport_mode: trans_bits.append(a.transport_mode)
+        if a.arrival_ts: trans_bits.append("Arr: " + a.arrival_ts.strftime("%Y-%m-%d %H:%M"))
+        if a.transport_booking: trans_bits.append(a.transport_booking)
+        if a.transport_notes: trans_bits.append(a.transport_notes)
+        data.append([
+            a.position.name if a.position else "",
+            a.person.name if a.person else "",
+            a.person.phone if a.person else "",
+            a.person.email if a.person else "",
+            " | ".join(trans_bits)
+        ])
+
+    tbl = Table(data, colWidths=[1.2*inch, 1.5*inch, 1.3*inch, 2.0*inch, None])
+    tbl.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
+        ('TEXTCOLOR', (0,0), (-1,0), colors.black),
+        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0,0), (-1,0), 10),
+        ('FONTSIZE', (0,1), (-1,-1), 9),
+        ('ALIGN', (0,0), (-1,0), 'CENTER'),
+        ('VALIGN', (0,0), (-1,-1), 'TOP'),
+        ('GRID', (0,0), (-1,-1), 0.3, colors.grey),
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.whitesmoke, colors.white]),
+    ]))
+    story.append(tbl)
+
+    # Hotels & Rooms
+    story.append(Spacer(1, 14))
+    story.append(Paragraph("Hotel & Room Assignments", styles["H2"]))
+
+    if hotels:
+        for h in hotels:
+            story.append(Paragraph(f"<b>{h.name}</b>", styles["Normal"]))
+            line2_parts = []
+            if h.address: line2_parts.append(h.address)
+            if h.phone: line2_parts.append(h.phone)
+            if line2_parts:
+                story.append(Paragraph(" — ".join(line2_parts), styles["Normal"]))
+            if h.notes:
+                story.append(Paragraph(f"<i>{h.notes}</i>", styles["Normal"]))
+            story.append(Spacer(1, 4))
+
+            if h.rooms:
+                rdata = [["Room", "Occupants", "Check-in", "Check-out", "Confirmation"]]
+                for r in h.rooms:
+                    occ_names = ", ".join([rm.person.name for rm in (r.occupants or []) if rm.person])
+                    rdata.append([
+                        r.room_number or "-",
+                        occ_names or "—",
+                        r.check_in.strftime("%Y-%m-%d") if r.check_in else "",
+                        r.check_out.strftime("%Y-%m-%d") if r.check_out else "",
+                        r.confirmation or ""
+                    ])
+                rt = Table(rdata, colWidths=[0.9*inch, 2.8*inch, 1.0*inch, 1.0*inch, 1.2*inch])
+                rt.setStyle(TableStyle([
+                    ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
+                    ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0,0), (-1,0), 10),
+                    ('FONTSIZE', (0,1), (-1,-1), 9),
+                    ('VALIGN', (0,0), (-1,-1), 'TOP'),
+                    ('GRID', (0,0), (-1,-1), 0.3, colors.grey),
+                ]))
+                story.append(rt)
+                story.append(Spacer(1, 8))
+            else:
+                story.append(Paragraph("No rooms added yet.", styles["Normal"]))
+                story.append(Spacer(1, 8))
+    else:
+        story.append(Paragraph("No hotel assignments yet.", styles["Normal"]))
+
+    doc.build(story)
+    buf.seek(0)
+    return buf
 
 # -----------------------------------------------------------------------------
 # Dev entrypoint
