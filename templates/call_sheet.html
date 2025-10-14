@@ -70,6 +70,62 @@
   </tbody>
 </table>
 
+<!-- Hotel Room Assignments -->
+<h2 style="margin-top:18px;">Hotel & Room Assignments</h2>
+
+{% if hotels and hotels|length > 0 %}
+  {% for h in hotels %}
+    <div class="card" style="margin-bottom:12px;">
+      <h3 style="margin:6px 0;">{{ h.name }}</h3>
+      <div>
+        {{ h.address or '' }}
+        {% if h.phone %} — {{ h.phone }}{% endif %}
+      </div>
+      {% if h.notes %}
+        <div><em>{{ h.notes }}</em></div>
+      {% endif %}
+
+      {% if h.rooms and h.rooms|length > 0 %}
+        <table class="table" style="margin-top:8px;">
+          <thead>
+            <tr>
+              <th>Room</th>
+              <th>Occupants</th>
+              <th>Check-in</th>
+              <th>Check-out</th>
+              <th>Confirmation</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in h.rooms %}
+              <tr>
+                <td>{{ r.room_number or '-' }}</td>
+                <td>
+                  {% set occ = r.occupants or [] %}
+                  {% if occ|length > 0 %}
+                    {% for rm in occ %}
+                      {{ rm.person.name }}{% if not loop.last %}, {% endif %}
+                    {% endfor %}
+                  {% else %}
+                    —
+                  {% endif %}
+                </td>
+                <td>{{ r.check_in.strftime('%Y-%m-%d') if r.check_in else '' }}</td>
+                <td>{{ r.check_out.strftime('%Y-%m-%d') if r.check_out else '' }}</td>
+                <td>{{ r.confirmation or '' }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <div style="margin-top:6px;">No rooms added yet.</div>
+      {% endif %}
+    </div>
+  {% endfor %}
+{% else %}
+  <p>No hotel assignments yet.</p>
+{% endif %}
+
 <!-- Transportation details -->
 <h2 class="section-title">Transportation</h2>
 <table class="call-table">
