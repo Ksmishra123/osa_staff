@@ -15,6 +15,9 @@ from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 
 from models import init_db, SessionLocal, Person, Event, Position, Assignment, Hotel, Room, Roommate
+from io import BytesIO
+from flask import send_file, make_response  # already have?
+from xhtml2pdf import pisa
 
 
 load_dotenv()
@@ -64,6 +67,13 @@ def remove_session(exc=None):
 def inject_nav_flags():
     # exposes a boolean you can use in templates
     return {"has_register": 'register' in app.view_functions}
+
+def html_to_pdf(html: str) -> BytesIO:
+    """Return a BytesIO PDF from an HTML string using xhtml2pdf."""
+    pdf = BytesIO()
+    pisa.CreatePDF(html, dest=pdf)  # returns an object, but we just use pdf
+    pdf.seek(0)
+    return pdf
 
 # -----------------------------------------------------------------------------
 # Helpers
@@ -799,6 +809,44 @@ def call_sheet(eid):
     )
 
     return render_template('call_sheet.html', ev=ev, rows=rows, hotels=hotels)
+
+@app.route('/events/<int:eid>/call-sheet.pdf')
+@login_required
+def call_sheet_pdf(eid):
+    db = SessionLocal()
+    ev = db.get(Event, eid)
+    if not ev: abort(404)
+
+    allowed = is_admin() or db.query(Assignment).filter(
+        Assignment.event_id == eid,
+        Assignment.person_id == int(current_user.id)
+    ).count() > 0
+    if not allowed: abort(403)
+
+    Pos = aliased(Position)
+    rows = (
+        db.query(Assignment)
+          .join(Pos, Assignment.position_id == Pos.id)
+          .options(
+              joinedload(Assignment.person),
+              joinedload(Assignment.position)
+          )
+          .filter(Assignment.event_id == eid)
+          .order_by(Pos.display_order.asc())
+          .all()
+    )
+    hotels = (
+        db.query(Hotel)
+          .options(joinedload(Hotel.rooms).joinedload(Room.occupants).joinedload(Roommate.person))
+          .filter(Hotel.event_id == eid)
+          .all()
+    )
+
+    # Render a print-friendly template (no nav)
+    html = render_template('call_sheet_pdf.html', ev=ev, rows=rows, hotels=hotels)
+    pdf = html_to_pdf(html)
+    filename = f"CallSheet_{ev.city}_{ev.date.strftime('%Y%m%d') if ev.date else 'event'}.pdf"
+    return send_file(pdf, mimetype='application/pdf', as_attachment=True, download_name=filename)
 
 # -----------------------------------------------------------------------------
 # Dev entrypoint
