@@ -412,7 +412,25 @@ def me():
           .order_by(Ev.date.asc(), Pos.display_order.asc())
           .all()
     )
-    return render_template('me.html', rows=rows)
+    # Lodging by event for this user
+    # (Room -> Hotel -> Event)
+    user_lodging = (
+        db.query(Room, Hotel, Event)
+          .join(Hotel, Room.hotel_id == Hotel.id)
+          .join(Event, Hotel.event_id == Event.id)
+          .join(Roommate, Roommate.room_id == Room.id)
+          .filter(Roommate.person_id == int(current_user.id))
+          .all()
+    )
+    # Map: event_id -> list of dicts
+    lodging_by_event = {}
+    for room, hotel, ev in user_lodging:
+        lodging_by_event.setdefault(ev.id, []).append({
+            "hotel": hotel,
+            "room": room
+        })
+
+    return render_template('me.html', rows=rows, lodging_by_event=lodging_by_event)
 
 @app.route('/ack/<int:aid>', methods=['POST'])
 @login_required
