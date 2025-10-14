@@ -1,0 +1,6 @@
+<p>Hi {{ person.name }},</p>
+<p>You’ve been assigned to <strong>{{ ev.city }}</strong>{% if ev.date %} on <strong>{{ ev.date.strftime('%B %d, %Y') }}</strong>{% endif %} as <strong>{{ position }}</strong>.</p>
+{% if ev.venue %}<p>Venue: {{ ev.venue }}</p>{% endif %}
+{% if ev.event_start %}<p>Start: {{ ev.event_start.strftime('%Y-%m-%d %H:%M') }}</p>{% endif %}
+<p>You can view and acknowledge here: <a href="{{ url_for('me', _external=True) }}">My Assignments</a></p>
+<p>— On Stage America</p>
