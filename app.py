@@ -14,7 +14,8 @@ from flask_login import (
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 
-from models import init_db, SessionLocal, Person, Event, Position, Assignment
+from models import init_db, SessionLocal, Person, Event, Position, Assignment, Hotel, Room, Roommate
+
 
 load_dotenv()
 
@@ -541,7 +542,6 @@ def admin_event_bios(eid):
     # GET: selection screen
     return render_template('event_bios.html', ev=ev, people=people)
 
-
 # -----------------------------------------------------------------------------
 # Admin: People
 # -----------------------------------------------------------------------------
@@ -678,6 +678,87 @@ def admin_new_person():
         return redirect(url_for('admin_people'))
 
     return render_template('new_person.html')
+# -----------------------------------------------------------------------------
+# Admin: Lodging
+# -----------------------------------------------------------------------------
+
+@app.route('/admin/events/<int:eid>/lodging', methods=['GET','POST'])
+@login_required
+def admin_event_lodging(eid):
+    if not is_admin():
+        abort(403)
+    db = SessionLocal()
+    ev = db.get(Event, eid)
+    if not ev:
+        abort(404)
+
+    # Create hotel
+    if request.method == 'POST' and request.form.get('action') == 'add_hotel':
+        name = (request.form.get('name') or '').strip()
+        address = (request.form.get('address') or '').strip()
+        phone = (request.form.get('phone') or '').strip()
+        notes = (request.form.get('notes') or '').strip()
+        if not name:
+            flash("Hotel name is required.")
+        else:
+            h = Hotel(event_id=eid, name=name, address=address, phone=phone, notes=notes)
+            db.add(h); db.commit()
+            flash("Hotel added.")
+        return redirect(url_for('admin_event_lodging', eid=eid))
+
+    # Create room
+    if request.method == 'POST' and request.form.get('action') == 'add_room':
+        hotel_id = int(request.form.get('hotel_id') or 0)
+        room_number = (request.form.get('room_number') or '').strip()
+        check_in = (request.form.get('check_in') or '').strip()
+        check_out = (request.form.get('check_out') or '').strip()
+        confirmation = (request.form.get('confirmation') or '').strip()
+        from datetime import datetime
+        ci = datetime.strptime(check_in, "%Y-%m-%d").date() if check_in else None
+        co = datetime.strptime(check_out, "%Y-%m-%d").date() if check_out else None
+        if not hotel_id:
+            flash("Choose a hotel.")
+        else:
+            r = Room(hotel_id=hotel_id, room_number=room_number, check_in=ci, check_out=co, confirmation=confirmation)
+            db.add(r); db.commit()
+            flash("Room added.")
+        return redirect(url_for('admin_event_lodging', eid=eid))
+
+    # Assign roommates (max 2)
+    if request.method == 'POST' and request.form.get('action') == 'assign_roommates':
+        room_id = int(request.form.get('room_id') or 0)
+        p1 = request.form.get('person1')
+        p2 = request.form.get('person2')
+        if not room_id:
+            flash("Choose a room.")
+            return redirect(url_for('admin_event_lodging', eid=eid))
+        # clear current occupants
+        db.query(Roommate).filter(Roommate.room_id == room_id).delete()
+        # add up to two occupants
+        for pid in [p1, p2]:
+            if pid:
+                db.add(Roommate(room_id=room_id, person_id=int(pid)))
+        db.commit()
+        flash("Roommates saved.")
+        return redirect(url_for('admin_event_lodging', eid=eid))
+
+    hotels = (
+        db.query(Hotel)
+          .options(joinedload(Hotel.rooms).joinedload(Room.occupants).joinedload(Roommate.person))
+          .filter(Hotel.event_id == eid)
+          .all()
+    )
+    # staff assigned to this event for convenience in dropdowns
+    assigned_people = (
+        db.query(Person)
+          .join(Assignment, Assignment.person_id == Person.id)
+          .filter(Assignment.event_id == eid)
+          .order_by(Person.name.asc())
+          .all()
+    )
+
+    return render_template('lodging.html', ev=ev, hotels=hotels, people=assigned_people)
+
 
 # -----------------------------------------------------------------------------
 # Call Sheet (secured)
@@ -687,28 +768,37 @@ def admin_new_person():
 def call_sheet(eid):
     db = SessionLocal()
     ev = db.get(Event, eid)
-    if not ev: abort(404)
+    if not ev:
+        abort(404)
 
     allowed = is_admin() or db.query(Assignment).filter(
         Assignment.event_id == eid,
         Assignment.person_id == int(current_user.id)
     ).count() > 0
-    if not allowed: abort(403)
+    if not allowed:
+        abort(403)
 
     Pos = aliased(Position)
     rows = (
         db.query(Assignment)
           .join(Pos, Assignment.position_id == Pos.id)
           .options(
-              joinedload(Assignment.person),     # <-- required
+              joinedload(Assignment.person),
               joinedload(Assignment.position)
           )
           .filter(Assignment.event_id == eid)
           .order_by(Pos.display_order.asc())
           .all()
     )
-    return render_template('call_sheet.html', ev=ev, rows=rows)
 
+    hotels = (
+        db.query(Hotel)
+          .options(joinedload(Hotel.rooms).joinedload(Room.occupants).joinedload(Roommate.person))
+          .filter(Hotel.event_id == eid)
+          .all()
+    )
+
+    return render_template('call_sheet.html', ev=ev, rows=rows, hotels=hotels)
 
 # -----------------------------------------------------------------------------
 # Dev entrypoint
