@@ -1,73 +1,90 @@
 {% extends 'base.html' %}
-
 {% block content %}
+
 <h1>My Assignments</h1>
 
 {% if rows and rows|length > 0 %}
-<table class="table" style="width:100%; border-collapse:collapse;">
-  <thead>
-    <tr style="background:#f5f5f5;">
-      <th style="padding:8px;">Date</th>
-      <th style="padding:8px;">City</th>
-      <th style="padding:8px;">Position</th>
-      <th style="padding:8px;">Setup</th>
-      <th style="padding:8px;">Start</th>
-      <th style="padding:8px;">End</th>
-      <th style="padding:8px;">Acknowledged</th>
-      <th style="padding:8px;">Call Sheet</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for a in rows %}
-    <tr style="border-bottom:1px solid #ddd;">
-      <td style="padding:8px;">{{ a.event.date.strftime('%Y-%m-%d %H:%M') if a.event.date else '' }}</td>
-      <td style="padding:8px;">{{ a.event.city }}</td>
-      <td style="padding:8px;">{{ a.position.name }}</td>
-      <td style="padding:8px;">{{ a.event.setup_start.strftime('%Y-%m-%d %H:%M') if a.event.setup_start else '' }}</td>
-      <td style="padding:8px;">{{ a.event.event_start.strftime('%Y-%m-%d %H:%M') if a.event.event_start else '' }}</td>
-      <td style="padding:8px;">{{ a.event.event_end.strftime('%Y-%m-%d %H:%M') if a.event.event_end else '' }}</td>
+  <table class="table" style="width:100%; border-collapse:collapse;">
+    <thead>
+      <tr style="background:#f5f5f5;">
+        <th style="padding:8px;">Date</th>
+        <th style="padding:8px;">City</th>
+        <th style="padding:8px;">Position</th>
+        <th style="padding:8px;">Setup</th>
+        <th style="padding:8px;">Start</th>
+        <th style="padding:8px;">End</th>
+        <th style="padding:8px; text-align:center;">Acknowledged</th>
+        <th style="padding:8px; text-align:center;">Call Sheet</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for a in rows %}
+      <tr style="border-bottom:1px solid #ddd;">
+        <td style="padding:8px;">{{ a.event.date.strftime('%Y-%m-%d %H:%M') if a.event and a.event.date else '' }}</td>
+        <td style="padding:8px;">{{ a.event.city if a.event else '' }}</td>
+        <td style="padding:8px;">{{ a.position.name if a.position else '' }}</td>
+        <td style="padding:8px;">{{ a.event.setup_start.strftime('%Y-%m-%d %H:%M') if a.event and a.event.setup_start else '' }}</td>
+        <td style="padding:8px;">{{ a.event.event_start.strftime('%Y-%m-%d %H:%M') if a.event and a.event.event_start else '' }}</td>
+        <td style="padding:8px;">{{ a.event.event_end.strftime('%Y-%m-%d %H:%M') if a.event and a.event.event_end else '' }}</td>
 
-      <td style="padding:8px; text-align:center;">
-        {% if a.ack %}
-          ✅
-        {% else %}
-          <form method="post" action="{{ url_for('ack', aid=a.id) }}">
-            <button type="submit">Acknowledge</button>
-          </form>
-        {% endif %}
-      </td>
+        <td style="padding:8px; text-align:center;">
+          {% if a.ack %}
+            ✅
+          {% else %}
+            <form method="post" action="{{ url_for('ack', aid=a.id) }}" style="display:inline;">
+              <button type="submit">Acknowledge</button>
+            </form>
+          {% endif %}
+        </td>
+
+        <td style="padding:8px; text-align:center;">
+          {% if a.event %}
+            <a href="{{ url_for('call_sheet', eid=a.event.id) }}" target="_blank">Open</a>
+            &nbsp;|&nbsp;
+            <a href="{{ url_for('call_sheet_pdf', eid=a.event.id) }}">PDF</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% else %}
+  <p>You don’t have any assignments yet.</p>
+{% endif %}
+
+<hr style="margin:24px 0;">
+
 <h2>Your Lodging</h2>
 {% if lodging_by_event %}
   <div class="table-responsive">
-    <table class="table table-sm">
+    <table class="table table-sm" style="width:100%; border-collapse:collapse;">
       <thead>
-        <tr>
-          <th>Event</th>
-          <th>Hotel</th>
-          <th>Room</th>
-          <th>Check-in</th>
-          <th>Check-out</th>
-          <th>Confirmation</th>
+        <tr style="background:#f5f5f5;">
+          <th style="padding:8px;">Event</th>
+          <th style="padding:8px;">Hotel</th>
+          <th style="padding:8px;">Room</th>
+          <th style="padding:8px;">Check-in</th>
+          <th style="padding:8px;">Check-out</th>
+          <th style="padding:8px;">Confirmation</th>
         </tr>
       </thead>
       <tbody>
         {% for ev_id, entries in lodging_by_event.items() %}
           {% for entry in entries %}
-            <tr>
-              <td>
-                {# Find first matching assignment row for event label #}
-                {% set anyrow = (rows | selectattr('event_id','equalto', ev_id) | list | first) %}
-                {% if anyrow %}
+            {% set anyrow = (rows | selectattr('event_id','equalto', ev_id) | list | first) %}
+            <tr style="border-bottom:1px solid #ddd;">
+              <td style="padding:8px;">
+                {% if anyrow and anyrow.event %}
                   {{ anyrow.event.city }}{% if anyrow.event.date %} — {{ anyrow.event.date.strftime('%Y-%m-%d') }}{% endif %}
                 {% else %}
                   Event #{{ ev_id }}
                 {% endif %}
               </td>
-              <td>{{ entry.hotel.name }}</td>
-              <td>{{ entry.room.room_number or '-' }}</td>
-              <td>{{ entry.room.check_in.strftime('%Y-%m-%d') if entry.room.check_in else '' }}</td>
-              <td>{{ entry.room.check_out.strftime('%Y-%m-%d') if entry.room.check_out else '' }}</td>
-              <td>{{ entry.room.confirmation or '' }}</td>
+              <td style="padding:8px;">{{ entry.hotel.name }}</td>
+              <td style="padding:8px;">{{ entry.room.room_number or '-' }}</td>
+              <td style="padding:8px;">{{ entry.room.check_in.strftime('%Y-%m-%d') if entry.room.check_in else '' }}</td>
+              <td style="padding:8px;">{{ entry.room.check_out.strftime('%Y-%m-%d') if entry.room.check_out else '' }}</td>
+              <td style="padding:8px;">{{ entry.room.confirmation or '' }}</td>
             </tr>
           {% endfor %}
         {% endfor %}
@@ -76,18 +93,6 @@
   </div>
 {% else %}
   <p>No lodging assigned yet.</p>
-{% endif %}
-
-      <td style="padding:8px; text-align:center;">
-        <a href="{{ url_for('call_sheet', eid=a.event_id) }}" target="_blank">Open</a>
-      </td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-
-{% else %}
-  <p>You don’t have any assignments yet.</p>
 {% endif %}
 
 {% endblock %}
