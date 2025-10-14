@@ -1,0 +1,114 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>Lodging — {{ ev.city }}{% if ev.date %} ({{ ev.date.strftime('%Y-%m-%d') }}){% endif %}</h1>
+
+<div class="card" style="margin-bottom:12px;">
+  <h3>Add Hotel</h3>
+  <form method="post">
+    <input type="hidden" name="action" value="add_hotel">
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
+      <label>Name<br><input name="name" required></label>
+      <label>Phone<br><input name="phone"></label>
+      <label>Address<br><input name="address"></label>
+      <label>Notes<br><input name="notes"></label>
+    </div>
+    <button type="submit">Add Hotel</button>
+  </form>
+</div>
+
+<div class="card" style="margin-bottom:12px;">
+  <h3>Add Room</h3>
+  <form method="post">
+    <input type="hidden" name="action" value="add_room">
+    <div style="display:grid; grid-template-columns: 1.5fr 1fr 1fr 1fr 1fr; gap:8px;">
+      <label>Hotel<br>
+        <select name="hotel_id" required>
+          <option value="">—</option>
+          {% for h in hotels %}
+            <option value="{{ h.id }}">{{ h.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Room #<br><input name="room_number"></label>
+      <label>Check-in<br><input type="date" name="check_in"></label>
+      <label>Check-out<br><input type="date" name="check_out"></label>
+      <label>Confirmation<br><input name="confirmation"></label>
+    </div>
+    <button type="submit">Add Room</button>
+  </form>
+</div>
+
+<div class="card">
+  <h3>Assign Roommates (max 2 per room)</h3>
+  <form method="post">
+    <input type="hidden" name="action" value="assign_roommates">
+    <div style="display:grid; grid-template-columns: 2fr 2fr 2fr 1fr; gap:8px; align-items:end;">
+      <label>Room<br>
+        <select name="room_id" required>
+          <option value="">—</option>
+          {% for h in hotels %}
+            {% for r in h.rooms %}
+              <option value="{{ r.id }}">{{ h.name }} — Room {{ r.room_number or r.id }}</option>
+            {% endfor %}
+          {% endfor %}
+        </select>
+      </label>
+      <label>Person 1<br>
+        <select name="person1">
+          <option value="">—</option>
+          {% for p in people %}
+            <option value="{{ p.id }}">{{ p.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Person 2<br>
+        <select name="person2">
+          <option value="">—</option>
+          {% for p in people %}
+            <option value="{{ p.id }}">{{ p.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <button type="submit">Save</button>
+    </div>
+  </form>
+</div>
+
+<h3 style="margin-top:16px;">Current Hotels & Rooms</h3>
+{% for h in hotels %}
+  <div class="card" style="margin-bottom:10px;">
+    <strong>{{ h.name }}</strong> — {{ h.address or '' }} {% if h.phone %} ({{ h.phone }}){% endif %}
+    {% if h.notes %}<div><em>{{ h.notes }}</em></div>{% endif %}
+    {% if h.rooms %}
+      <table class="table" style="margin-top:6px;">
+        <thead><tr><th>Room</th><th>Occupants</th><th>Dates</th><th>Conf#</th></tr></thead>
+        <tbody>
+        {% for r in h.rooms %}
+          <tr>
+            <td>{{ r.room_number or '-' }}</td>
+            <td>
+              {% if r.occupants %}
+                {% for rm in r.occupants %}
+                  {{ rm.person.name }}{% if not loop.last %}, {% endif %}
+                {% endfor %}
+              {% else %}—{% endif %}
+            </td>
+            <td>
+              {% if r.check_in %}{{ r.check_in.strftime('%Y-%m-%d') }}{% endif %}
+              {% if r.check_out %} – {{ r.check_out.strftime('%Y-%m-%d') }}{% endif %}
+            </td>
+            <td>{{ r.confirmation or '' }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div>No rooms yet.</div>
+    {% endif %}
+  </div>
+{% endfor %}
+
+<div style="margin-top:10px;">
+  <a href="{{ url_for('admin_events') }}">Back to Events</a>
+</div>
+{% endblock %}
