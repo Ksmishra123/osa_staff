@@ -152,7 +152,7 @@
 </table>
 
 <div style="text-align:center; margin-top:30px;" class="noprint">
-  <button onclick="window.print()" class="print-btn">🖨️ Print Call Sheet</button>
+  <button onclick="window.print()" class="print-btn">🖨️ Print Call Sheet</button> | <a class="button" href="{{ url_for('call_sheet_pdf', eid=ev.id) }}">⬇️ Download PDF</a>
 </div>
 
 {% endblock %}
