@@ -789,31 +789,51 @@ def admin_event_lodging(eid):
             flash("Room added.")
         return redirect(url_for('admin_event_lodging', eid=eid))
 
-    # Assign roommates (max 2)
+        # Assign roommates (max 2) + notify
     if request.method == 'POST' and request.form.get('action') == 'assign_roommates':
         room_id = int(request.form.get('room_id') or 0)
         p1 = request.form.get('person1')
         p2 = request.form.get('person2')
+
         if not room_id:
             flash("Choose a room.")
             return redirect(url_for('admin_event_lodging', eid=eid))
+
         # clear current occupants
         db.query(Roommate).filter(Roommate.room_id == room_id).delete()
+
         # add up to two occupants
+        new_people_ids = []
         for pid in [p1, p2]:
             if pid:
-                db.add(Roommate(room_id=room_id, person_id=int(pid)))
-    # notify roommates
-    room = db.get(Room, room_id)
-    if room and room.occupants:
-        occ_people = [rm.person for rm in room.occupants if rm.person and rm.person.email]
-        for person in occ_people:
-            html = render_template('emails/room_notice.html', person=person, room=room, hotel=room.hotel, ev=ev)
-            send_email_async(person.email, f"Lodging Assigned: {hotel.name} / Room {room.room_number or ''}", html)
-    
+                pid_int = int(pid)
+                db.add(Roommate(room_id=room_id, person_id=pid_int))
+                new_people_ids.append(pid_int)
+
         db.commit()
         flash("Roommates saved.")
+
+        # ---- email notifications (guarded; won't run on GET) ----
+        try:
+            room = db.get(Room, room_id)
+            if room and room.occupants:
+                occ_people = [rm.person for rm in room.occupants if rm.person and rm.person.email]
+                for person in occ_people:
+                    html = render_template(
+                        'emails/room_notice.html',
+                        person=person, room=room, hotel=room.hotel, ev=ev
+                    )
+                    send_email_async(
+                        person.email,
+                        f"Lodging Assigned: {room.hotel.name} / Room {room.room_number or ''}",
+                        html
+                    )
+        except Exception:
+            # don't let email hiccups break the UI
+            app.logger.exception("Roommate email notify failed")
+
         return redirect(url_for('admin_event_lodging', eid=eid))
+
 
     hotels = (
         db.query(Hotel)
