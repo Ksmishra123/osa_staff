@@ -36,6 +36,47 @@
           </form>
         {% endif %}
       </td>
+<h2>Your Lodging</h2>
+{% if lodging_by_event %}
+  <div class="table-responsive">
+    <table class="table table-sm">
+      <thead>
+        <tr>
+          <th>Event</th>
+          <th>Hotel</th>
+          <th>Room</th>
+          <th>Check-in</th>
+          <th>Check-out</th>
+          <th>Confirmation</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ev_id, entries in lodging_by_event.items() %}
+          {% for entry in entries %}
+            <tr>
+              <td>
+                {# Find first matching assignment row for event label #}
+                {% set anyrow = (rows | selectattr('event_id','equalto', ev_id) | list | first) %}
+                {% if anyrow %}
+                  {{ anyrow.event.city }}{% if anyrow.event.date %} — {{ anyrow.event.date.strftime('%Y-%m-%d') }}{% endif %}
+                {% else %}
+                  Event #{{ ev_id }}
+                {% endif %}
+              </td>
+              <td>{{ entry.hotel.name }}</td>
+              <td>{{ entry.room.room_number or '-' }}</td>
+              <td>{{ entry.room.check_in.strftime('%Y-%m-%d') if entry.room.check_in else '' }}</td>
+              <td>{{ entry.room.check_out.strftime('%Y-%m-%d') if entry.room.check_out else '' }}</td>
+              <td>{{ entry.room.confirmation or '' }}</td>
+            </tr>
+          {% endfor %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <p>No lodging assigned yet.</p>
+{% endif %}
 
       <td style="padding:8px; text-align:center;">
         <a href="{{ url_for('call_sheet', eid=a.event_id) }}" target="_blank">Open</a>
