@@ -17,8 +17,15 @@ from dotenv import load_dotenv
 from models import init_db, SessionLocal, Person, Event, Position, Assignment, Hotel, Room, Roommate
 from io import BytesIO
 from flask import send_file, make_response  # already have?
-from xhtml2pdf import pisa
+
 import os, threading
+from io import BytesIO
+try:
+    from xhtml2pdf import pisa
+    HAVE_PDF = True
+except Exception as e:
+    HAVE_PDF = False
+
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 
@@ -138,6 +145,23 @@ def send_email_async(to_email: str, subject: str, html: str):
         except Exception as e:
             app.logger.exception("Email send failed")
     threading.Thread(target=_send, daemon=True).start()
+from flask import current_app
+
+def xhtml_link_callback(uri, rel):
+    # Convert /static/... to real filesystem path for xhtml2pdf
+    if uri.startswith('/static/'):
+        return os.path.join(current_app.root_path, 'static', uri[len('/static/'):])
+    # Uploaded headshots
+    if uri.startswith('/uploads/'):
+        return os.path.join('/data', uri[len('/uploads/'):])
+    return uri
+
+def html_to_pdf(html: str) -> BytesIO:
+    pdf = BytesIO()
+    pisa.CreatePDF(html, dest=pdf, link_callback=xhtml_link_callback)
+    pdf.seek(0)
+    return pdf
+
 # -----------------------------------------------------------------------------
 # Static uploads (secured)
 # -----------------------------------------------------------------------------
@@ -865,6 +889,8 @@ def call_sheet(eid):
 
 @app.route('/events/<int:eid>/call-sheet.pdf')
 @login_required
+if not HAVE_PDF:
+    abort(503, description="PDF engine not available; contact admin.")
 def call_sheet_pdf(eid):
     db = SessionLocal()
     ev = db.get(Event, eid)
