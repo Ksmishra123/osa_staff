@@ -1,0 +1,87 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Call Sheet — {{ ev.city }}</title>
+  <style>
+    body { font-family: DejaVu Sans, Arial, sans-serif; font-size: 12px; color: #111; }
+    h1,h2,h3 { margin: 0 0 6px; }
+    .header { text-align: center; margin-bottom: 12px; }
+    .logo { height: 70px; }
+    table { width: 100%; border-collapse: collapse; margin: 8px 0; }
+    th, td { border: 1px solid #aaa; padding: 6px; vertical-align: top; }
+    .section { margin-top: 12px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <img class="logo" src="{{ url_for('static', filename='osa_logo.png') }}" alt="On Stage America">
+    <h1>Call Sheet</h1>
+    <div>{{ ev.city }}{% if ev.date %} — {{ ev.date.strftime('%B %d, %Y') }}{% endif %}</div>
+  </div>
+
+  <div class="section">
+    <h2>Assignments</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Position</th>
+          <th>Name</th>
+          <th>Phone</th>
+          <th>Email</th>
+          <th>Transport</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in rows %}
+          <tr>
+            <td>{{ a.position.name }}</td>
+            <td>{{ a.person.name if a.person else '' }}</td>
+            <td>{{ a.person.phone if a.person else '' }}</td>
+            <td>{{ a.person.email if a.person else '' }}</td>
+            <td>
+              {% if a.transport_mode %}{{ a.transport_mode }}{% endif %}
+              {% if a.arrival_ts %} | Arr: {{ a.arrival_ts.strftime('%Y-%m-%d %H:%M') }}{% endif %}
+              {% if a.transport_booking %} | {{ a.transport_booking }}{% endif %}
+              {% if a.transport_notes %} | {{ a.transport_notes }}{% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>Hotel & Room Assignments</h2>
+    {% if hotels %}
+      {% for h in hotels %}
+        <h3>{{ h.name }}</h3>
+        <div>{{ h.address or '' }}{% if h.phone %} — {{ h.phone }}{% endif %}</div>
+        {% if h.notes %}<div><em>{{ h.notes }}</em></div>{% endif %}
+        {% if h.rooms %}
+          <table>
+            <thead><tr><th>Room</th><th>Occupants</th><th>Check-in</th><th>Check-out</th><th>Conf#</th></tr></thead>
+            <tbody>
+            {% for r in h.rooms %}
+              <tr>
+                <td>{{ r.room_number or '-' }}</td>
+                <td>
+                  {% for rm in r.occupants %}
+                    {{ rm.person.name }}{% if not loop.last %}, {% endif %}
+                  {% endfor %}
+                </td>
+                <td>{{ r.check_in.strftime('%Y-%m-%d') if r.check_in else '' }}</td>
+                <td>{{ r.check_out.strftime('%Y-%m-%d') if r.check_out else '' }}</td>
+                <td>{{ r.confirmation or '' }}</td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        {% endif %}
+      {% endfor %}
+    {% else %}
+      <div>No hotel assignments yet.</div>
+    {% endif %}
+  </div>
+</body>
+</html>
