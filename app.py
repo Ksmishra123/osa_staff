@@ -18,6 +18,9 @@ from models import init_db, SessionLocal, Person, Event, Position, Assignment, H
 from io import BytesIO
 from flask import send_file, make_response  # already have?
 from xhtml2pdf import pisa
+import os, threading
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail
 
 
 load_dotenv()
@@ -120,6 +123,21 @@ def inject_now():
 def inject_helpers():
     return {"is_admin": is_admin}
 
+SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
+FROM_EMAIL = os.getenv("FROM_EMAIL", "no-reply@onstageamerica.com")
+
+def send_email_async(to_email: str, subject: str, html: str):
+    """Fire-and-forget email via SendGrid in a thread."""
+    if not SENDGRID_API_KEY or not to_email:
+        return
+    def _send():
+        try:
+            sg = SendGridAPIClient(SENDGRID_API_KEY)
+            msg = Mail(from_email=FROM_EMAIL, to_emails=to_email, subject=subject, html_content=html)
+            sg.send(msg)
+        except Exception as e:
+            app.logger.exception("Email send failed")
+    threading.Thread(target=_send, daemon=True).start()
 # -----------------------------------------------------------------------------
 # Static uploads (secured)
 # -----------------------------------------------------------------------------
@@ -492,7 +510,16 @@ def admin_assign(eid):
                 transport_notes=request.form.get(f'pos_{p.id}_notes') or None,
             )
             db.add(a)
-
+        # notify assigned people
+        for p in positions:
+            pid = request.form.get(f'pos_{p.id}')
+            if not pid:
+                continue
+            person = db.get(Person, int(pid))
+            if person and person.email:
+                html = render_template('emails/assignment_notice.html', person=person, ev=ev, position=p.name)
+                send_email_async(person.email, f"Assignment: {ev.city} ({ev.date.strftime('%Y-%m-%d') if ev.date else ''})", html)
+   
         db.commit()
         flash('Assignments saved (including transportation).')
         return redirect(url_for('admin_events'))
@@ -748,6 +775,14 @@ def admin_event_lodging(eid):
         for pid in [p1, p2]:
             if pid:
                 db.add(Roommate(room_id=room_id, person_id=int(pid)))
+    # notify roommates
+    room = db.get(Room, room_id)
+    if room and room.occupants:
+        occ_people = [rm.person for rm in room.occupants if rm.person and rm.person.email]
+        for person in occ_people:
+            html = render_template('emails/room_notice.html', person=person, room=room, hotel=room.hotel, ev=ev)
+            send_email_async(person.email, f"Lodging Assigned: {hotel.name} / Room {room.room_number or ''}", html)
+    
         db.commit()
         flash("Roommates saved.")
         return redirect(url_for('admin_event_lodging', eid=eid))
