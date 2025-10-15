@@ -2,7 +2,7 @@ import os
 import bcrypt
 import re
 from sqlalchemy.orm import joinedload, aliased
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from flask import (
     Flask, render_template, redirect, url_for, request, flash, abort,
     send_from_directory, current_app
@@ -121,6 +121,17 @@ def is_admin() -> bool:
 def inject_now():
     return {'now': datetime.utcnow}
 
+@app.template_filter('dt_long')  # e.g., November 11, 2025 - 4:00 PM
+def dt_long(v):
+    if not v: return ''
+    return v.strftime('%B %-d, %Y - %-I:%M %p')  # Linux/Render
+    # If you ever run on Windows, use: '%B %#d, %Y - %#I:%M %p'
+
+@app.template_filter('t_short')  # e.g., 4:00 PM
+def t_short(v):
+    if not v: return ''
+    return v.strftime('%-I:%M %p')
+    
 @app.context_processor
 def inject_helpers():
     return {"is_admin": is_admin}
