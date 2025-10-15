@@ -1040,8 +1040,9 @@ def admin_event_lodging(eid):
     target_state = request.args.get('state')
     if not target_state:
         first = db.query(Hotel).filter(Hotel.event_id == eid).first()
-        if first and first.state:
+        if first and getattr(first, "state", None):
             target_state = first.state
+
 
     same_state_hotels = []
     if target_state:
