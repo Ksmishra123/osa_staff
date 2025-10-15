@@ -10,6 +10,12 @@
   <div><label>Coordinator Phone
     <input name="coordinator_phone" value="{{ ev.coordinator_phone or '' }}">
   </label></div>
+  <div>
+    <label>
+      <input type="checkbox" name="call_sheet_published" value="1" {% if ev.call_sheet_published %}checked{% endif %}>
+      Call sheet published (visible to all staff)
+    </label>
+  </div>
 
   <div><label>Main Date</label><input type="datetime-local" name="date" value="{{ ev.date|default('',true)|datetime_local }}"></div>
   <div><label>Setup Start</label><input type="datetime-local" name="setup_start" value="{{ ev.setup_start|default('',true)|datetime_local }}"></div>
