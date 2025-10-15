@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>Edit Event</h1>
+<form method="post">
+  <div><label>City</label><input name="city" value="{{ ev.city or '' }}"></div>
+  <div><label>Main Date</label><input type="datetime-local" name="date" value="{{ ev.date|default('',true)|datetime_local }}"></div>
+  <div><label>Setup Start</label><input type="datetime-local" name="setup_start" value="{{ ev.setup_start|default('',true)|datetime_local }}"></div>
+  <div><label>Event Start</label><input type="datetime-local" name="event_start" value="{{ ev.event_start|default('',true)|datetime_local }}"></div>
+  <div><label>Event End</label><input type="datetime-local" name="event_end" value="{{ ev.event_end|default('',true)|datetime_local }}"></div>
+  <div><label>Venue</label><input name="venue" value="{{ ev.venue or '' }}"></div>
+  <div><label>Hotel (notes)</label><input name="hotel" value="{{ ev.hotel or '' }}"></div>
+  <button class="btn btn-primary">Save</button>
+  <a href="{{ url_for('admin_events') }}" class="btn">Cancel</a>
+</form>
+{% endblock %}
