@@ -78,6 +78,9 @@
       Reset password to <code>changeme</code>
     </label>
   </div>
+  <form method="post" action="{{ url_for('admin_delete_person', pid=person.id) }}" onsubmit="return confirm('Delete this person?');">
+  <button class="btn btn-danger">Delete Person</button>
+  </form>
 </form>
 
 {% endblock %}
