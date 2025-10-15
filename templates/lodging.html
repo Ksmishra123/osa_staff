@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% block content %}
-<h1>Lodging — {{ ev.city }}{% if ev.date %} ({{ ev.date.strftime('%Y-%m-%d') }}){% endif %}</h1>
+<h1>Lodging — {{ ev.city }}</h1>
+
 {% if target_state %}
   <h3>Clone a hotel in {{ target_state }}</h3>
   <form method="post" class="mb-3">
@@ -14,127 +15,99 @@
     <button class="btn btn-outline-primary btn-sm">Clone</button>
   </form>
 {% else %}
-  <p><em>Tip:</em> Set a State on your new hotel(s) to enable the “clone from existing” picker for that state.</p>
+  <p><em>Tip:</em> Set “State” on a hotel to enable the clone picker.</p>
 {% endif %}
 
 <h3>Add a hotel to this event</h3>
-<form method="post" class="mb-3">
+<form method="post" class="mb-4">
   <input type="hidden" name="action" value="add_hotel">
-  <div>Hotel Name <input name="name" required></div>
-  <div>State (2-letter) <input name="state" placeholder="NJ" maxlength="2"></div>
-  <div>Address <input name="address"></div>
-  <div>Phone <input name="phone"></div>
-  <div>Notes <input name="notes"></div>
+  <div><label>Name <input name="name" required></label></div>
+  <div><label>State (2-letter) <input name="state" maxlength="2" placeholder="NJ"></label></div>
+  <div><label>Address <input name="address"></label></div>
+  <div><label>Phone <input name="phone"></label></div>
+  <div><label>Notes <input name="notes"></label></div>
   <button class="btn btn-primary btn-sm">Add Hotel</button>
 </form>
 
-<div class="card" style="margin-bottom:12px;">
-  <h3>Add Hotel</h3>
-  <form method="post">
-    <input type="hidden" name="action" value="add_hotel">
-    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
-      <label>Name<br><input name="name" required></label>
-      <label>Phone<br><input name="phone"></label>
-      <label>Address<br><input name="address"></label>
-      <label>Notes<br><input name="notes"></label>
-    </div>
-    <button type="submit">Add Hotel</button>
-  </form>
-</div>
-
-<div class="card" style="margin-bottom:12px;">
-  <h3>Add Room</h3>
-  <form method="post">
-    <input type="hidden" name="action" value="add_room">
-    <div style="display:grid; grid-template-columns: 1.5fr 1fr 1fr 1fr 1fr; gap:8px;">
-      <label>Hotel<br>
-        <select name="hotel_id" required>
-          <option value="">—</option>
-          {% for h in hotels %}
-            <option value="{{ h.id }}">{{ h.name }}</option>
-          {% endfor %}
-        </select>
-      </label>
-      <label>Room #<br><input name="room_number"></label>
-      <label>Check-in<br><input type="date" name="check_in"></label>
-      <label>Check-out<br><input type="date" name="check_out"></label>
-      <label>Confirmation<br><input name="confirmation"></label>
-    </div>
-    <button type="submit">Add Room</button>
-  </form>
-</div>
-
-<div class="card">
-  <h3>Assign Roommates (max 2 per room)</h3>
-  <form method="post">
-    <input type="hidden" name="action" value="assign_roommates">
-    <div style="display:grid; grid-template-columns: 2fr 2fr 2fr 1fr; gap:8px; align-items:end;">
-      <label>Room<br>
-        <select name="room_id" required>
-          <option value="">—</option>
-          {% for h in hotels %}
-            {% for r in h.rooms %}
-              <option value="{{ r.id }}">{{ h.name }} — Room {{ r.room_number or r.id }}</option>
-            {% endfor %}
-          {% endfor %}
-        </select>
-      </label>
-      <label>Person 1<br>
-        <select name="person1">
-          <option value="">—</option>
-          {% for p in people %}
-            <option value="{{ p.id }}">{{ p.name }}</option>
-          {% endfor %}
-        </select>
-      </label>
-      <label>Person 2<br>
-        <select name="person2">
-          <option value="">—</option>
-          {% for p in people %}
-            <option value="{{ p.id }}">{{ p.name }}</option>
-          {% endfor %}
-        </select>
-      </label>
-      <button type="submit">Save</button>
-    </div>
-  </form>
-</div>
-
-<h3 style="margin-top:16px;">Current Hotels & Rooms</h3>
+<h3>Hotels for this event</h3>
 {% for h in hotels %}
-  <div class="card" style="margin-bottom:10px;">
-    <strong>{{ h.name }}</strong> — {{ h.address or '' }} {% if h.phone %} ({{ h.phone }}){% endif %}
+  <div class="card" style="padding:12px; margin-bottom:12px;">
+    <div><strong>{{ h.name }}</strong>{% if h.state %} ({{ h.state }}){% endif %}</div>
+    <div>
+      {% if h.address %}{{ h.address }}{% endif %}
+      {% if h.phone %}{% if h.address %} — {% endif %}{{ h.phone }}{% endif %}
+    </div>
     {% if h.notes %}<div><em>{{ h.notes }}</em></div>{% endif %}
-    {% if h.rooms %}
-      <table class="table" style="margin-top:6px;">
-        <thead><tr><th>Room</th><th>Occupants</th><th>Dates</th><th>Conf#</th></tr></thead>
+
+    <h4 style="margin-top:10px;">Rooms</h4>
+    {% if h.rooms and h.rooms|length %}
+      <table class="table table-sm">
+        <thead><tr><th>Room</th><th>Check-in</th><th>Check-out</th><th>Conf #</th><th>Occupants</th></tr></thead>
         <tbody>
-        {% for r in h.rooms %}
-          <tr>
-            <td>{{ r.room_number or '-' }}</td>
-            <td>
-              {% if r.occupants %}
-                {% for rm in r.occupants %}
-                  {{ rm.person.name }}{% if not loop.last %}, {% endif %}
-                {% endfor %}
-              {% else %}—{% endif %}
-            </td>
-            <td>
-              {% if r.check_in %}{{ r.check_in.strftime('%Y-%m-%d') }}{% endif %}
-              {% if r.check_out %} – {{ r.check_out.strftime('%Y-%m-%d') }}{% endif %}
-            </td>
-            <td>{{ r.confirmation or '' }}</td>
-          </tr>
-        {% endfor %}
+          {% for r in h.rooms %}
+            <tr>
+              <td>{{ r.room_number or '-' }}</td>
+              <td>{{ r.check_in or '' }}</td>
+              <td>{{ r.check_out or '' }}</td>
+              <td>{{ r.confirmation or '' }}</td>
+              <td>
+                {% set names = [] %}
+                {% if r.occupants %}
+                  {% for rm in r.occupants %}
+                    {% if rm.person and rm.person.name %}
+                      {% set _ = names.append(rm.person.name) %}
+                    {% endif %}
+                  {% endfor %}
+                {% endif %}
+                {{ names|join(', ') if names else '—' }}
+              </td>
+            </tr>
+          {% endfor %}
         </tbody>
       </table>
     {% else %}
-      <div>No rooms yet.</div>
+      <p>No rooms yet.</p>
     {% endif %}
+
+    <form method="post" class="mt-2">
+      <input type="hidden" name="action" value="add_room">
+      <input type="hidden" name="hotel_id" value="{{ h.id }}">
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <input name="room_number" placeholder="Room #">
+        <input type="date" name="check_in" placeholder="Check-in">
+        <input type="date" name="check_out" placeholder="Check-out">
+        <input name="confirmation" placeholder="Conf #">
+        <button class="btn btn-outline-secondary btn-sm">Add Room</button>
+      </div>
+    </form>
+
+    <form method="post" class="mt-2">
+      <input type="hidden" name="action" value="assign_roommates">
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <select name="room_id" required>
+          <option value="">— Select room —</option>
+          {% for r in h.rooms %}
+            <option value="{{ r.id }}">Room {{ r.room_number or r.id }}</option>
+          {% endfor %}
+        </select>
+
+        <select name="person1">
+          <option value="">— Person 1 —</option>
+          {% for p in people %}
+            <option value="{{ p.id }}">{{ p.name }}</option>
+          {% endfor %}
+        </select>
+
+        <select name="person2">
+          <option value="">— Person 2 —</option>
+          {% for p in people %}
+            <option value="{{ p.id }}">{{ p.name }}</option>
+          {% endfor %}
+        </select>
+
+        <button class="btn btn-outline-secondary btn-sm">Save Occupants</button>
+      </div>
+    </form>
   </div>
 {% endfor %}
-
-<div style="margin-top:10px;">
-  <a href="{{ url_for('admin_events') }}">Back to Events</a>
-</div>
 {% endblock %}
