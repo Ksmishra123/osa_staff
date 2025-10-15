@@ -899,13 +899,32 @@ def admin_event_lodging(eid):
         address = (request.form.get('address') or '').strip()
         phone = normalize_phone(request.form.get('phone',''))
         notes = (request.form.get('notes') or '').strip()
+        state = (request.form.get('state') or '').strip().upper()[:2] or None
         if not name:
             flash("Hotel name is required.")
         else:
-            h = Hotel(event_id=eid, name=name, address=address, phone=phone, notes=notes)
+            h = Hotel(event_id=eid, name=name, address=address, phone=phone, notes=notes, state=state)
             db.add(h); db.commit()
             flash("Hotel added.")
         return redirect(url_for('admin_event_lodging', eid=eid))
+    # Clone hotel from existing (by id)
+    if request.method == 'POST' and request.form.get('action') == 'clone_hotel':
+        src_id = int(request.form.get('src_hotel_id') or 0)
+        src = db.get(Hotel, src_id)
+        if not src:
+            flash("Select an existing hotel to clone.")
+        return redirect(url_for('admin_event_lodging', eid=eid))
+        clone = Hotel(
+        event_id=eid,
+        name=src.name,
+        address=src.address,
+        phone=src.phone,
+        notes=src.notes,
+        state=src.state
+    )
+    db.add(clone); db.commit()
+    flash("Hotel cloned onto this event.")
+    return redirect(url_for('admin_event_lodging', eid=eid))
 
     # Create room
     if request.method == 'POST' and request.form.get('action') == 'add_room':
@@ -981,9 +1000,29 @@ def admin_event_lodging(eid):
           .order_by(Person.name.asc())
           .all()
     )
+# Find same-state hotels (not tied to this event) for reuse
+same_state_hotels = []
+# Get target state: from any current hotel on this event OR from querystring ?state=XX
+target_state = request.args.get('state')
+if not target_state:
+    # infer from first hotel on this event, if any
+    first = db.query(Hotel).filter(Hotel.event_id == eid).first()
+    if first and first.state:
+        target_state = first.state
 
-    return render_template('lodging.html', ev=ev, hotels=hotels, people=assigned_people)
+if target_state:
+    same_state_hotels = (
+        db.query(Hotel)
+          .filter(Hotel.state == target_state, Hotel.event_id != eid)
+          .order_by(Hotel.name.asc())
+          .all()
+    )
 
+return render_template(
+    'lodging.html',
+    ev=ev, hotels=hotels, people=assigned_people,
+    same_state_hotels=same_state_hotels, target_state=target_state
+)
 # -----------------------------------------------------------------------------
 # Call Sheet (HTML)
 # -----------------------------------------------------------------------------
