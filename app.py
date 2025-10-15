@@ -982,7 +982,6 @@ for d in days:
           .filter(Hotel.event_id == eid)
           .all()
     )
-
     return render_template('call_sheet.html', ev=ev, rows=rows, hotels=hotels, day_rows=day_rows)
 
 @app.route('/events/<int:eid>/call-sheet.pdf')
