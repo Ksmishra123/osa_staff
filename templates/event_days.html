@@ -1,0 +1,48 @@
+{% extends 'base.html' %}{% block content %}
+<h1>Event Days — {{ ev.city }}{% if ev.date %} ({{ ev.date.strftime('%Y-%m-%d') }}){% endif %}</h1>
+
+<div class="card" style="padding:10px; margin-bottom:12px;">
+  <h3 style="margin:0 0 8px;">Add a Day</h3>
+  <form method="post">
+    <input type="hidden" name="action" value="add_day">
+    <div style="display:grid; grid-template-columns: repeat(2, minmax(240px,1fr)); gap:10px;">
+      <label>Start (date & time)<br><input type="datetime-local" name="start_dt" required></label>
+      <label>Setup (optional)<br><input type="datetime-local" name="setup_dt"></label>
+      <label>Staff arrival (optional)<br><input type="datetime-local" name="staff_arrival_dt" placeholder="default = 1 hr before start"></label>
+      <label>Judges arrival (optional)<br><input type="datetime-local" name="judges_arrival_dt" placeholder="default = 30 min before start"></label>
+      <label style="grid-column:1 / -1;">Notes<br><input name="notes"></label>
+    </div>
+    <div style="margin-top:8px;"><button type="submit">Add Day</button></div>
+  </form>
+</div>
+
+{% if days %}
+<table class="table">
+  <thead><tr>
+    <th>Start</th><th>Setup</th><th>Staff arrival</th><th>Judges arrival</th><th>Notes</th><th></th>
+  </tr></thead>
+  <tbody>
+    {% for d in days %}
+    <tr>
+      <td>{{ d.start_dt|dt_long }}</td>
+      <td>{{ d.setup_dt|dt_long }}</td>
+      <td>{{ d.staff_arrival_dt|dt_long }}</td>
+      <td>{{ d.judges_arrival_dt|dt_long }}</td>
+      <td>{{ d.notes or '' }}</td>
+      <td>
+        <form method="post" style="display:inline;">
+          <input type="hidden" name="action" value="delete_day">
+          <input type="hidden" name="day_id" value="{{ d.id }}">
+          <button type="submit" onclick="return confirm('Delete this day?')">Delete</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No days added yet.</p>
+{% endif %}
+
+<div style="margin-top:8px;"><a href="{{ url_for('admin_events') }}">Back to Events</a></div>
+{% endblock %}
