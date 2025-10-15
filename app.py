@@ -217,21 +217,24 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
-    @app.route('/admin/events/<int:eid>/days', methods=['GET','POST'])
-    @login_required
-    def admin_event_days(eid):
-        if not is_admin(): abort(403)
-            db = SessionLocal()
-            ev = db.get(Event, eid)
-        if not ev: abort(404)
+@app.route('/admin/events/<int:eid>/days', methods=['GET', 'POST'])
+@login_required
+def admin_event_days(eid):
+    if not is_admin():
+        abort(403)
 
-        if request.method == 'POST':
-            action = request.form.get('action')
+    db = SessionLocal()
+    ev = db.get(Event, eid)
+    if not ev:
+        abort(404)
+
+    if request.method == 'POST':
+        action = request.form.get('action')
+
         if action == 'add_day':
-            # expects ISO datetime-local inputs
-          
             from datetime import datetime
-            def parse_iso(s): 
+
+            def parse_iso(s):
                 return datetime.fromisoformat(s) if s else None
 
             start_dt = parse_iso(request.form.get('start_dt'))
@@ -252,17 +255,28 @@ def logout():
                     judges_arrival_dt=judges_arrival_dt,
                     notes=(request.form.get('notes') or '').strip()
                 )
-                db.add(d); db.commit()
+                db.add(d)
+                db.commit()
                 flash("Day added.")
+
         elif action == 'delete_day':
             did = int(request.form.get('day_id') or 0)
             if did:
-                db.query(EventDay).filter(EventDay.id == did, EventDay.event_id == eid).delete()
+                db.query(EventDay).filter(
+                    EventDay.id == did,
+                    EventDay.event_id == eid
+                ).delete()
                 db.commit()
                 flash("Day removed.")
+
         return redirect(url_for('admin_event_days', eid=eid))
 
-    days = db.query(EventDay).filter(EventDay.event_id==eid).order_by(EventDay.start_dt.asc()).all()
+    days = (
+        db.query(EventDay)
+          .filter(EventDay.event_id == eid)
+          .order_by(EventDay.start_dt.asc())
+          .all()
+    )
     return render_template('event_days.html', ev=ev, days=days)
 
 # -----------------------------------------------------------------------------
