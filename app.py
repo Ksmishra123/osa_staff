@@ -14,7 +14,7 @@ from flask_login import (
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 
-from models import init_db, SessionLocal, Person, Event, Position, Assignment, Hotel, Room, Roommate
+from models import init_db, SessionLocal, Person, Event, Position, Assignment, Hotel, Room, Roommate, EventDay
 from io import BytesIO
 from flask import send_file, make_response  # already have?
 
@@ -216,6 +216,53 @@ def login():
 def logout():
     logout_user()
     return redirect(url_for('login'))
+
+    @app.route('/admin/events/<int:eid>/days', methods=['GET','POST'])
+@login_required
+def admin_event_days(eid):
+    if not is_admin(): abort(403)
+    db = SessionLocal()
+    ev = db.get(Event, eid)
+    if not ev: abort(404)
+
+    if request.method == 'POST':
+        action = request.form.get('action')
+        if action == 'add_day':
+            # expects ISO datetime-local inputs
+            from datetime import datetime
+            def parse_iso(s): 
+                return datetime.fromisoformat(s) if s else None
+
+            start_dt = parse_iso(request.form.get('start_dt'))
+            setup_dt = parse_iso(request.form.get('setup_dt'))
+            staff_arrival_dt = parse_iso(request.form.get('staff_arrival_dt'))
+            judges_arrival_dt = parse_iso(request.form.get('judges_arrival_dt'))
+            day_date = start_dt.date() if start_dt else None
+
+            if not start_dt:
+                flash("Start date/time is required for a day.")
+            else:
+                d = EventDay(
+                    event_id=eid,
+                    day_date=day_date,
+                    start_dt=start_dt,
+                    setup_dt=setup_dt,
+                    staff_arrival_dt=staff_arrival_dt,
+                    judges_arrival_dt=judges_arrival_dt,
+                    notes=(request.form.get('notes') or '').strip()
+                )
+                db.add(d); db.commit()
+                flash("Day added.")
+        elif action == 'delete_day':
+            did = int(request.form.get('day_id') or 0)
+            if did:
+                db.query(EventDay).filter(EventDay.id == did, EventDay.event_id == eid).delete()
+                db.commit()
+                flash("Day removed.")
+        return redirect(url_for('admin_event_days', eid=eid))
+
+    days = db.query(EventDay).filter(EventDay.event_id==eid).order_by(EventDay.start_dt.asc()).all()
+    return render_template('event_days.html', ev=ev, days=days)
 
 # -----------------------------------------------------------------------------
 # Register (enhanced profile + headshot)
