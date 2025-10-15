@@ -477,10 +477,13 @@ def index():
         return redirect(url_for('me'))
     return redirect(url_for('login'))
 
+from datetime import datetime, timedelta
+...
 @app.route('/me')
 @login_required
 def me():
     db = SessionLocal()
+    today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
 
     Ev = aliased(Event)
     Pos = aliased(Position)
@@ -493,29 +496,34 @@ def me():
               joinedload(Assignment.event),
               joinedload(Assignment.position)
           )
-          .filter(Assignment.person_id == int(current_user.id))
+          .filter(
+              Assignment.person_id == int(current_user.id),
+              Ev.date != None,
+              Ev.date >= today
+          )
           .order_by(Ev.date.asc(), Pos.display_order.asc())
           .all()
     )
 
-    # Lodging by event for this user
+    # Lodging for future events only
     user_lodging = (
         db.query(Room, Hotel, Event)
           .join(Hotel, Room.hotel_id == Hotel.id)
           .join(Event, Hotel.event_id == Event.id)
           .join(Roommate, Roommate.room_id == Room.id)
-          .filter(Roommate.person_id == int(current_user.id))
+          .filter(
+              Roommate.person_id == int(current_user.id),
+              Event.date != None,
+              Event.date >= today
+          )
           .all()
     )
     lodging_by_event = {}
     for room, hotel, ev in user_lodging:
-        lodging_by_event.setdefault(ev.id, []).append({
-            "hotel": hotel,
-            "room": room
-        })
+        lodging_by_event.setdefault(ev.id, []).append({"hotel": hotel, "room": room})
 
     return render_template('me.html', rows=rows, lodging_by_event=lodging_by_event)
-
+    
 @app.route('/ack/<int:aid>', methods=['POST'])
 @login_required
 def ack(aid):
@@ -582,6 +590,44 @@ def admin_new_event():
         return redirect(url_for('admin_events'))
 
     return render_template('new_event.html')
+
+@app.route('/admin/events/<int:eid>/edit', methods=['GET','POST'])
+@login_required
+def admin_edit_event(eid):
+    if not is_admin(): abort(403)
+    db = SessionLocal()
+    ev = db.get(Event, eid)
+    if not ev: abort(404)
+
+    if request.method == 'POST':
+        ev.city = (request.form.get('city') or '').strip()
+        ev.date = parse_dt(request.form.get('date'))
+        ev.setup_start = parse_dt(request.form.get('setup_start'))
+        ev.event_start = parse_dt(request.form.get('event_start'))
+        ev.event_end = parse_dt(request.form.get('event_end'))
+        ev.venue = (request.form.get('venue') or '').strip()
+        ev.hotel = (request.form.get('hotel') or '').strip()
+        # Optional extra admin-only notes/dress code if you have those fields:
+        # ev.dress_code = (request.form.get('dress_code') or '').strip()
+        # ev.notes = (request.form.get('notes') or '').strip()
+        db.commit()
+        flash('Event updated.')
+        return redirect(url_for('admin_events'))
+
+    return render_template('edit_event.html', ev=ev)
+
+@app.route('/admin/events/<int:eid>/delete', methods=['POST'])
+@login_required
+def admin_delete_event(eid):
+    if not is_admin(): abort(403)
+    db = SessionLocal()
+    ev = db.get(Event, eid)
+    if not ev: abort(404)
+    # This cascades if you defined cascade on relationships; otherwise delete children first.
+    db.delete(ev)
+    db.commit()
+    flash('Event deleted.')
+    return redirect(url_for('admin_events'))
 
 @app.route('/admin/events/<int:eid>/assign', methods=['GET', 'POST'])
 @login_required
@@ -819,6 +865,21 @@ def admin_new_person():
 
     return render_template('new_person.html')
 
+@app.route('/admin/people/<int:pid>/delete', methods=['POST'])
+@login_required
+def admin_delete_person(pid):
+    if not is_admin(): abort(403)
+    db = SessionLocal()
+    p = db.get(Person, pid)
+    if not p: abort(404)
+    # Consider: prevent deleting yourself (admin)
+    if p.email == os.getenv('ADMIN_EMAIL', 'admin@example.com'):
+        flash("You cannot delete the admin user.")
+        return redirect(url_for('admin_edit_person', pid=pid))
+    db.delete(p)
+    db.commit()
+    flash('Person deleted.')
+    return redirect(url_for('admin_people'))
 # -----------------------------------------------------------------------------
 # Admin: Lodging
 # -----------------------------------------------------------------------------
