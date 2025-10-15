@@ -32,7 +32,13 @@
       <textarea name="hotel" rows="3"></textarea>
     </label>
   </div>
+  <div><label>Coordinator Name
+    <input name="coordinator_name" placeholder="e.g., Venue contact">
+  </label></div>
 
+<div><label>Coordinator Phone
+  <input name="coordinator_phone" placeholder="(555) 555-1212">
+</label></div>
   <div style="margin-top:12px;">
     <button type="submit">Create Event</button>
     <a href="{{ url_for('admin_events') }}" style="margin-left:8px;">Cancel</a>
