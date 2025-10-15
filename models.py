@@ -171,7 +171,7 @@ class Hotel(Base):
     address = Column(Text)
     phone = Column(String)
     notes = Column(Text)
-
+    state = Column(String, nullable=True)
     event = relationship("Event", back_populates="hotels")
     rooms = relationship("Room", back_populates="hotel", cascade="all, delete-orphan")
 
