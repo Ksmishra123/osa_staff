@@ -1035,6 +1035,58 @@ def build_call_sheet_pdf(ev, rows, hotels):
         title_text += f" — {ev.date.strftime('%B %d, %Y')}"
     story.append(Paragraph(title_text, styles["TitleBig"]))
     story.append(Spacer(1, 10))
+# Welcome letter
+welcome = (
+    "Thank you for being part of the On Stage America team. We expect the team to be professional and dress as "
+    "described in the dress code. Backstage Manager must be constantly vigilant backstage (and keep an eye on stage), "
+    "greeting kids and teachers as they approach. Other backstage staff should assist the Backstage Manager during "
+    "heavy loads. Judges: please be careful with comments—many studios play them directly to the kids. Absolutely no "
+    "foul language; do not discuss dancers, studios, or routines within earshot of others (use the staff room or hotel, "
+    "and remember walls can be thin). Thank you for helping us deliver a great experience."
+)
+story.append(Paragraph("<b>Welcome</b>", styles["H2"]))
+story.append(Paragraph(welcome, styles["Normal"]))
+story.append(Spacer(1, 8))
+
+# Event top info
+evt_table = [
+    ["City", ev.city or ""],
+    ["Main Start", ev.event_start.strftime("%B %d, %Y - %I:%M %p") if ev.event_start else "—"],
+    ["Setup", ev.setup_start.strftime("%B %d, %Y - %I:%M %p") if ev.setup_start else "—"],
+    ["End", ev.event_end.strftime("%B %d, %Y - %I:%M %p") if ev.event_end else "—"],
+]
+if getattr(ev, "dress_code", None):
+    evt_table.append(["Dress Code", ev.dress_code])
+if getattr(ev, "coordinator_name", None) or getattr(ev, "coordinator_phone", None):
+    evt_table.append(["Coordinator", f"{ev.coordinator_name or '—'} / {ev.coordinator_phone or '—'}"])
+
+t = Table(evt_table, colWidths=[1.3*inch, None])
+t.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.25,colors.grey),('BACKGROUND',(0,0),(0,-1),colors.whitesmoke)]))
+story.append(t)
+story.append(Spacer(1, 10))
+
+# Daily schedule rows (compute like in route)
+from datetime import timedelta
+days = getattr(ev, "event_days", []) or []
+if days:
+    story.append(Paragraph("Daily Schedule", styles["H2"]))
+    drows = [["Day Start","Setup","Staff arrival","Judges arrival","Notes"]]
+    for d in sorted(days, key=lambda x: x.start_dt):
+        staff_dt = d.staff_arrival_dt or (d.start_dt - timedelta(minutes=60) if d.start_dt else None)
+        judges_dt = d.judges_arrival_dt or (d.start_dt - timedelta(minutes=30) if d.start_dt else None)
+        drows.append([
+            d.start_dt.strftime("%B %d, %Y - %I:%M %p") if d.start_dt else "",
+            d.setup_dt.strftime("%B %d, %Y - %I:%M %p") if d.setup_dt else "",
+            staff_dt.strftime("%B %d, %Y - %I:%M %p") if staff_dt else "",
+            judges_dt.strftime("%B %d, %Y - %I:%M %p") if judges_dt else "",
+            d.notes or ""
+        ])
+    dtbl = Table(drows, colWidths=[1.7*inch,1.7*inch,1.7*inch,1.7*inch,None])
+    dtbl.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.25,colors.grey),
+                              ('BACKGROUND',(0,0),(-1,0),colors.lightgrey),
+                              ('FONTSIZE',(0,0),(-1,0),10),('FONTSIZE',(0,1),(-1,-1),9)]))
+    story.append(dtbl)
+    story.append(Spacer(1, 10))
 
     # Assignments table
     story.append(Paragraph("Assignments", styles["H2"]))
@@ -1110,7 +1162,9 @@ def build_call_sheet_pdf(ev, rows, hotels):
                 story.append(Spacer(1, 8))
     else:
         story.append(Paragraph("No hotel assignments yet.", styles["Normal"]))
-
+    story.append(Spacer(1, 10))
+    story.append(Paragraph("Notes", styles["H2"]))
+    story.append(Paragraph(getattr(ev, "notes", "") or "—", styles["Normal"]))
     doc.build(story)
     buf.seek(0)
     return buf
