@@ -86,6 +86,8 @@ class Event(Base):
     setup_start = Column(DateTime)
     event_start = Column(DateTime)
     event_end = Column(DateTime)
+    coordinator_name = Column(String, nullable=True)
+    coordinator_phone = Column(String, nullable=True)
 
     # Venues
     venue = Column(Text)
