@@ -569,7 +569,9 @@ def admin_new_event():
         event_end = parse_dt(request.form.get('event_end'))
         venue = request.form.get('venue', '').strip()
         hotel = request.form.get('hotel', '').strip()
-
+        coordinator_name=coord_name,
+        coordinator_phone=coord_phone
+      
         errors = []
         if not city:
             errors.append("City is required.")
@@ -617,6 +619,9 @@ def admin_edit_event(eid):
         # Optional extra admin-only notes/dress code if you have those fields:
         # ev.dress_code = (request.form.get('dress_code') or '').strip()
         # ev.notes = (request.form.get('notes') or '').strip()
+        ev.coordinator_name = (request.form.get('coordinator_name') or '').strip()
+        ev.coordinator_phone = normalize_phone(request.form.get('coordinator_phone',''))
+
         db.commit()
         flash('Event updated.')
         return redirect(url_for('admin_events'))
