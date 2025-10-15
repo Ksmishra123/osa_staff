@@ -137,6 +137,13 @@ def t_short(v):
         return ''
     return v.strftime('%-I:%M %p')
 
+@app.template_filter('datetime_local')
+def datetime_local(v):
+    """Format a datetime for <input type='datetime-local'> (YYYY-MM-DDTHH:MM)."""
+    if not v:
+        return ''
+    return v.strftime('%Y-%m-%dT%H:%M')
+    
 @app.context_processor
 def inject_helpers():
     return {"is_admin": is_admin}
