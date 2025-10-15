@@ -36,14 +36,66 @@
   <h1>Event Call Sheet</h1>
 </div>
 
-<div class="call-details">
-  <strong>City:</strong> {{ ev.city }}<br>
-  <strong>Date:</strong> {{ ev.date.strftime('%B %d, %Y %I:%M %p') if ev.date else '' }}<br>
-  {% if ev.venue %}<strong>Venue:</strong> {{ ev.venue }}<br>{% endif %}
-  {% if ev.hotel %}<strong>Hotel:</strong> {{ ev.hotel }}<br>{% endif %}
-  {% if ev.event_start %}<strong>Start:</strong> {{ ev.event_start.strftime('%I:%M %p') }}{% endif %}
-  {% if ev.event_end %} &nbsp; | &nbsp; <strong>End:</strong> {{ ev.event_end.strftime('%I:%M %p') }}{% endif %}
+<!-- Welcome letter (front page) -->
+<div class="card" style="padding:10px; margin-bottom:12px;">
+  <h2 style="margin:0 0 6px;">Welcome</h2>
+  <p style="margin:0;">
+    Thank you for being part of the On Stage America team. We expect the team to be professional and dress as
+    described in the dress code. Backstage Manager must be constantly vigilant backstage (and keep an eye on stage),
+    greeting kids and teachers as they approach. Other backstage staff should assist the Backstage Manager during
+    heavy loads. Judges: please be careful with comments—many studios play them directly to the kids. Absolutely no
+    foul language; do not discuss dancers, studios, or routines within earshot of others (use the staff room or hotel,
+    and remember walls can be thin). Thank you for helping us deliver a great experience.
+  </p>
 </div>
+
+<!-- Call times + contact -->
+<div class="card" style="padding:10px; margin-bottom:12px;">
+  <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+    <div>
+      <h3 style="margin:0 0 6px;">Event</h3>
+      <div><strong>City:</strong> {{ ev.city }}</div>
+      <div><strong>Main Start:</strong> {{ ev.event_start|dt_long if ev.event_start else '—' }}</div>
+      <div><strong>Setup:</strong> {{ ev.setup_start|dt_long if ev.setup_start else '—' }}</div>
+      <div><strong>End:</strong> {{ ev.event_end|dt_long if ev.event_end else '—' }}</div>
+      {% if ev.dress_code %}<div><strong>Dress Code:</strong> {{ ev.dress_code }}</div>{% endif %}
+    </div>
+    <div>
+      <h3 style="margin:0 0 6px;">Key Contact</h3>
+      <div><strong>Name:</strong> {{ ev.coordinator_name or '—' }}</div>
+      <div><strong>Phone:</strong> {{ ev.coordinator_phone or '—' }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- Multi-day schedule -->
+{% if day_rows and day_rows|length > 0 %}
+<div class="card" style="padding:10px; margin-bottom:12px;">
+  <h3 style="margin:0 0 6px;">Daily Schedule</h3>
+  <table class="table" style="width:100%;">
+    <thead>
+      <tr>
+        <th>Day Start</th>
+        <th>Setup</th>
+        <th>Staff arrival</th>
+        <th>Judges arrival</th>
+        <th>Notes</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for d in day_rows %}
+      <tr>
+        <td>{{ d.start|dt_long }}</td>
+        <td>{{ d.setup|dt_long }}</td>
+        <td>{{ d.staff|dt_long }}</td>
+        <td>{{ d.judges|dt_long }}</td>
+        <td>{{ d.notes }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
 
 <!-- Staff assignments -->
 <h2 class="section-title">Staffing</h2>
@@ -150,6 +202,14 @@
     {% endfor %}
   </tbody>
 </table>
+<div class="card" style="padding:10px; margin-top:12px;">
+  <h3 style="margin:0 0 6px;">Notes</h3>
+  {% if ev.notes %}
+    <div>{{ ev.notes }}</div>
+  {% else %}
+    <div>—</div>
+  {% endif %}
+</div>
 
 <div style="text-align:center; margin-top:30px;" class="noprint">
   <button onclick="window.print()" class="print-btn">🖨️ Print Call Sheet</button> | <a class="button" href="{{ url_for('call_sheet_pdf', eid=ev.id) }}">⬇️ Download PDF</a>
