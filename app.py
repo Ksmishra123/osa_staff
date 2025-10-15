@@ -218,17 +218,18 @@ def logout():
     return redirect(url_for('login'))
 
     @app.route('/admin/events/<int:eid>/days', methods=['GET','POST'])
-@login_required
-def admin_event_days(eid):
-    if not is_admin(): abort(403)
-    db = SessionLocal()
-    ev = db.get(Event, eid)
-    if not ev: abort(404)
+    @login_required
+    def admin_event_days(eid):
+        if not is_admin(): abort(403)
+            db = SessionLocal()
+            ev = db.get(Event, eid)
+        if not ev: abort(404)
 
-    if request.method == 'POST':
-        action = request.form.get('action')
+        if request.method == 'POST':
+            action = request.form.get('action')
         if action == 'add_day':
             # expects ISO datetime-local inputs
+          
             from datetime import datetime
             def parse_iso(s): 
                 return datetime.fromisoformat(s) if s else None
