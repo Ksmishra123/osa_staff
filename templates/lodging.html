@@ -1,6 +1,32 @@
 {% extends 'base.html' %}
 {% block content %}
 <h1>Lodging — {{ ev.city }}{% if ev.date %} ({{ ev.date.strftime('%Y-%m-%d') }}){% endif %}</h1>
+{% if target_state %}
+  <h3>Clone a hotel in {{ target_state }}</h3>
+  <form method="post" class="mb-3">
+    <input type="hidden" name="action" value="clone_hotel">
+    <select name="src_hotel_id" required>
+      <option value="">— Select existing hotel in {{ target_state }} —</option>
+      {% for h in same_state_hotels %}
+        <option value="{{ h.id }}">{{ h.name }} — {{ h.address }}</option>
+      {% endfor %}
+    </select>
+    <button class="btn btn-outline-primary btn-sm">Clone</button>
+  </form>
+{% else %}
+  <p><em>Tip:</em> Set a State on your new hotel(s) to enable the “clone from existing” picker for that state.</p>
+{% endif %}
+
+<h3>Add a hotel to this event</h3>
+<form method="post" class="mb-3">
+  <input type="hidden" name="action" value="add_hotel">
+  <div>Hotel Name <input name="name" required></div>
+  <div>State (2-letter) <input name="state" placeholder="NJ" maxlength="2"></div>
+  <div>Address <input name="address"></div>
+  <div>Phone <input name="phone"></div>
+  <div>Notes <input name="notes"></div>
+  <button class="btn btn-primary btn-sm">Add Hotel</button>
+</form>
 
 <div class="card" style="margin-bottom:12px;">
   <h3>Add Hotel</h3>
