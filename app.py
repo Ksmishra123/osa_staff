@@ -1,11 +1,13 @@
 import os
-import bcrypt
 import re
-from sqlalchemy.orm import joinedload, aliased
+import threading
+import bcrypt
+
 from datetime import datetime, date, timedelta
+
 from flask import (
     Flask, render_template, redirect, url_for, request, flash, abort,
-    send_from_directory, current_app
+    send_from_directory, current_app, send_file
 )
 from flask_login import (
     LoginManager, login_user, logout_user, login_required,
@@ -14,29 +16,30 @@ from flask_login import (
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 
-from models import init_db, SessionLocal, Person, Event, Position, Assignment, Hotel, Room, Roommate, EventDay
-from io import BytesIO
-from flask import send_file, make_response  # already have?
+from sqlalchemy.orm import joinedload, aliased
 
-import os, threading
+from models import (
+    init_db, SessionLocal,
+    Person, Event, Position, Assignment,
+    Hotel, Room, Roommate, EventDay
+)
+
+# ReportLab for PDFs
 from io import BytesIO
-from flask import send_file
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
 from reportlab.lib.units import inch
-import os
 
+# Optional email (SendGrid)
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 
-
+# -----------------------------------------------------------------------------
+# App setup
+# -----------------------------------------------------------------------------
 load_dotenv()
-
-# -----------------------------------------------------------------------------
-# Flask app FIRST, then decorators
-# -----------------------------------------------------------------------------
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'dev-secret')
 
@@ -52,7 +55,6 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 def allowed_headshot(filename: str) -> bool:
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_HEADSHOT_EXTS
-
 
 # -----------------------------------------------------------------------------
 # Auth setup
@@ -75,6 +77,7 @@ def load_user(user_id):
 @app.teardown_appcontext
 def remove_session(exc=None):
     SessionLocal.remove()
+
 @app.context_processor
 def inject_nav_flags():
     # exposes a boolean you can use in templates
@@ -83,9 +86,9 @@ def inject_nav_flags():
 # -----------------------------------------------------------------------------
 # Helpers
 # -----------------------------------------------------------------------------
-import re
 def normalize_phone(raw: str) -> str | None:
-    if not raw: return None
+    if not raw:
+        return None
     s = str(raw).strip()
     digits = re.sub(r"\D", "", s)
     if len(digits) == 11 and digits.startswith("1"):
@@ -123,19 +126,24 @@ def inject_now():
 
 @app.template_filter('dt_long')  # e.g., November 11, 2025 - 4:00 PM
 def dt_long(v):
-    if not v: return ''
-    return v.strftime('%B %-d, %Y - %-I:%M %p')  # Linux/Render
-    # If you ever run on Windows, use: '%B %#d, %Y - %#I:%M %p'
+    if not v:
+        return ''
+    # Linux/Render supports %-d / %-I; on Windows use %#d / %#I
+    return v.strftime('%B %-d, %Y - %-I:%M %p')
 
 @app.template_filter('t_short')  # e.g., 4:00 PM
 def t_short(v):
-    if not v: return ''
+    if not v:
+        return ''
     return v.strftime('%-I:%M %p')
-    
+
 @app.context_processor
 def inject_helpers():
     return {"is_admin": is_admin}
 
+# -----------------------------------------------------------------------------
+# Email helper (async via SendGrid)
+# -----------------------------------------------------------------------------
 SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
 FROM_EMAIL = os.getenv("FROM_EMAIL", "no-reply@onstageamerica.com")
 
@@ -148,16 +156,9 @@ def send_email_async(to_email: str, subject: str, html: str):
             sg = SendGridAPIClient(SENDGRID_API_KEY)
             msg = Mail(from_email=FROM_EMAIL, to_emails=to_email, subject=subject, html_content=html)
             sg.send(msg)
-        except Exception as e:
+        except Exception:
             app.logger.exception("Email send failed")
     threading.Thread(target=_send, daemon=True).start()
-from flask import current_app
-
-def html_to_pdf(html: str) -> BytesIO:
-    pdf = BytesIO()
-    pisa.CreatePDF(html, dest=pdf, link_callback=xhtml_link_callback)
-    pdf.seek(0)
-    return pdf
 
 # -----------------------------------------------------------------------------
 # Static uploads (secured)
@@ -217,6 +218,9 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
+# -----------------------------------------------------------------------------
+# Admin: Event Days (multi-day schedule)
+# -----------------------------------------------------------------------------
 @app.route('/admin/events/<int:eid>/days', methods=['GET', 'POST'])
 @login_required
 def admin_event_days(eid):
@@ -232,8 +236,6 @@ def admin_event_days(eid):
         action = request.form.get('action')
 
         if action == 'add_day':
-            from datetime import datetime
-
             def parse_iso(s):
                 return datetime.fromisoformat(s) if s else None
 
@@ -328,7 +330,9 @@ def register():
                     fname = secure_filename(f"{int(datetime.utcnow().timestamp())}_{file.filename}")
                     file.save(os.path.join(UPLOAD_DIR, fname))
                     headshot_path = f"/uploads/{fname}"
-            bio = (form.get('bio') or '').strip()
+
+            bio = (form.get('bio') or '').strip()  # keep it, saved below
+
             if errors:
                 for e in errors: flash(e)
                 return render_template('register.html', form=form)
@@ -339,7 +343,7 @@ def register():
                 phone=phone, address=address, preferred_airport=preferred_airport,
                 willing_to_drive=willing_to_drive, car_or_rental=car_or_rental,
                 dietary_preference=dietary_preference, dob=dob,
-                headshot_path=headshot_path
+                headshot_path=headshot_path, bio=bio
             )
             db.add(person); db.commit()
 
@@ -349,7 +353,6 @@ def register():
 
         except Exception as e:
             app.logger.exception("Register failed")
-            # TEMP: surface the error so we can see what’s wrong
             return f"Register error: {type(e).__name__}: {e}", 500
 
     return render_template('register.html', form={})
@@ -357,7 +360,6 @@ def register():
 # -----------------------------------------------------------------------------
 # Update Profile
 # -----------------------------------------------------------------------------
-
 @app.route('/account/profile', methods=['GET', 'POST'])
 @login_required
 def account_profile():
@@ -495,8 +497,8 @@ def me():
           .order_by(Ev.date.asc(), Pos.display_order.asc())
           .all()
     )
+
     # Lodging by event for this user
-    # (Room -> Hotel -> Event)
     user_lodging = (
         db.query(Room, Hotel, Event)
           .join(Hotel, Room.hotel_id == Hotel.id)
@@ -505,7 +507,6 @@ def me():
           .filter(Roommate.person_id == int(current_user.id))
           .all()
     )
-    # Map: event_id -> list of dicts
     lodging_by_event = {}
     for room, hotel, ev in user_lodging:
         lodging_by_event.setdefault(ev.id, []).append({
@@ -611,6 +612,7 @@ def admin_assign(eid):
                 transport_notes=request.form.get(f'pos_{p.id}_notes') or None,
             )
             db.add(a)
+
         # notify assigned people
         for p in positions:
             pid = request.form.get(f'pos_{p.id}')
@@ -619,20 +621,25 @@ def admin_assign(eid):
             person = db.get(Person, int(pid))
             if person and person.email:
                 html = render_template('emails/assignment_notice.html', person=person, ev=ev, position=p.name)
-                send_email_async(person.email, f"Assignment: {ev.city} ({ev.date.strftime('%Y-%m-%d') if ev.date else ''})", html)
-   
+                send_email_async(
+                    person.email,
+                    f"Assignment: {ev.city} ({ev.date.strftime('%Y-%m-%d') if ev.date else ''})",
+                    html
+                )
+
         db.commit()
         flash('Assignments saved (including transportation).')
         return redirect(url_for('admin_events'))
 
-    # Prefill current assignments + transport
     currents = {
         a.position_id: a
         for a in db.query(Assignment).filter(Assignment.event_id == eid).all()
     }
     return render_template('assign.html', ev=ev, people=people, positions=positions, current=currents)
-from sqlalchemy.orm import joinedload
 
+# -----------------------------------------------------------------------------
+# Admin: Bios
+# -----------------------------------------------------------------------------
 @app.route('/admin/events/<int:eid>/bios', methods=['GET', 'POST'])
 @login_required
 def admin_event_bios(eid):
@@ -643,7 +650,6 @@ def admin_event_bios(eid):
     if not ev:
         abort(404)
 
-    # Load assignments for this event, eager-load person & position, stable ordering
     Pos = aliased(Position)
     assigns = (
         db.query(Assignment)
@@ -657,7 +663,7 @@ def admin_event_bios(eid):
           .all()
     )
 
-    # Unique people list (a person could hold multiple positions)
+    # Unique people list
     people_map = {}
     for a in assigns:
         if a.person:
@@ -677,7 +683,6 @@ def admin_event_bios(eid):
 
         return render_template('bios_print.html', ev=ev, people=ordered)
 
-    # GET: selection screen
     return render_template('event_bios.html', ev=ev, people=people)
 
 # -----------------------------------------------------------------------------
@@ -693,7 +698,6 @@ def admin_people():
     query = db.query(Person)
     if q:
         like = f"%{q}%"
-        # search by name, email, phone, preferred airport
         query = query.filter(
             (Person.name.ilike(like)) |
             (Person.email.ilike(like)) |
@@ -760,7 +764,6 @@ def admin_edit_person(pid):
             if not allowed_headshot(file.filename):
                 flash("Headshot must be an image (png, jpg, jpeg, gif).")
                 return render_template('edit_person.html', person=p)
-            # remove old if exists
             if p.headshot_path:
                 try:
                     old_fn = p.headshot_path.split('/')[-1]
@@ -777,7 +780,6 @@ def admin_edit_person(pid):
         if form.get('reset_password') == 'on':
             p.password_hash = bcrypt.hashpw(b'changeme', bcrypt.gensalt()).decode()
             flash("Password reset to 'changeme'.")
-            p.bio = (form.get('bio') or '').strip()
 
         db.commit()
         flash("Person updated.")
@@ -810,16 +812,16 @@ def admin_new_person():
             flash('A user with that email already exists.')
             return render_template('new_person.html')
 
-        db.add(Person(name=name, email=email, phone=phone, address=address, password_hash=pwd_hash))
+        db.add(Person(name=name, email=email, phone=normalize_phone(phone), address=address, password_hash=pwd_hash))
         db.commit()
         flash('Person created (initial password: changeme).')
         return redirect(url_for('admin_people'))
 
     return render_template('new_person.html')
+
 # -----------------------------------------------------------------------------
 # Admin: Lodging
 # -----------------------------------------------------------------------------
-
 @app.route('/admin/events/<int:eid>/lodging', methods=['GET','POST'])
 @login_required
 def admin_event_lodging(eid):
@@ -834,7 +836,7 @@ def admin_event_lodging(eid):
     if request.method == 'POST' and request.form.get('action') == 'add_hotel':
         name = (request.form.get('name') or '').strip()
         address = (request.form.get('address') or '').strip()
-        phone = (request.form.get('phone') or '').strip()
+        phone = normalize_phone(request.form.get('phone',''))
         notes = (request.form.get('notes') or '').strip()
         if not name:
             flash("Hotel name is required.")
@@ -851,7 +853,6 @@ def admin_event_lodging(eid):
         check_in = (request.form.get('check_in') or '').strip()
         check_out = (request.form.get('check_out') or '').strip()
         confirmation = (request.form.get('confirmation') or '').strip()
-        from datetime import datetime
         ci = datetime.strptime(check_in, "%Y-%m-%d").date() if check_in else None
         co = datetime.strptime(check_out, "%Y-%m-%d").date() if check_out else None
         if not hotel_id:
@@ -862,7 +863,7 @@ def admin_event_lodging(eid):
             flash("Room added.")
         return redirect(url_for('admin_event_lodging', eid=eid))
 
-        # Assign roommates (max 2) + notify
+    # Assign roommates (max 2) + notify
     if request.method == 'POST' and request.form.get('action') == 'assign_roommates':
         room_id = int(request.form.get('room_id') or 0)
         p1 = request.form.get('person1')
@@ -886,7 +887,7 @@ def admin_event_lodging(eid):
         db.commit()
         flash("Roommates saved.")
 
-        # ---- email notifications (guarded; won't run on GET) ----
+        # email notifications (non-blocking)
         try:
             room = db.get(Room, room_id)
             if room and room.occupants:
@@ -902,11 +903,9 @@ def admin_event_lodging(eid):
                         html
                     )
         except Exception:
-            # don't let email hiccups break the UI
             app.logger.exception("Roommate email notify failed")
 
         return redirect(url_for('admin_event_lodging', eid=eid))
-
 
     hotels = (
         db.query(Hotel)
@@ -914,7 +913,6 @@ def admin_event_lodging(eid):
           .filter(Hotel.event_id == eid)
           .all()
     )
-    # staff assigned to this event for convenience in dropdowns
     assigned_people = (
         db.query(Person)
           .join(Assignment, Assignment.person_id == Person.id)
@@ -925,9 +923,8 @@ def admin_event_lodging(eid):
 
     return render_template('lodging.html', ev=ev, hotels=hotels, people=assigned_people)
 
-
 # -----------------------------------------------------------------------------
-# Call Sheet (secured)
+# Call Sheet (HTML)
 # -----------------------------------------------------------------------------
 @app.route('/events/<int:eid>/call-sheet')
 @login_required
@@ -986,18 +983,23 @@ def call_sheet(eid):
 
     return render_template('call_sheet.html', ev=ev, rows=rows, hotels=hotels, day_rows=day_rows)
 
+# -----------------------------------------------------------------------------
+# Call Sheet (PDF)
+# -----------------------------------------------------------------------------
 @app.route('/events/<int:eid>/call-sheet.pdf')
 @login_required
 def call_sheet_pdf(eid):
     db = SessionLocal()
     ev = db.get(Event, eid)
-    if not ev: abort(404)
+    if not ev:
+        abort(404)
 
     allowed = is_admin() or db.query(Assignment).filter(
         Assignment.event_id == eid,
         Assignment.person_id == int(current_user.id)
     ).count() > 0
-    if not allowed: abort(403)
+    if not allowed:
+        abort(403)
 
     Pos = aliased(Position)
     rows = (
@@ -1023,9 +1025,7 @@ def call_sheet_pdf(eid):
     return send_file(pdf_io, mimetype='application/pdf', as_attachment=True, download_name=filename)
 
 def build_call_sheet_pdf(ev, rows, hotels):
-    """
-    Build a PDF for the call sheet using ReportLab and return BytesIO.
-    """
+    """Build a PDF for the call sheet using ReportLab and return BytesIO."""
     buf = BytesIO()
     doc = SimpleDocTemplate(
         buf, pagesize=letter,
@@ -1051,58 +1051,64 @@ def build_call_sheet_pdf(ev, rows, hotels):
         title_text += f" — {ev.date.strftime('%B %d, %Y')}"
     story.append(Paragraph(title_text, styles["TitleBig"]))
     story.append(Spacer(1, 10))
-# Welcome letter
-welcome = (
-    "Thank you for being part of the On Stage America team. We expect the team to be professional and dress as "
-    "described in the dress code. Backstage Manager must be constantly vigilant backstage (and keep an eye on stage), "
-    "greeting kids and teachers as they approach. Other backstage staff should assist the Backstage Manager during "
-    "heavy loads. Judges: please be careful with comments—many studios play them directly to the kids. Absolutely no "
-    "foul language; do not discuss dancers, studios, or routines within earshot of others (use the staff room or hotel, "
-    "and remember walls can be thin). Thank you for helping us deliver a great experience."
-)
-story.append(Paragraph("<b>Welcome</b>", styles["H2"]))
-story.append(Paragraph(welcome, styles["Normal"]))
-story.append(Spacer(1, 8))
 
-# Event top info
-evt_table = [
-    ["City", ev.city or ""],
-    ["Main Start", ev.event_start.strftime("%B %d, %Y - %I:%M %p") if ev.event_start else "—"],
-    ["Setup", ev.setup_start.strftime("%B %d, %Y - %I:%M %p") if ev.setup_start else "—"],
-    ["End", ev.event_end.strftime("%B %d, %Y - %I:%M %p") if ev.event_end else "—"],
-]
-if getattr(ev, "dress_code", None):
-    evt_table.append(["Dress Code", ev.dress_code])
-if getattr(ev, "coordinator_name", None) or getattr(ev, "coordinator_phone", None):
-    evt_table.append(["Coordinator", f"{ev.coordinator_name or '—'} / {ev.coordinator_phone or '—'}"])
+    # Welcome letter
+    welcome = (
+        "Thank you for being part of the On Stage America team. We expect the team to be professional and dress as "
+        "described in the dress code. Backstage Manager must be constantly vigilant backstage (and keep an eye on stage), "
+        "greeting kids and teachers as they approach. Other backstage staff should assist the Backstage Manager during "
+        "heavy loads. Judges: please be careful with comments—many studios play them directly to the kids. Absolutely no "
+        "foul language; do not discuss dancers, studios, or routines within earshot of others (use the staff room or hotel, "
+        "and remember walls can be thin). Thank you for helping us deliver a great experience."
+    )
+    story.append(Paragraph("<b>Welcome</b>", styles["H2"]))
+    story.append(Paragraph(welcome, styles["Normal"]))
+    story.append(Spacer(1, 8))
 
-t = Table(evt_table, colWidths=[1.3*inch, None])
-t.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.25,colors.grey),('BACKGROUND',(0,0),(0,-1),colors.whitesmoke)]))
-story.append(t)
-story.append(Spacer(1, 10))
+    # Event top info
+    evt_table = [
+        ["City", ev.city or ""],
+        ["Main Start", ev.event_start.strftime("%B %d, %Y - %I:%M %p") if ev.event_start else "—"],
+        ["Setup", ev.setup_start.strftime("%B %d, %Y - %I:%M %p") if ev.setup_start else "—"],
+        ["End", ev.event_end.strftime("%B %d, %Y - %I:%M %p") if ev.event_end else "—"],
+    ]
+    if getattr(ev, "dress_code", None):
+        evt_table.append(["Dress Code", ev.dress_code])
+    if getattr(ev, "coordinator_name", None) or getattr(ev, "coordinator_phone", None):
+        evt_table.append(["Coordinator", f"{ev.coordinator_name or '—'} / {ev.coordinator_phone or '—'}"])
 
-# Daily schedule rows (compute like in route)
-from datetime import timedelta
-days = getattr(ev, "event_days", []) or []
-if days:
-    story.append(Paragraph("Daily Schedule", styles["H2"]))
-    drows = [["Day Start","Setup","Staff arrival","Judges arrival","Notes"]]
-    for d in sorted(days, key=lambda x: x.start_dt):
-        staff_dt = d.staff_arrival_dt or (d.start_dt - timedelta(minutes=60) if d.start_dt else None)
-        judges_dt = d.judges_arrival_dt or (d.start_dt - timedelta(minutes=30) if d.start_dt else None)
-        drows.append([
-            d.start_dt.strftime("%B %d, %Y - %I:%M %p") if d.start_dt else "",
-            d.setup_dt.strftime("%B %d, %Y - %I:%M %p") if d.setup_dt else "",
-            staff_dt.strftime("%B %d, %Y - %I:%M %p") if staff_dt else "",
-            judges_dt.strftime("%B %d, %Y - %I:%M %p") if judges_dt else "",
-            d.notes or ""
-        ])
-    dtbl = Table(drows, colWidths=[1.7*inch,1.7*inch,1.7*inch,1.7*inch,None])
-    dtbl.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.25,colors.grey),
-                              ('BACKGROUND',(0,0),(-1,0),colors.lightgrey),
-                              ('FONTSIZE',(0,0),(-1,0),10),('FONTSIZE',(0,1),(-1,-1),9)]))
-    story.append(dtbl)
+    t = Table(evt_table, colWidths=[1.3*inch, None])
+    t.setStyle(TableStyle([
+        ('GRID',(0,0),(-1,-1),0.25,colors.grey),
+        ('BACKGROUND',(0,0),(0,-1),colors.whitesmoke)
+    ]))
+    story.append(t)
     story.append(Spacer(1, 10))
+
+    # Daily schedule rows (compute like in route)
+    days = getattr(ev, "event_days", []) or []
+    if days:
+        story.append(Paragraph("Daily Schedule", styles["H2"]))
+        drows = [["Day Start","Setup","Staff arrival","Judges arrival","Notes"]]
+        for d in sorted(days, key=lambda x: x.start_dt):
+            staff_dt = d.staff_arrival_dt or (d.start_dt - timedelta(minutes=60) if d.start_dt else None)
+            judges_dt = d.judges_arrival_dt or (d.start_dt - timedelta(minutes=30) if d.start_dt else None)
+            drows.append([
+                d.start_dt.strftime("%B %d, %Y - %I:%M %p") if d.start_dt else "",
+                d.setup_dt.strftime("%B %d, %Y - %I:%M %p") if d.setup_dt else "",
+                staff_dt.strftime("%B %d, %Y - %I:%M %p") if staff_dt else "",
+                judges_dt.strftime("%B %d, %Y - %I:%M %p") if judges_dt else "",
+                d.notes or ""
+            ])
+        dtbl = Table(drows, colWidths=[1.7*inch,1.7*inch,1.7*inch,1.7*inch,None])
+        dtbl.setStyle(TableStyle([
+            ('GRID',(0,0),(-1,-1),0.25,colors.grey),
+            ('BACKGROUND',(0,0),(-1,0),colors.lightgrey),
+            ('FONTSIZE',(0,0),(-1,0),10),
+            ('FONTSIZE',(0,1),(-1,-1),9)
+        ]))
+        story.append(dtbl)
+        story.append(Spacer(1, 10))
 
     # Assignments table
     story.append(Paragraph("Assignments", styles["H2"]))
@@ -1178,9 +1184,12 @@ if days:
                 story.append(Spacer(1, 8))
     else:
         story.append(Paragraph("No hotel assignments yet.", styles["Normal"]))
+
+    # Footer notes
     story.append(Spacer(1, 10))
     story.append(Paragraph("Notes", styles["H2"]))
     story.append(Paragraph(getattr(ev, "notes", "") or "—", styles["Normal"]))
+
     doc.build(story)
     buf.seek(0)
     return buf
