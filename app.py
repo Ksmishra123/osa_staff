@@ -937,31 +937,13 @@ def call_sheet(eid):
     if not ev:
         abort(404)
 
+    # Allow if admin or assigned
     allowed = is_admin() or db.query(Assignment).filter(
         Assignment.event_id == eid,
         Assignment.person_id == int(current_user.id)
     ).count() > 0
     if not allowed:
         abort(403)
-days = (
-    db.query(EventDay)
-      .filter(EventDay.event_id == eid)
-      .order_by(EventDay.start_dt.asc())
-      .all()
-)
-
-# Build rows with defaults: staff = start - 60m, judges = start - 30m
-day_rows = []
-for d in days:
-    staff_dt = d.staff_arrival_dt or (d.start_dt - timedelta(minutes=60) if d.start_dt else None)
-    judges_dt = d.judges_arrival_dt or (d.start_dt - timedelta(minutes=30) if d.start_dt else None)
-    day_rows.append({
-        "start": d.start_dt,
-        "setup": d.setup_dt,
-        "staff": staff_dt,
-        "judges": judges_dt,
-        "notes": d.notes or ''
-    })
 
     Pos = aliased(Position)
     rows = (
@@ -982,6 +964,26 @@ for d in days:
           .filter(Hotel.event_id == eid)
           .all()
     )
+
+    # Multi-day schedule (optional)
+    days = (
+        db.query(EventDay)
+          .filter(EventDay.event_id == eid)
+          .order_by(EventDay.start_dt.asc())
+          .all()
+    )
+    day_rows = []
+    for d in days:
+        staff_dt = d.staff_arrival_dt or (d.start_dt - timedelta(minutes=60) if d.start_dt else None)
+        judges_dt = d.judges_arrival_dt or (d.start_dt - timedelta(minutes=30) if d.start_dt else None)
+        day_rows.append({
+            "start": d.start_dt,
+            "setup": d.setup_dt,
+            "staff": staff_dt,
+            "judges": judges_dt,
+            "notes": d.notes or ''
+        })
+
     return render_template('call_sheet.html', ev=ev, rows=rows, hotels=hotels, day_rows=day_rows)
 
 @app.route('/events/<int:eid>/call-sheet.pdf')
