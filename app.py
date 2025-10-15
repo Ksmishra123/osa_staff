@@ -888,12 +888,15 @@ def admin_delete_person(pid):
 def admin_event_lodging(eid):
     if not is_admin():
         abort(403)
+
     db = SessionLocal()
     ev = db.get(Event, eid)
     if not ev:
         abort(404)
 
-    # Create hotel
+    # -----------------------------
+    # POST: add hotel
+    # -----------------------------
     if request.method == 'POST' and request.form.get('action') == 'add_hotel':
         name = (request.form.get('name') or '').strip()
         address = (request.form.get('address') or '').strip()
@@ -904,29 +907,14 @@ def admin_event_lodging(eid):
             flash("Hotel name is required.")
         else:
             h = Hotel(event_id=eid, name=name, address=address, phone=phone, notes=notes, state=state)
-            db.add(h); db.commit()
+            db.add(h)
+            db.commit()
             flash("Hotel added.")
         return redirect(url_for('admin_event_lodging', eid=eid))
-    # Clone hotel from existing (by id)
-    if request.method == 'POST' and request.form.get('action') == 'clone_hotel':
-        src_id = int(request.form.get('src_hotel_id') or 0)
-        src = db.get(Hotel, src_id)
-        if not src:
-            flash("Select an existing hotel to clone.")
-        return redirect(url_for('admin_event_lodging', eid=eid))
-        clone = Hotel(
-        event_id=eid,
-        name=src.name,
-        address=src.address,
-        phone=src.phone,
-        notes=src.notes,
-        state=src.state
-    )
-    db.add(clone); db.commit()
-    flash("Hotel cloned onto this event.")
-    return redirect(url_for('admin_event_lodging', eid=eid))
 
-    # Create room
+    # -----------------------------
+    # POST: add room
+    # -----------------------------
     if request.method == 'POST' and request.form.get('action') == 'add_room':
         hotel_id = int(request.form.get('hotel_id') or 0)
         room_number = (request.form.get('room_number') or '').strip()
@@ -939,11 +927,14 @@ def admin_event_lodging(eid):
             flash("Choose a hotel.")
         else:
             r = Room(hotel_id=hotel_id, room_number=room_number, check_in=ci, check_out=co, confirmation=confirmation)
-            db.add(r); db.commit()
+            db.add(r)
+            db.commit()
             flash("Room added.")
         return redirect(url_for('admin_event_lodging', eid=eid))
 
-    # Assign roommates (max 2) + notify
+    # -----------------------------
+    # POST: assign roommates
+    # -----------------------------
     if request.method == 'POST' and request.form.get('action') == 'assign_roommates':
         room_id = int(request.form.get('room_id') or 0)
         p1 = request.form.get('person1')
@@ -953,30 +944,23 @@ def admin_event_lodging(eid):
             flash("Choose a room.")
             return redirect(url_for('admin_event_lodging', eid=eid))
 
-        # clear current occupants
         db.query(Roommate).filter(Roommate.room_id == room_id).delete()
 
-        # add up to two occupants
-        new_people_ids = []
         for pid in [p1, p2]:
             if pid:
-                pid_int = int(pid)
-                db.add(Roommate(room_id=room_id, person_id=pid_int))
-                new_people_ids.append(pid_int)
+                db.add(Roommate(room_id=room_id, person_id=int(pid)))
 
         db.commit()
         flash("Roommates saved.")
 
-        # email notifications (non-blocking)
+        # notify by email, but don't block UI
         try:
             room = db.get(Room, room_id)
             if room and room.occupants:
                 occ_people = [rm.person for rm in room.occupants if rm.person and rm.person.email]
                 for person in occ_people:
-                    html = render_template(
-                        'emails/room_notice.html',
-                        person=person, room=room, hotel=room.hotel, ev=ev
-                    )
+                    html = render_template('emails/room_notice.html',
+                                           person=person, room=room, hotel=room.hotel, ev=ev)
                     send_email_async(
                         person.email,
                         f"Lodging Assigned: {room.hotel.name} / Room {room.room_number or ''}",
@@ -987,12 +971,38 @@ def admin_event_lodging(eid):
 
         return redirect(url_for('admin_event_lodging', eid=eid))
 
+    # -----------------------------
+    # POST: clone hotel from existing
+    # -----------------------------
+    if request.method == 'POST' and request.form.get('action') == 'clone_hotel':
+        src_id = int(request.form.get('src_hotel_id') or 0)
+        src = db.get(Hotel, src_id)
+        if not src:
+            flash("Select an existing hotel to clone.")
+            return redirect(url_for('admin_event_lodging', eid=eid))
+        clone = Hotel(
+            event_id=eid,
+            name=src.name,
+            address=src.address,
+            phone=src.phone,
+            notes=src.notes,
+            state=src.state
+        )
+        db.add(clone)
+        db.commit()
+        flash("Hotel cloned onto this event.")
+        return redirect(url_for('admin_event_lodging', eid=eid))
+
+    # -----------------------------
+    # GET: load page data
+    # -----------------------------
     hotels = (
         db.query(Hotel)
           .options(joinedload(Hotel.rooms).joinedload(Room.occupants).joinedload(Roommate.person))
           .filter(Hotel.event_id == eid)
           .all()
     )
+
     assigned_people = (
         db.query(Person)
           .join(Assignment, Assignment.person_id == Person.id)
@@ -1000,29 +1010,31 @@ def admin_event_lodging(eid):
           .order_by(Person.name.asc())
           .all()
     )
-# Find same-state hotels (not tied to this event) for reuse
-same_state_hotels = []
-# Get target state: from any current hotel on this event OR from querystring ?state=XX
-target_state = request.args.get('state')
-if not target_state:
-    # infer from first hotel on this event, if any
-    first = db.query(Hotel).filter(Hotel.event_id == eid).first()
-    if first and first.state:
-        target_state = first.state
 
-if target_state:
-    same_state_hotels = (
-        db.query(Hotel)
-          .filter(Hotel.state == target_state, Hotel.event_id != eid)
-          .order_by(Hotel.name.asc())
-          .all()
+    # same-state reuse picker
+    target_state = request.args.get('state')
+    if not target_state:
+        first = db.query(Hotel).filter(Hotel.event_id == eid).first()
+        if first and first.state:
+            target_state = first.state
+
+    same_state_hotels = []
+    if target_state:
+        same_state_hotels = (
+            db.query(Hotel)
+              .filter(Hotel.state == target_state, Hotel.event_id != eid)
+              .order_by(Hotel.name.asc())
+              .all()
+        )
+
+    return render_template(
+        'lodging.html',
+        ev=ev,
+        hotels=hotels,
+        people=assigned_people,
+        same_state_hotels=same_state_hotels,
+        target_state=target_state
     )
-
-return render_template(
-    'lodging.html',
-    ev=ev, hotels=hotels, people=assigned_people,
-    same_state_hotels=same_state_hotels, target_state=target_state
-)
 # -----------------------------------------------------------------------------
 # Call Sheet (HTML)
 # -----------------------------------------------------------------------------
