@@ -94,10 +94,25 @@ class Event(Base):
     # Relationships
     assignments = relationship("Assignment", back_populates="event", cascade="all, delete-orphan")
     hotels = relationship("Hotel", back_populates="event", cascade="all, delete-orphan")
+    event_days = relationship("EventDay", back_populates="event", cascade="all, delete-orphan")
 
     def __repr__(self) -> str:
         return f"<Event id={self.id} city={self.city!r} date={self.date!r}>"
 
+class EventDay(Base):
+    __tablename__ = "event_days"
+    id = Column(Integer, primary_key=True)
+    event_id = Column(Integer, ForeignKey("events.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    # the calendar day (use this if you like), plus specific datetimes for start/setup/arrival
+    day_date = Column(Date)                 # optional (useful for sorting/label)
+    start_dt = Column(DateTime, nullable=False)
+    setup_dt = Column(DateTime)             # optional; if not set, show '—' or same-day earlier
+    staff_arrival_dt = Column(DateTime)     # optional; default = start_dt - 60 mins
+    judges_arrival_dt = Column(DateTime)    # optional; default = start_dt - 30 mins
+    notes = Column(Text)
+
+    event = relationship("Event", back_populates="event_days")
 
 class Position(Base):
     __tablename__ = "positions"
