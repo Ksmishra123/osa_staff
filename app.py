@@ -621,12 +621,25 @@ def admin_edit_event(eid):
         # ev.notes = (request.form.get('notes') or '').strip()
         ev.coordinator_name = (request.form.get('coordinator_name') or '').strip()
         ev.coordinator_phone = normalize_phone(request.form.get('coordinator_phone',''))
+        ev.call_sheet_published = (request.form.get('call_sheet_published') == '1')
 
         db.commit()
         flash('Event updated.')
         return redirect(url_for('admin_events'))
 
     return render_template('edit_event.html', ev=ev)
+
+@app.route('/admin/events/<int:eid>/publish', methods=['POST'])
+@login_required
+def admin_toggle_publish(eid):
+    if not is_admin(): abort(403)
+    db = SessionLocal()
+    ev = db.get(Event, eid)
+    if not ev: abort(404)
+    ev.call_sheet_published = (request.form.get('publish') == '1')
+    db.commit()
+    flash('Call sheet ' + ('published.' if ev.call_sheet_published else 'unpublished.'))
+    return redirect(url_for('admin_events'))
 
 @app.route('/admin/events/<int:eid>/delete', methods=['POST'])
 @login_required
@@ -1057,7 +1070,19 @@ def call_sheet(eid):
     ev = db.get(Event, eid)
     if not ev:
         abort(404)
-
+    # Visibility rules
+    if not ev.call_sheet_published:
+        # only admin or assigned
+        allowed = is_admin() or db.query(Assignment).filter(
+            Assignment.event_id == eid,
+            Assignment.person_id == int(current_user.id)
+        ).count() > 0
+        if not allowed:
+            abort(403)
+    else:
+        # published: any logged-in user OK
+        allowed = True
+ 
     # Allow if admin or assigned
     allowed = is_admin() or db.query(Assignment).filter(
         Assignment.event_id == eid,
@@ -1117,7 +1142,18 @@ def call_sheet_pdf(eid):
     ev = db.get(Event, eid)
     if not ev:
         abort(404)
-
+    # Visibility rules
+    if not ev.call_sheet_published:
+        # only admin or assigned
+        allowed = is_admin() or db.query(Assignment).filter(
+            Assignment.event_id == eid,
+            Assignment.person_id == int(current_user.id)
+        ).count() > 0
+        if not allowed:
+            abort(403)
+    else:
+        # published: any logged-in user OK
+        allowed = True
     allowed = is_admin() or db.query(Assignment).filter(
         Assignment.event_id == eid,
         Assignment.person_id == int(current_user.id)
