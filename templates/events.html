@@ -16,6 +16,10 @@
 <td>{{ e.event_end.strftime('%Y-%m-%d %H:%M') if e.event_end else '' }}</td>
 <td><a href='{{ url_for('admin_assign', eid=e.id) }}'>Assign</a> | <a href="{{ url_for('admin_event_lodging', eid=e.id) }}">Lodging</a> | <a href="{{ url_for('admin_event_days', eid=e.id) }}">Days</a>
 | <a href='{{ url_for('call_sheet', eid=e.id) }}' target='_blank'>Call Sheet</a> | <a href="{{ url_for('admin_event_bios', eid=e.id) }}">Print Bios</a>
+<a class="btn btn-sm btn-outline-primary" href="{{ url_for('admin_edit_event', eid=e.id) }}">Edit</a>
+<form method="post" action="{{ url_for('admin_delete_event', eid=e.id) }}" style="display:inline" onsubmit="return confirm('Delete this event?');">
+  <button class="btn btn-sm btn-outline-danger" type="submit">Delete</button>
+</form>
 </td>
 </tr>{% endfor %}
 </tbody></table>
