@@ -17,7 +17,7 @@ from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 
 from sqlalchemy.orm import joinedload, aliased
-
+from sqlalchemy.exc import SQLAlchemyError
 from models import (
     init_db, SessionLocal,
     Person, Event, Position, Assignment,
@@ -710,6 +710,82 @@ def admin_assign(eid):
         for a in db.query(Assignment).filter(Assignment.event_id == eid).all()
     }
     return render_template('assign.html', ev=ev, people=people, positions=positions, current=currents)
+
+# -----------------------------------------------------------------------------
+# Admin: People Delete or Bulk Delete
+# -----------------------------------------------------------------------------
+from sqlalchemy.exc import SQLAlchemyError
+
+def delete_person_by_id(db, pid: int) -> tuple[bool, str]:
+    """Delete a person and their dependent rows safely. Returns (ok, message)."""
+    p = db.get(Person, pid)
+    if not p:
+        return False, f"Person #{pid} not found."
+
+    # don't let admin nuke themselves or the configured admin account
+    admin_email = os.getenv('ADMIN_EMAIL', 'admin@example.com').strip().lower()
+    if p.email and p.email.strip().lower() == admin_email:
+        return False, f"Cannot delete the admin account ({admin_email})."
+
+    try:
+        # remove dependent rows first
+        db.query(Assignment).filter(Assignment.person_id == pid).delete()
+        db.query(Roommate).filter(Roommate.person_id == pid).delete()
+
+        # (headshot cleanup optional)
+        if p.headshot_path:
+            try:
+                fn = p.headshot_path.rsplit('/', 1)[-1]
+                abs_path = os.path.join(UPLOAD_DIR, fn)
+                if os.path.exists(abs_path):
+                    os.remove(abs_path)
+            except Exception:
+                pass
+
+        db.delete(p)
+        db.commit()
+        return True, f"Deleted {p.name or p.email or ('Person #' + str(pid))}."
+    except SQLAlchemyError as e:
+        db.rollback()
+        return False, f"Delete failed for #{pid}: {e.__class__.__name__}"
+
+@app.route('/admin/people/<int:pid>/delete', methods=['POST'])
+@login_required
+def admin_delete_person(pid):
+    if not is_admin():
+        abort(403)
+    db = SessionLocal()
+    ok, msg = delete_person_by_id(db, pid)
+    flash(msg)
+    # keep any search filter
+    q = request.args.get('q') or ''
+    return redirect(url_for('admin_people', q=q))
+
+@app.route('/admin/people/bulk-delete', methods=['POST'])
+@login_required
+def admin_bulk_delete_people():
+    if not is_admin():
+        abort(403)
+    db = SessionLocal()
+    ids = request.form.getlist('ids')
+    if not ids:
+        flash("No people selected.")
+        return redirect(url_for('admin_people'))
+
+    # normalize to ints and dedupe
+    ids_int = sorted({int(x) for x in ids if str(x).isdigit()})
+    successes, errors = 0, 0
+    for pid in ids_int:
+        ok, msg = delete_person_by_id(db, pid)
+        flash(msg)
+        if ok: successes += 1
+        else: errors += 1
+
+    flash(f"Bulk delete complete: {successes} deleted, {errors} errors.")
+    # preserve search query if any
+    q = request.args.get('q') or ''
+    return redirect(url_for('admin_people', q=q))
+
 
 # -----------------------------------------------------------------------------
 # Admin: Bios
