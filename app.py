@@ -836,8 +836,10 @@ def admin_event_bios(eid):
     return render_template('event_bios.html', ev=ev, people=people)
 
 # -----------------------------------------------------------------------------
-# Admin: People
+# Admin: People (list/search, create, edit, delete, bulk delete)
 # -----------------------------------------------------------------------------
+from sqlalchemy.exc import SQLAlchemyError
+
 @app.route('/admin/people')
 @login_required
 def admin_people():
@@ -857,6 +859,43 @@ def admin_people():
     people = query.order_by(Person.name.asc()).all()
     return render_template('people.html', people=people, q=q)
 
+
+@app.route('/admin/people/new', methods=['GET', 'POST'])
+@login_required
+def admin_new_person():
+    if not is_admin():
+        abort(403)
+
+    if request.method == 'POST':
+        name = (request.form.get('name') or '').strip()
+        email = (request.form.get('email') or '').strip().lower()
+        phone = normalize_phone(request.form.get('phone', ''))
+        address = (request.form.get('address') or '').strip()
+
+        errors = []
+        if not name:
+            errors.append("Name is required.")
+        if not email:
+            errors.append("Email is required.")
+        db = SessionLocal()
+        if email and db.query(Person).filter(Person.email == email).first():
+            errors.append("A user with that email already exists.")
+
+        if errors:
+            for e in errors:
+                flash(e)
+            return render_template('new_person.html')
+
+        pwd_hash = bcrypt.hashpw(b'changeme', bcrypt.gensalt()).decode()
+        db.add(Person(name=name, email=email, phone=phone, address=address, password_hash=pwd_hash))
+        db.commit()
+        flash("Person created (initial password: changeme).")
+        return redirect(url_for('admin_people'))
+
+    # GET
+    return render_template('new_person.html')
+
+
 @app.route('/admin/people/<int:pid>', methods=['GET', 'POST'])
 @login_required
 def admin_edit_person(pid):
@@ -869,19 +908,20 @@ def admin_edit_person(pid):
 
     if request.method == 'POST':
         form = request.form
+
         # Basic fields
-        new_name = form.get('name','').strip()
-        new_email = form.get('email','').strip().lower()
-        p.phone = normalize_phone(form.get('phone',''))
-        p.address = form.get('address','').strip()
-        p.preferred_airport = form.get('preferred_airport','').strip()
+        new_name = (form.get('name') or '').strip()
+        new_email = (form.get('email') or '').strip().lower()
+        p.phone = normalize_phone(form.get('phone', ''))
+        p.address = (form.get('address') or '').strip()
+        p.preferred_airport = (form.get('preferred_airport') or '').strip()
         p.willing_to_drive = (form.get('willing_to_drive') == 'yes')
-        p.car_or_rental = form.get('car_or_rental','').strip() if p.willing_to_drive else None
-        p.dietary_preference = form.get('dietary_preference','').strip()
-        p.bio = form.get('bio','').strip()
+        p.car_or_rental = (form.get('car_or_rental') or '').strip() if p.willing_to_drive else None
+        p.dietary_preference = (form.get('dietary_preference') or '').strip()
+        p.bio = (form.get('bio') or '').strip()
 
         # DOB
-        dob_str = form.get('dob','').strip()
+        dob_str = (form.get('dob') or '').strip()
         if dob_str:
             try:
                 p.dob = datetime.strptime(dob_str, "%Y-%m-%d").date()
@@ -914,6 +954,7 @@ def admin_edit_person(pid):
             if not allowed_headshot(file.filename):
                 flash("Headshot must be an image (png, jpg, jpeg, gif).")
                 return render_template('edit_person.html', person=p)
+            # remove old if exists
             if p.headshot_path:
                 try:
                     old_fn = p.headshot_path.split('/')[-1]
@@ -938,52 +979,83 @@ def admin_edit_person(pid):
     # GET
     return render_template('edit_person.html', person=p)
 
-@app.route('/admin/people/new', methods=['GET', 'POST'])
+
+# ---------- deletion helpers & routes ----------
+
+def delete_person_by_id(db, pid: int) -> tuple[bool, str]:
+    """Delete a person and their dependent rows safely. Returns (ok, message)."""
+    p = db.get(Person, pid)
+    if not p:
+        return False, f"Person #{pid} not found."
+
+    # protect admin account & current session user
+    admin_email = (os.getenv('ADMIN_EMAIL', 'admin@example.com') or '').strip().lower()
+    if (p.email or '').strip().lower() == admin_email:
+        return False, f"Cannot delete the admin account ({admin_email})."
+
+    if str(getattr(current_user, "id", "")) == str(p.id):
+        return False, "You can’t delete the account you’re currently logged in as."
+
+    try:
+        # dependent rows (if relationships don't already cascade)
+        db.query(Assignment).filter(Assignment.person_id == pid).delete()
+        db.query(Roommate).filter(Roommate.person_id == pid).delete()
+
+        # headshot file
+        if p.headshot_path:
+            try:
+                fn = p.headshot_path.rsplit('/', 1)[-1]
+                abs_path = os.path.join(UPLOAD_DIR, fn)
+                if os.path.exists(abs_path):
+                    os.remove(abs_path)
+            except Exception:
+                pass
+
+        db.delete(p)
+        db.commit()
+        return True, f"Deleted {p.name or p.email or ('Person #' + str(pid))}."
+    except SQLAlchemyError as e:
+        db.rollback()
+        return False, f"Delete failed for #{pid}: {e.__class__.__name__}"
+
+
+@app.route('/admin/people/<int:pid>/delete', methods=['POST'], endpoint='admin_delete_person_v2')
 @login_required
-def admin_new_person():
+def admin_delete_person_v2(pid):
     if not is_admin():
         abort(403)
-    if request.method == 'POST':
-        name = request.form.get('name','').strip()
-        email = request.form.get('email','').strip().lower()
-        phone = request.form.get('phone','').strip()
-        address = request.form.get('address','').strip()
+    db = SessionLocal()
+    ok, msg = delete_person_by_id(db, pid)
+    flash(msg)
+    # preserve search query if present
+    q = request.args.get('q') or ''
+    return redirect(url_for('admin_people', q=q))
 
-        errors = []
-        if not name: errors.append("Name is required.")
-        if not email: errors.append("Email is required.")
-        if errors:
-            for e in errors: flash(e)
-            return render_template('new_person.html')
 
-        pwd_hash = bcrypt.hashpw(b'changeme', bcrypt.gensalt()).decode()
-        db = SessionLocal()
-        if db.query(Person).filter(Person.email==email).first():
-            flash('A user with that email already exists.')
-            return render_template('new_person.html')
-
-        db.add(Person(name=name, email=email, phone=normalize_phone(phone), address=address, password_hash=pwd_hash))
-        db.commit()
-        flash('Person created (initial password: changeme).')
+@app.route('/admin/people/bulk-delete', methods=['POST'], endpoint='admin_bulk_delete_people_v2')
+@login_required
+def admin_bulk_delete_people_v2():
+    if not is_admin():
+        abort(403)
+    db = SessionLocal()
+    ids = request.form.getlist('ids')
+    if not ids:
+        flash("No people selected.")
         return redirect(url_for('admin_people'))
 
-    return render_template('new_person.html')
+    # normalize to ints and dedupe
+    ids_int = sorted({int(x) for x in ids if str(x).isdigit()})
+    successes, errors = 0, 0
+    for pid in ids_int:
+        ok, msg = delete_person_by_id(db, pid)
+        flash(msg)
+        if ok: successes += 1
+        else: errors += 1
 
-@app.route('/admin/people/<int:pid>/delete', methods=['POST'])
-@login_required
-def admin_delete_person(pid):
-    if not is_admin(): abort(403)
-    db = SessionLocal()
-    p = db.get(Person, pid)
-    if not p: abort(404)
-    # Consider: prevent deleting yourself (admin)
-    if p.email == os.getenv('ADMIN_EMAIL', 'admin@example.com'):
-        flash("You cannot delete the admin user.")
-        return redirect(url_for('admin_edit_person', pid=pid))
-    db.delete(p)
-    db.commit()
-    flash('Person deleted.')
-    return redirect(url_for('admin_people'))
+    flash(f"Bulk delete complete: {successes} deleted, {errors} errors.")
+    q = request.args.get('q') or ''
+    return redirect(url_for('admin_people', q=q))
+
 # -----------------------------------------------------------------------------
 # Admin: Lodging
 # -----------------------------------------------------------------------------
