@@ -2,52 +2,51 @@
 {% block content %}
 <h1>New Event</h1>
 
-<form method="post" class="card">
-  <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-    <label>City<span style="color:#c00">*</span><br>
-      <input type="text" name="city" required>
-    </label>
+<form method="post" class="stack">
+  <label>City
+    <input name="city" required>
+  </label>
 
-    <label>Main Date/Time<span style="color:#c00">*</span><br>
-      <input type="datetime-local" name="date" required>
-    </label>
+  <label>Main Date/Time
+    <input type="datetime-local" name="date">
+  </label>
 
-    <label>Setup Start<br>
-      <input type="datetime-local" name="setup_start">
-    </label>
+  <label>Setup Start
+    <input type="datetime-local" name="setup_start">
+  </label>
 
-    <label>Event Start<br>
-      <input type="datetime-local" name="event_start">
-    </label>
+  <label>Event Start
+    <input type="datetime-local" name="event_start">
+  </label>
 
-    <label>Event End<br>
-      <input type="datetime-local" name="event_end">
-    </label>
+  <label>Event End
+    <input type="datetime-local" name="event_end">
+  </label>
 
-    <label>Venue (Address/Notes)<br>
-      <textarea name="venue" rows="3"></textarea>
-    </label>
+  <label>Venue
+    <input name="venue">
+  </label>
 
-    <label>Hotel (Address/Notes)<br>
-      <textarea name="hotel" rows="3"></textarea>
-    </label>
-    <label>
-      <input type="checkbox" name="call_sheet_published" {% if ev.call_sheet_published %}checked{% endif %}>
-      Call sheet published (visible to staff)
-    </label>
+  <label>Hotel (notes)
+    <input name="hotel">
+  </label>
 
-  </div>
-  <div><label>Coordinator Name
+  <label>Coordinator Name
     <input name="coordinator_name" placeholder="e.g., Venue contact">
-  </label></div>
+  </label>
 
-<div><label>Coordinator Phone
-  <input name="coordinator_phone" placeholder="(555) 555-1212">
-</label></div>
-  <div style="margin-top:12px;">
-    <button type="submit">Create Event</button>
-    <a href="{{ url_for('admin_events') }}" style="margin-left:8px;">Cancel</a>
+  <label>Coordinator Phone
+    <input name="coordinator_phone" placeholder="(555) 555-1212">
+  </label>
+
+  <label>
+    <input type="checkbox" name="call_sheet_published">
+    Call sheet published (visible to staff)
+  </label>
+
+  <div class="actions" style="margin-top:10px;">
+    <button class="btn btn-primary">Create Event</button>
+    <a class="btn" href="{{ url_for('admin_events') }}">Cancel</a>
   </div>
 </form>
 {% endblock %}
-
