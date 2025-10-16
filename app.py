@@ -639,7 +639,7 @@ def admin_toggle_publish(eid):
     db = SessionLocal()
     ev = db.get(Event, eid)
     if not ev: abort(404)
-    ev.call_sheet_published = (request.form.get('publish') == '1')
+    ev.call_sheet_published = truthy(request.form.get('publish'))
     db.commit()
     flash('Call sheet ' + ('published.' if ev.call_sheet_published else 'unpublished.'))
     return redirect(url_for('admin_events'))
