@@ -723,9 +723,9 @@ def delete_person_by_id(db, pid: int) -> tuple[bool, str]:
         return False, f"Person #{pid} not found."
 
     # don't let admin nuke themselves or the configured admin account
-    admin_email = os.getenv('ADMIN_EMAIL', 'admin@example.com').strip().lower()
-    if p.email and p.email.strip().lower() == admin_email:
-        return False, f"Cannot delete the admin account ({admin_email})."
+    # inside delete_person_by_id(...) after the admin email check:
+    if p.id == getattr(current_user, "id", None):
+        return False, "You can’t delete the account you’re currently logged in as."
 
     try:
         # remove dependent rows first
