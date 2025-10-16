@@ -37,13 +37,14 @@
           {% endif %}
         </td>
 
-        <td style="padding:8px; text-align:center;">
-          {% if a.event %}
-            <a href="{{ url_for('call_sheet', eid=a.event.id) }}" target="_blank">Open</a>
-            &nbsp;|&nbsp;
-            <a href="{{ url_for('call_sheet_pdf', eid=a.event.id) }}">PDF</a>
+       <td style="padding:8px; text-align:center;">
+          {% if a.event.call_sheet_published or is_admin() %}
+            <a href="{{ url_for('call_sheet', eid=a.event_id) }}" target="_blank">Open</a>
+          {% else %}
+            <span style="opacity:0.6;">Not published</span>
           {% endif %}
         </td>
+
       </tr>
       {% endfor %}
     </tbody>
