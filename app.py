@@ -86,6 +86,9 @@ def inject_nav_flags():
 # -----------------------------------------------------------------------------
 # Helpers
 # -----------------------------------------------------------------------------
+def truthy(v) -> bool:
+    return str(v).strip().lower() in ('1', 'true', 'on', 'yes')
+
 def normalize_phone(raw: str) -> str | None:
     if not raw:
         return None
@@ -621,8 +624,8 @@ def admin_edit_event(eid):
         # ev.notes = (request.form.get('notes') or '').strip()
         ev.coordinator_name = (request.form.get('coordinator_name') or '').strip()
         ev.coordinator_phone = normalize_phone(request.form.get('coordinator_phone',''))
-        ev.call_sheet_published = (request.form.get('call_sheet_published') == '1')
-
+        ev.call_sheet_published = truthy(request.form.get('call_sheet_published'))
+        
         db.commit()
         flash('Event updated.')
         return redirect(url_for('admin_events'))
