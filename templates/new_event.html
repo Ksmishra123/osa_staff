@@ -31,6 +31,11 @@
     <label>Hotel (Address/Notes)<br>
       <textarea name="hotel" rows="3"></textarea>
     </label>
+    <label>
+      <input type="checkbox" name="call_sheet_published" {% if ev.call_sheet_published %}checked{% endif %}>
+      Call sheet published (visible to staff)
+    </label>
+
   </div>
   <div><label>Coordinator Name
     <input name="coordinator_name" placeholder="e.g., Venue contact">
