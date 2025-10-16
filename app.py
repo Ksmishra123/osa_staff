@@ -1075,17 +1075,8 @@ def call_sheet(eid):
     if not ev:
         abort(404)
     # Visibility rules
-    if not ev.call_sheet_published:
-        # only admin or assigned
-        allowed = is_admin() or db.query(Assignment).filter(
-            Assignment.event_id == eid,
-            Assignment.person_id == int(current_user.id)
-        ).count() > 0
-        if not allowed:
-            abort(403)
-    else:
-        # published: any logged-in user OK
-        allowed = True
+    if not ev.call_sheet_published and not is_admin():
+        abort(403)
  
     # Allow if admin or assigned
     allowed = is_admin() or db.query(Assignment).filter(
@@ -1147,22 +1138,7 @@ def call_sheet_pdf(eid):
     if not ev:
         abort(404)
     # Visibility rules
-    if not ev.call_sheet_published:
-        # only admin or assigned
-        allowed = is_admin() or db.query(Assignment).filter(
-            Assignment.event_id == eid,
-            Assignment.person_id == int(current_user.id)
-        ).count() > 0
-        if not allowed:
-            abort(403)
-    else:
-        # published: any logged-in user OK
-        allowed = True
-    allowed = is_admin() or db.query(Assignment).filter(
-        Assignment.event_id == eid,
-        Assignment.person_id == int(current_user.id)
-    ).count() > 0
-    if not allowed:
+    if not ev.call_sheet_published and not is_admin():
         abort(403)
 
     Pos = aliased(Position)
