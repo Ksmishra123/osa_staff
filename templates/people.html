@@ -1,58 +1,81 @@
 {% extends 'base.html' %}
 {% block content %}
-<h1>People (Admin)</h1>
+<h1>People</h1>
 
-<form method="get" action="{{ url_for('admin_people') }}" class="card" style="margin-bottom:12px; display:flex; gap:8px; align-items:center;">
-  <input type="text" name="q" placeholder="Search name, email, phone, airport…" value="{{ q or '' }}" style="flex:1;">
-  <button type="submit">Search</button>
-  {% if q %}
-    <a href="{{ url_for('admin_people') }}">Clear</a>
-  {% endif %}
-  <a href="{{ url_for('admin_new_person') }}" style="margin-left:auto;"><button type="button">+ New Person</button></a>
+<!-- Search + actions row -->
+<form method="get" action="{{ url_for('admin_people') }}" class="stack" style="margin-bottom:12px;">
+  <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+    <input type="text" name="q" value="{{ q or '' }}" placeholder="Search name, email, phone, airport" style="min-width:280px;">
+    <button class="btn btn-sm">Search</button>
+    {% if q %}
+      <a class="btn btn-sm btn-outline" href="{{ url_for('admin_people') }}">Clear</a>
+    {% endif %}
+    <a class="btn btn-sm btn-primary" href="{{ url_for('admin_new_person') }}" style="margin-left:auto;">+ New Person</a>
+  </div>
 </form>
 
-<form method="post" action="{{ url_for('admin_bulk_delete_people_v2', q=q) }}"
+<!-- Bulk delete form -->
+<form id="bulk-delete" method="post" action="{{ url_for('admin_bulk_delete_people_v2', q=q) }}"
       onsubmit="return confirm('Delete selected people? This cannot be undone.');">
 
-  <div style="margin-bottom:8px; display:flex; gap:8px; align-items:center;">
+  <div style="margin:8px 0; display:flex; gap:8px; align-items:center;">
     <button class="btn btn-outline-danger btn-sm" type="submit">Delete Selected</button>
   </div>
-     
-  <table class="table table-sm">
-    <thead>
-      <tr>
-        <th style="width:32px;">
-          <input type="checkbox" id="checkall" onclick="toggleAll(this)">
-        </th>
-        <th>Name</th>
-        <th>Email</th>
-        <th>Phone</th>
-        <th>Preferred Airport</th>
-        <th style="width:240px;">Actions</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for p in people %}
-      <tr>
-        <td><input type="checkbox" name="ids" value="{{ p.id }}"></td>
-        <td>{{ p.name }}</td>
-        <td>{{ p.email }}</td>
-        <td>{{ p.phone or '—' }}</td>
-        <td>{{ p.preferred_airport or '—' }}</td>
-        <td>
-          <a class="btn btn-sm btn-outline-primary"
-             href="{{ url_for('admin_edit_person', pid=p.id) }}">Edit</a>
-        </td>
-        <form method="post"
-              action="{{ url_for('admin_delete_person_v2', pid=p.id, q=q) }}"
-              style="display:inline"
-              onsubmit="return confirm('Delete {{ p.name }}? This cannot be undone.');">
-          <button class="btn btn-sm btn-outline-danger" type="submit">Delete</button>
-        </form>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+
+  <div class="table-responsive">
+    <table class="table table-sm" style="width:100%; border-collapse:collapse;">
+      <thead>
+        <tr style="background:#f7f7f9;">
+          <th style="width:36px; text-align:center; padding:8px;">
+            <input type="checkbox" id="checkall" onclick="toggleAll(this)">
+          </th>
+          <th style="padding:8px;">Name</th>
+          <th style="padding:8px;">Email</th>
+          <th style="padding:8px;">Phone</th>
+          <th style="padding:8px;">Preferred Airport</th>
+          <th style="padding:8px;">Willing to Drive</th>
+          <th style="padding:8px; width:240px;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if people and people|length %}
+          {% for p in people %}
+          <tr style="border-bottom:1px solid #e5e7eb;">
+            <td style="text-align:center; padding:8px;">
+              <input type="checkbox" name="ids" value="{{ p.id }}">
+            </td>
+            <td style="padding:8px;">{{ p.name }}</td>
+            <td style="padding:8px;">{{ p.email }}</td>
+            <td style="padding:8px;">{{ p.phone or '—' }}</td>
+            <td style="padding:8px;">{{ p.preferred_airport or '—' }}</td>
+            <td style="padding:8px;">{{ 'Yes' if p.willing_to_drive else 'No' }}</td>
+            <td style="padding:8px;">
+              <a class="btn btn-sm btn-outline-primary" href="{{ url_for('admin_edit_person', pid=p.id) }}">Edit</a>
+
+              <!-- Single delete form (not nested inside the bulk form) -->
+              <form method="post"
+                    action="{{ url_for('admin_delete_person_v2', pid=p.id, q=q) }}"
+                    style="display:inline"
+                    onsubmit="return confirm('Delete {{ p.name }}? This cannot be undone.');">
+                <button class="btn btn-sm btn-outline-danger" type="submit">Delete</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr>
+            <td colspan="7" style="padding:12px; text-align:center; color:#777;">
+              No people found.
+            </td>
+          </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+  <div style="margin-top:8px;">
+    <button class="btn btn-outline-danger btn-sm" type="submit">Delete Selected</button>
+  </div>
 </form>
 
 <script>
@@ -61,5 +84,4 @@ function toggleAll(master){
   boxes.forEach(b => b.checked = master.checked);
 }
 </script>
-
 {% endblock %}
