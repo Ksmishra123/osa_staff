@@ -1236,6 +1236,10 @@ def admin_event_lodging(eid):
 # -----------------------------------------------------------------------------
 # Call Sheet (HTML)
 # -----------------------------------------------------------------------------
+from datetime import timedelta
+from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import aliased
+
 @app.route('/events/<int:eid>/call-sheet')
 @login_required
 def call_sheet(eid):
@@ -1243,19 +1247,23 @@ def call_sheet(eid):
     ev = db.get(Event, eid)
     if not ev:
         abort(404)
-    # Visibility rules
-    if not ev.call_sheet_published and not is_admin():
-        abort(403)   
-        
-    """
-    # Allow if admin or assigned
-    allowed = is_admin() or db.query(Assignment).filter(
-        Assignment.event_id == eid,
-        Assignment.person_id == int(current_user.id)
-    ).count() > 0
+
+    # Access rules:
+    # - admin or viewer: always allowed (even if unpublished)
+    # - regular user: must be assigned AND call sheet must be published
+    if is_admin() or is_viewer():
+        allowed = True
+    else:
+        assigned = db.query(Assignment).filter(
+            Assignment.event_id == eid,
+            Assignment.person_id == int(current_user.id)
+        ).count() > 0
+        allowed = assigned and bool(getattr(ev, "call_sheet_published", False))
+
     if not allowed:
         abort(403)
 
+    # Assignments (with stable ordering by position)
     Pos = aliased(Position)
     rows = (
         db.query(Assignment)
@@ -1268,30 +1276,20 @@ def call_sheet(eid):
           .order_by(Pos.display_order.asc())
           .all()
     )
-    """
-    # access rules
-    allowed = False
-    if is_admin() or is_viewer():
-        allowed = True
-    else:
-        # regular user must be assigned AND sheet must be published
-        assigned = db.query(Assignment).filter(
-            Assignment.event_id == eid,
-            Assignment.person_id == int(current_user.id)
-        ).count() > 0
-        allowed = bool(assigned and getattr(ev, "call_sheet_published", False))
 
-    if not allowed:
-        abort(403)
-        
+    # Hotels and rooms (with occupants)
     hotels = (
         db.query(Hotel)
-          .options(joinedload(Hotel.rooms).joinedload(Room.occupants).joinedload(Roommate.person))
+          .options(
+              joinedload(Hotel.rooms)
+                .joinedload(Room.occupants)
+                .joinedload(Roommate.person)
+          )
           .filter(Hotel.event_id == eid)
           .all()
     )
 
-    # Multi-day schedule (optional)
+    # Multi-day schedule (EventDay)
     days = (
         db.query(EventDay)
           .filter(EventDay.event_id == eid)
@@ -1300,18 +1298,17 @@ def call_sheet(eid):
     )
     day_rows = []
     for d in days:
-        staff_dt = d.staff_arrival_dt or (d.start_dt - timedelta(minutes=60) if d.start_dt else None)
+        staff_dt  = d.staff_arrival_dt  or (d.start_dt - timedelta(minutes=60) if d.start_dt else None)
         judges_dt = d.judges_arrival_dt or (d.start_dt - timedelta(minutes=30) if d.start_dt else None)
         day_rows.append({
-            "start": d.start_dt,
-            "setup": d.setup_dt,
-            "staff": staff_dt,
+            "start":  d.start_dt,
+            "setup":  d.setup_dt,
+            "staff":  staff_dt,
             "judges": judges_dt,
-            "notes": d.notes or ''
+            "notes":  d.notes or ''
         })
 
     return render_template('call_sheet.html', ev=ev, rows=rows, hotels=hotels, day_rows=day_rows)
-
 @app.route('/events')
 @login_required
 def events_list():
