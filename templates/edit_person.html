@@ -47,7 +47,14 @@
     <label>Dietary Preference<br>
       <input name="dietary_preference" value="{{ person.dietary_preference or '' }}" placeholder="Vegetarian, Vegan, None, etc.">
     </label>
-
+    <div class="field">
+    <label>Role</label>
+      <select name="role">
+        <option value="user"   {% if person.role=='user' %}selected{% endif %}>User</option>
+        <option value="viewer" {% if person.role=='viewer' %}selected{% endif %}>Viewer (read-only)</option>
+        <option value="admin"  {% if person.role=='admin' %}selected{% endif %}>Admin</option>
+      </select>
+    </div>
     <div>
       <label>Headshot (png/jpg/jpeg/gif)<br>
         <input type="file" name="headshot" accept=".png,.jpg,.jpeg,.gif">
