@@ -51,7 +51,7 @@ class Person(Base):
     __tablename__ = "people"
 
     id = Column(Integer, primary_key=True)
-
+    role = Column(String(20), nullable=False, default='user')  # 'user' | 'viewer' | 'admin'
     # Identity / auth
     name = Column(String, nullable=False)
     email = Column(String, unique=True, nullable=False, index=True)
