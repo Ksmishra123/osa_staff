@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>Events</h1>
+
+<div class="table-responsive">
+  <table class="table table-sm" style="width:100%; border-collapse:collapse;">
+    <thead>
+      <tr style="background:#f7f7f9;">
+        <th style="padding:8px;">Date</th>
+        <th style="padding:8px;">City</th>
+        <th style="padding:8px;">Venue</th>
+        <th style="padding:8px;">Call Sheet</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for ev in events %}
+      <tr style="border-bottom:1px solid #e5e7eb;">
+        <td style="padding:8px;">{{ ev.date.strftime('%B %d, %Y - %I:%M %p') if ev.date else '—' }}</td>
+        <td style="padding:8px;">{{ ev.city or '—' }}</td>
+        <td style="padding:8px;">{{ ev.venue or '—' }}</td>
+        <td style="padding:8px;">
+          <a class="btn btn-sm btn-outline-primary" href="{{ url_for('call_sheet', eid=ev.id) }}" target="_blank">Open</a>
+          {% if not ev.call_sheet_published %}
+            <span style="margin-left:8px; color:#b45309;">(Unpublished)</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="4" style="padding:12px; text-align:center; color:#777;">No upcoming events.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
