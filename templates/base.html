@@ -41,6 +41,19 @@
 
       {% endif %}
     </nav>
+    <nav>
+      ...
+      {% if current_user.is_authenticated %}
+        {% if is_admin() %}
+          <a href="{{ url_for('admin_events') }}">Admin Events</a>
+          <a href="{{ url_for('admin_people') }}">People</a>
+        {% else %}
+          <a href="{{ url_for('events_list') }}">Events</a>
+        {% endif %}
+      {% endif %}
+      ...
+  </nav>
+
   </header>
 
   {% if current_user.is_authenticated %}
