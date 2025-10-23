@@ -995,7 +995,14 @@ def admin_edit_person(pid):
         if form.get('reset_password') == 'on':
             p.password_hash = bcrypt.hashpw(b'changeme', bcrypt.gensalt()).decode()
             flash("Password reset to 'changeme'.")
-
+   
+    new_role = (request.form.get('role') or '').strip().lower()
+    if new_role in ('user', 'viewer', 'admin'):
+        # Optional safety: prevent demoting yourself out of admin by mistake
+        if p.id == int(current_user.id) and p.role == 'admin' and new_role != 'admin':
+            flash("You can’t change your own role away from admin while logged in.")
+        else:
+            p.role = new_role
         db.commit()
         flash("Person updated.")
         return redirect(url_for('admin_edit_person', pid=p.id))
