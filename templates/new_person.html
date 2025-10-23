@@ -6,6 +6,15 @@
   <label>Email<br><input type="email" name="email" required></label>
   <label>Phone<br><input name="phone"></label>
   <label>Address<br><textarea name="address" rows="3"></textarea></label>
+  <div class="field">
+    <label>Role</label>
+    <select name="role">
+      <option value="user" selected>User</option>
+      <option value="viewer">Viewer (read-only)</option>
+      <option value="admin">Admin</option>
+    </select>
+  </div>
+
   <button type="submit">Create</button>
   <a href="{{ url_for('admin_people') }}" style="margin-left:8px;">Cancel</a>
 </form>
