@@ -586,26 +586,38 @@ def admin_new_event():
         abort(403)
 
     if request.method == 'POST':
-        city = request.form.get('city', '').strip()
-        date = parse_dt(request.form.get('date'))
-        setup_start = parse_dt(request.form.get('setup_start'))
-        event_start = parse_dt(request.form.get('event_start'))
-        event_end = parse_dt(request.form.get('event_end'))
-        venue = request.form.get('venue', '').strip()
-        hotel = request.form.get('hotel', '').strip()
-        coordinator_name=coord_name,
-        coordinator_phone=coord_phone
-      
+        form = request.form
+
+        city         = (form.get('city') or '').strip()
+        date         = parse_dt(form.get('date'))
+        setup_start  = parse_dt(form.get('setup_start'))
+        event_start  = parse_dt(form.get('event_start'))
+        event_end    = parse_dt(form.get('event_end'))
+        venue        = (form.get('venue') or '').strip()
+        hotel        = (form.get('hotel') or '').strip()
+
+        # NEW/OPTIONAL FIELDS (make sure these columns exist on Event)
+        call_sheet_published = bool(form.get('call_sheet_published'))
+        coordinator_name  = (form.get('coordinator_name') or '').strip()
+        coordinator_phone = normalize_phone(form.get('coordinator_phone') or '')
+        dress_code        = (form.get('dress_code') or '').strip()
+        notes             = (form.get('notes') or '').strip()
+
         errors = []
         if not city:
             errors.append("City is required.")
         if not date:
-            errors.append("Date (main event date/time) is required.")
+            errors.append("Main event date/time is required.")
 
         if errors:
             for e in errors:
                 flash(e)
-            return render_template('new_event.html')
+            # re-render the form with what the user typed
+            return render_template(
+                'new_event.html',
+                ev=None,  # template can use ev? if it expects it
+                form=form
+            )
 
         db = SessionLocal()
         ev = Event(
@@ -615,15 +627,21 @@ def admin_new_event():
             event_start=event_start,
             event_end=event_end,
             venue=venue,
-            hotel=hotel
+            hotel=hotel,
+            # optional fields:
+            call_sheet_published=call_sheet_published,
+            coordinator_name=coordinator_name,
+            coordinator_phone=coordinator_phone,
+            dress_code=dress_code,
+            notes=notes,
         )
         db.add(ev)
         db.commit()
         flash('Event created.')
         return redirect(url_for('admin_events'))
 
-    return render_template('new_event.html')
-
+    # GET
+    return render_template('new_event.html', ev=None)
 @app.route('/admin/events/<int:eid>/edit', methods=['GET','POST'])
 @login_required
 def admin_edit_event(eid):
