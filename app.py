@@ -906,9 +906,12 @@ def admin_new_person():
             for e in errors:
                 flash(e)
             return render_template('new_person.html')
+        role = (request.form.get('role') or 'user').strip().lower()
+        if role not in ('user', 'viewer', 'admin'):
+            role = 'user'
 
         pwd_hash = bcrypt.hashpw(b'changeme', bcrypt.gensalt()).decode()
-        db.add(Person(name=name, email=email, phone=phone, address=address, password_hash=pwd_hash))
+        db.add(Person(name=name, email=email, phone=phone, address=address, password_hash=pwd_hash, role=role))
         db.commit()
         flash("Person created (initial password: changeme).")
         return redirect(url_for('admin_people'))
