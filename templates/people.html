@@ -32,6 +32,7 @@
           <th style="padding:8px;">Name</th>
           <th style="padding:8px;">Email</th>
           <th style="padding:8px;">Phone</th>
+          <th style="padding:8px;>Role</th>
           <th style="padding:8px;">Preferred Airport</th>
           <th style="padding:8px;">Willing to Drive</th>
           <th style="padding:8px; width:240px;">Actions</th>
@@ -47,6 +48,7 @@
             <td style="padding:8px;">{{ p.name }}</td>
             <td style="padding:8px;">{{ p.email }}</td>
             <td style="padding:8px;">{{ p.phone or '—' }}</td>
+            <td style="padding:8px;">{{ p.role or 'user' }}</td>
             <td style="padding:8px;">{{ p.preferred_airport or '—' }}</td>
             <td style="padding:8px;">{{ 'Yes' if p.willing_to_drive else 'No' }}</td>
             <td style="padding:8px;">
