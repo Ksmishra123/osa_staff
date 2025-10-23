@@ -114,18 +114,36 @@ def parse_dt(v: str):
 
 def is_admin() -> bool:
     try:
+        if not current_user.is_authenticated or not getattr(current_user, "person", None):
+            return False
+        # role-based admin
+        if (current_user.person.role or '').lower() == 'admin':
+            return True
+        # legacy: also allow the configured ADMIN_EMAIL
+        admin_email = (os.getenv('ADMIN_EMAIL', 'admin@example.com') or '').strip().lower()
+        return (current_user.person.email or '').strip().lower() == admin_email
+    except Exception:
+        return False
+
+def is_viewer() -> bool:
+    try:
         return (
-            current_user.is_authenticated
-            and getattr(current_user, "person", None) is not None
-            and current_user.person.email == os.getenv('ADMIN_EMAIL', 'admin@example.com')
+            current_user.is_authenticated and
+            getattr(current_user, "person", None) is not None and
+            (current_user.person.role or '').lower() == 'viewer'
         )
     except Exception:
         return False
+
 
 # Expose helpers in templates
 @app.context_processor
 def inject_now():
     return {'now': datetime.utcnow}
+
+@app.context_processor
+def inject_helpers():
+    return {"is_admin": is_admin, "is_viewer": is_viewer}
 
 @app.template_filter('dt_long')  # e.g., November 11, 2025 - 4:00 PM
 def dt_long(v):
@@ -537,6 +555,8 @@ def me():
 @app.route('/ack/<int:aid>', methods=['POST'])
 @login_required
 def ack(aid):
+    if is_viewer():
+        abort(403)  # viewers are read-only
     db = SessionLocal()
     a = db.get(Assignment, aid)
     if not a or a.person_id != int(current_user.id):
@@ -545,6 +565,7 @@ def ack(aid):
     db.commit()
     flash('Acknowledged.')
     return redirect(url_for('me'))
+
 
 # -----------------------------------------------------------------------------
 # Admin: Events & Assignments
@@ -1224,8 +1245,9 @@ def call_sheet(eid):
         abort(404)
     # Visibility rules
     if not ev.call_sheet_published and not is_admin():
-        abort(403)
- 
+        abort(403)   
+        
+    """
     # Allow if admin or assigned
     allowed = is_admin() or db.query(Assignment).filter(
         Assignment.event_id == eid,
@@ -1246,7 +1268,22 @@ def call_sheet(eid):
           .order_by(Pos.display_order.asc())
           .all()
     )
+    """
+    # access rules
+    allowed = False
+    if is_admin() or is_viewer():
+        allowed = True
+    else:
+        # regular user must be assigned AND sheet must be published
+        assigned = db.query(Assignment).filter(
+            Assignment.event_id == eid,
+            Assignment.person_id == int(current_user.id)
+        ).count() > 0
+        allowed = bool(assigned and getattr(ev, "call_sheet_published", False))
 
+    if not allowed:
+        abort(403)
+        
     hotels = (
         db.query(Hotel)
           .options(joinedload(Hotel.rooms).joinedload(Room.occupants).joinedload(Roommate.person))
@@ -1274,6 +1311,19 @@ def call_sheet(eid):
         })
 
     return render_template('call_sheet.html', ev=ev, rows=rows, hotels=hotels, day_rows=day_rows)
+
+@app.route('/events')
+@login_required
+def events_list():
+    db = SessionLocal()
+    now = datetime.utcnow()
+    evs = (
+        db.query(Event)
+          .filter((Event.date == None) | (Event.date >= now))
+          .order_by(Event.date.asc())
+          .all()
+    )
+    return render_template('events_public.html', events=evs)
 
 # -----------------------------------------------------------------------------
 # Call Sheet (PDF)
