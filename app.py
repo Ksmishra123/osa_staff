@@ -659,8 +659,8 @@ def admin_edit_event(eid):
         ev.venue = (request.form.get('venue') or '').strip()
         ev.hotel = (request.form.get('hotel') or '').strip()
         # Optional extra admin-only notes/dress code if you have those fields:
-        # ev.dress_code = (request.form.get('dress_code') or '').strip()
-        # ev.notes = (request.form.get('notes') or '').strip()
+        ev.dress_code = (request.form.get('dress_code') or '').strip()
+        ev.notes = (request.form.get('notes') or '').strip()
         ev.coordinator_name = (request.form.get('coordinator_name') or '').strip()
         ev.coordinator_phone = normalize_phone(request.form.get('coordinator_phone',''))
         ev.call_sheet_published = truthy(request.form.get('call_sheet_published'))
