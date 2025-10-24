@@ -1,144 +1,137 @@
 {% extends 'base.html' %}
 {% block content %}
-
 <style>
-@media print {
-  @page {
-    size: A4;
-    margin: 1in;
+  .cs-container { max-width: 1100px; margin: 0 auto; }
+  .cs-header { text-align:center; margin-bottom:12px; }
+  .cs-sub { color:#6b7280; }
+  .grid2 { display:grid; grid-template-columns: 200px 1fr; gap:8px; }
+  .grid2 .label { background:#f7f7f9; padding:6px 8px; font-weight:600; border:1px solid #e5e7eb; }
+  .grid2 .val { padding:6px 8px; border:1px solid #e5e7eb; }
+  .h2 { font-size:1.1rem; font-weight:700; margin:18px 0 8px; }
+  .note-box { border:1px solid #e5e7eb; padding:10px; border-radius:8px; background:#fafafa; white-space:pre-wrap; }
+  .table { width:100%; border-collapse:collapse; }
+  .table th, .table td { border:1px solid #e5e7eb; padding:8px; vertical-align:top; }
+  .table thead th { background:#f7f7f9; }
+  .btn-print { float:right; margin: 6px 0 0 0; }
+  .welcome { margin:10px 0 8px; }
+  .logo { display:block; margin:0 auto 6px; height:64px; }
+  @media print {
+    .no-print { display:none; }
+    .btn-print { display:none; }
+    body { color:#000; }
   }
-  @page {
-    @top-center { content: "On Stage America - Call Sheet | {{ ev.city }}"; }
-    @bottom-center { content: "© On Stage America {{ now().year }} — Page " counter(page) " of " counter(pages); }
-  }
-  header, footer, button, .btn, .noprint { display: none !important; }
-  table { page-break-inside: avoid; }
-}
-
-/* Screen styles */
-.call-header { text-align:center; margin-bottom:20px; }
-.call-header img { height:90px; margin-bottom:10px; }
-.call-header h1 { margin:0; font-size:26px; letter-spacing:.5px; font-weight:700; color:#333; }
-.call-details { text-align:center; font-size:15px; margin-bottom:25px; line-height:1.6; }
-
-.call-table { width:100%; border-collapse:collapse; margin-bottom:24px; }
-.call-table th, .call-table td { border:1px solid #ccc; padding:10px; }
-.call-table th { background:#f4f4f4; text-align:left; font-weight:bold; }
-
-.section-title { margin:24px 0 8px; font-weight:700; }
-
-.print-btn { display:inline-block; background:#d41d1d; color:#fff; padding:10px 18px; border:none; border-radius:5px; text-decoration:none; cursor:pointer; }
-.print-btn:hover { background:#b91515; }
 </style>
 
-<div class="call-header">
-  <img src="{{ url_for('static', filename='OSA_Logo_Silver_Gold.png') }}" alt="On Stage America Logo">
-  <h1>Event Call Sheet</h1>
-</div>
+<div class="cs-container">
+  <div class="no-print">
+    <button class="btn btn-sm btn-outline btn-print" onclick="window.print()">Print</button>
+  </div>
 
-<!-- Welcome letter (front page) -->
-<div class="card" style="padding:10px; margin-bottom:12px;">
-  <h2 style="margin:0 0 6px;">Welcome</h2>
-  <p style="margin:0;">
-    Thank you for being part of the On Stage America team. We expect the team to be professional and dress as
-    described in the dress code. Backstage Manager must be constantly vigilant backstage (and keep an eye on stage),
-    greeting kids and teachers as they approach. Other backstage staff should assist the Backstage Manager during
-    heavy loads. Judges: please be careful with comments—many studios play them directly to the kids. Absolutely no
-    foul language; do not discuss dancers, studios, or routines within earshot of others (use the staff room or hotel,
-    and remember walls can be thin). Thank you for helping us deliver a great experience.
-  </p>
-</div>
+  {% set logo = url_for('static', filename='osa_logo.png') %}
+  <img class="logo" src="{{ logo }}" alt="On Stage America">
 
-<!-- Call times + contact -->
-<div class="card" style="padding:10px; margin-bottom:12px;">
-  <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
-    <div>
-      <h3 style="margin:0 0 6px;">Event</h3>
-      <div><strong>City:</strong> {{ ev.city }}</div>
-      <div><strong>Main Start:</strong> {{ ev.event_start|dt_long if ev.event_start else '—' }}</div>
-      <div><strong>Setup:</strong> {{ ev.setup_start|dt_long if ev.setup_start else '—' }}</div>
-      <div><strong>End:</strong> {{ ev.event_end|dt_long if ev.event_end else '—' }}</div>
-      {% if ev.dress_code %}<div><strong>Dress Code:</strong> {{ ev.dress_code }}</div>{% endif %}
-    </div>
-    <div>
-      <h3 style="margin:0 0 6px;">Key Contact</h3>
-      <div><strong>Name:</strong> {{ ev.coordinator_name or '—' }}</div>
-      <div><strong>Phone:</strong> {{ ev.coordinator_phone or '—' }}</div>
+  <div class="cs-header">
+    <h1 style="margin:0;">Call Sheet — {{ ev.city }}</h1>
+    <div class="cs-sub">
+      {% if ev.date %} {{ ev.date.strftime('%B %d, %Y - %I:%M %p') }} {% else %} &nbsp; {% endif %}
     </div>
   </div>
-</div>
 
-<!-- Multi-day schedule -->
-{% if day_rows and day_rows|length > 0 %}
-<div class="card" style="padding:10px; margin-bottom:12px;">
-  <h3 style="margin:0 0 6px;">Daily Schedule</h3>
-  <table class="table" style="width:100%;">
+  <div class="welcome">
+    <strong>Welcome</strong><br>
+    Thank you for being part of the On Stage America team. We expect the team to be professional and dress as described in the dress code. Backstage Manager must be constantly vigilant backstage (and keep an eye on stage), greeting kids and teachers as they approach. Other backstage staff should assist the Backstage Manager during heavy loads. Judges: please be careful with comments—many studios play them directly to the kids. Absolutely no foul language; do not discuss dancers, studios, or routines within earshot of others (use the staff room or hotel, and remember walls can be thin).
+  </div>
+
+  <!-- Top info -->
+  <div class="h2">Event Information</div>
+  <div class="grid2">
+    <div class="label">City</div><div class="val">{{ ev.city or '—' }}</div>
+    <div class="label">Main Start</div><div class="val">{{ ev.event_start.strftime('%B %d, %Y - %I:%M %p') if ev.event_start else '—' }}</div>
+    <div class="label">Setup</div><div class="val">{{ ev.setup_start.strftime('%B %d, %Y - %I:%M %p') if ev.setup_start else '—' }}</div>
+    <div class="label">End</div><div class="val">{{ ev.event_end.strftime('%B %d, %Y - %I:%M %p') if ev.event_end else '—' }}</div>
+    <div class="label">Venue</div><div class="val">{{ ev.venue or '—' }}</div>
+    {% if ev.hotel %}<div class="label">Hotel</div><div class="val">{{ ev.hotel }}</div>{% endif %}
+    <div class="label">Coordinator</div>
+    <div class="val">
+      {% if ev.coordinator_name %}{{ ev.coordinator_name }}{% else %}—{% endif %}
+      {% if ev.coordinator_phone %} &nbsp; | &nbsp; {{ ev.coordinator_phone }}{% endif %}
+    </div>
+    {% if ev.dress_code %}
+      <div class="label">Dress Code</div><div class="val">{{ ev.dress_code }}</div>
+    {% endif %}
+  </div>
+
+  <!-- Multi-day schedule (if any) -->
+  {% if day_rows and day_rows|length %}
+    <div class="h2">Daily Schedule</div>
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Day Start</th>
+          <th>Setup</th>
+          <th>Staff Arrival</th>
+          <th>Judges Arrival</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in day_rows %}
+          <tr>
+            <td>{{ d.start.strftime('%B %d, %Y - %I:%M %p') if d.start else '' }}</td>
+            <td>{{ d.setup.strftime('%B %d, %Y - %I:%M %p') if d.setup else '' }}</td>
+            <td>{{ d.staff.strftime('%B %d, %Y - %I:%M %p') if d.staff else '' }}</td>
+            <td>{{ d.judges.strftime('%B %d, %Y - %I:%M %p') if d.judges else '' }}</td>
+            <td>{{ d.notes }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+
+  <!-- Assignments -->
+  <div class="h2">Assignments</div>
+  <table class="table">
     <thead>
       <tr>
-        <th>Day Start</th>
-        <th>Setup</th>
-        <th>Staff arrival</th>
-        <th>Judges arrival</th>
-        <th>Notes</th>
+        <th>Position</th>
+        <th>Name</th>
+        <th>Phone</th>
+        <th>Email</th>
+        <th>Transport</th>
       </tr>
     </thead>
     <tbody>
-      {% for d in day_rows %}
-      <tr>
-        <td>{{ d.start|dt_long }}</td>
-        <td>{{ d.setup|dt_long }}</td>
-        <td>{{ d.staff|dt_long }}</td>
-        <td>{{ d.judges|dt_long }}</td>
-        <td>{{ d.notes }}</td>
-      </tr>
+      {% for a in rows %}
+        {% set tbits = [] %}
+        {% if a.transport_mode %}{% set _ = tbits.append(a.transport_mode) %}{% endif %}
+        {% if a.arrival_ts %}{% set _ = tbits.append('Arr: ' ~ a.arrival_ts.strftime('%Y-%m-%d %H:%M')) %}{% endif %}
+        {% if a.transport_booking %}{% set _ = tbits.append(a.transport_booking) %}{% endif %}
+        {% if a.transport_notes %}{% set _ = tbits.append(a.transport_notes) %}{% endif %}
+        <tr>
+          <td>{{ a.position.name if a.position else '' }}</td>
+          <td>{{ a.person.name if a.person else '' }}</td>
+          <td>{{ a.person.phone if a.person else '' }}</td>
+          <td>{{ a.person.email if a.person else '' }}</td>
+          <td>{{ tbits|join(' | ') }}</td>
+        </tr>
       {% endfor %}
     </tbody>
   </table>
-</div>
-{% endif %}
 
-<!-- Staff assignments -->
-<h2 class="section-title">Staffing</h2>
-<table class="call-table">
-  <thead>
-    <tr>
-      <th>Position</th>
-      <th>Name</th>
-      <th>Phone</th>
-      <th>Email</th>
-      <th>Ack</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for a in rows %}
-    <tr>
-      <td>{{ a.position.name }}</td>
-      <td>{{ a.person.name if a.person else '' }}</td>
-      <td>{{ a.person.phone if a.person else '' }}</td>
-      <td>{{ a.person.email if a.person else '' }}</td>
-      <td>{{ 'Yes' if a.ack else 'No' }}</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-
-<!-- Hotel Room Assignments -->
-<h2 style="margin-top:18px;">Hotel & Room Assignments</h2>
-
-{% if hotels and hotels|length > 0 %}
-  {% for h in hotels %}
-    <div class="card" style="margin-bottom:12px;">
-      <h3 style="margin:6px 0;">{{ h.name }}</h3>
-      <div>
-        {{ h.address or '' }}
-        {% if h.phone %} — {{ h.phone }}{% endif %}
-      </div>
-      {% if h.notes %}
-        <div><em>{{ h.notes }}</em></div>
+  <!-- Hotels & Rooms -->
+  <div class="h2">Hotel & Room Assignments</div>
+  {% if hotels and hotels|length %}
+    {% for h in hotels %}
+      <div style="margin:8px 0;"><strong>{{ h.name }}</strong></div>
+      {% if h.address or h.phone %}
+        <div class="cs-sub" style="margin-bottom:6px;">
+          {{ h.address or '' }}{% if h.address and h.phone %} — {% endif %}{{ h.phone or '' }}
+        </div>
       {% endif %}
+      {% if h.notes %}<div style="margin-bottom:6px;"><em>{{ h.notes }}</em></div>{% endif %}
 
-      {% if h.rooms and h.rooms|length > 0 %}
-        <table class="table" style="margin-top:8px;">
+      {% if h.rooms and h.rooms|length %}
+        <table class="table" style="margin-bottom:12px;">
           <thead>
             <tr>
               <th>Room</th>
@@ -153,14 +146,11 @@
               <tr>
                 <td>{{ r.room_number or '-' }}</td>
                 <td>
-                  {% set occ = r.occupants or [] %}
-                  {% if occ|length > 0 %}
-                    {% for rm in occ %}
-                      {{ rm.person.name }}{% if not loop.last %}, {% endif %}
-                    {% endfor %}
-                  {% else %}
-                    —
-                  {% endif %}
+                  {% set names = [] %}
+                  {% for rm in r.occupants %}
+                    {% if rm.person %}{% set _ = names.append(rm.person.name) %}{% endif %}
+                  {% endfor %}
+                  {{ names|join(', ') if names else '—' }}
                 </td>
                 <td>{{ r.check_in.strftime('%Y-%m-%d') if r.check_in else '' }}</td>
                 <td>{{ r.check_out.strftime('%Y-%m-%d') if r.check_out else '' }}</td>
@@ -170,49 +160,15 @@
           </tbody>
         </table>
       {% else %}
-        <div style="margin-top:6px;">No rooms added yet.</div>
+        <div class="cs-sub" style="margin-bottom:10px;">No rooms added yet.</div>
       {% endif %}
-    </div>
-  {% endfor %}
-{% else %}
-  <p>No hotel assignments yet.</p>
-{% endif %}
-
-<!-- Transportation details -->
-<h2 class="section-title">Transportation</h2>
-<table class="call-table">
-  <thead>
-    <tr>
-      <th>Name</th>
-      <th>Mode</th>
-      <th>Flight / Booking</th>
-      <th>Arrival</th>
-      <th>Notes</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for a in rows %}
-    <tr>
-      <td>{{ a.person.name if a.person else '' }}</td>
-      <td>{{ a.transport_mode or '' }}</td>
-      <td>{{ a.transport_booking or '' }}</td>
-      <td>{% if a.arrival_ts %}{{ a.arrival_ts.strftime('%b %d, %Y %I:%M %p') }}{% endif %}</td>
-      <td>{{ a.transport_notes or '' }}</td>
-    </tr>
     {% endfor %}
-  </tbody>
-</table>
-<div class="card" style="padding:10px; margin-top:12px;">
-  <h3 style="margin:0 0 6px;">Notes</h3>
-  {% if ev.notes %}
-    <div>{{ ev.notes }}</div>
   {% else %}
-    <div>—</div>
+    <div class="cs-sub">No hotel assignments yet.</div>
   {% endif %}
-</div>
 
-<div style="text-align:center; margin-top:30px;" class="noprint">
-  <button onclick="window.print()" class="print-btn">🖨️ Print Call Sheet</button> | <a class="button" href="{{ url_for('call_sheet_pdf', eid=ev.id) }}">⬇️ Download PDF</a>
+  <!-- Bottom Notes -->
+  <div class="h2">Notes</div>
+  <div class="note-box">{{ ev.notes or '—' }}</div>
 </div>
-
 {% endblock %}
