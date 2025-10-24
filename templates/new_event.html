@@ -31,18 +31,33 @@
     <input name="hotel">
   </label>
 
-  <label>Coordinator Name
-    <input name="coordinator_name" placeholder="e.g., Venue contact">
-  </label>
+  <div class="field">
+  <label for="coordinator_name">Coordinator Name</label>
+  <input type="text" id="coordinator_name" name="coordinator_name" placeholder="e.g. John Smith">
+  </div>
 
-  <label>Coordinator Phone
-    <input name="coordinator_phone" placeholder="(555) 555-1212">
-  </label>
+  <div class="field">
+    <label for="coordinator_phone">Coordinator Phone</label>
+    <input type="tel" id="coordinator_phone" name="coordinator_phone" placeholder="(555) 123-4567">
+  </div>
 
+  <div class="field">
+    <label for="dress_code">Dress Code</label>
+    <input type="text" id="dress_code" name="dress_code"
+         placeholder="e.g. OSA Polo & Black Pants, No Jeans">
+  </div>
+
+  <div class="field">
+    <label for="notes">Notes</label>
+    <textarea id="notes" name="notes" rows="4" placeholder="Additional event notes or expectations..."></textarea>
+  </div>
+
+<div class="field">
   <label>
     <input type="checkbox" name="call_sheet_published">
-    Call sheet published (visible to staff)
+    Publish Call Sheet (make visible to staff)
   </label>
+</div>
 
   <div class="actions" style="margin-top:10px;">
     <button class="btn btn-primary">Create Event</button>
