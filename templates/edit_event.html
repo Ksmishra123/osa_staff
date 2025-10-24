@@ -1,22 +1,42 @@
 {% extends 'base.html' %}
 {% block content %}
-<h1>Edit Event</h1>
-<form method="post">
-  <div><label>City</label><input name="city" value="{{ ev.city or '' }}"></div>
-  <div><label>Coordinator Name
-    <input name="coordinator_name" value="{{ ev.coordinator_name or '' }}">
-  </label></div>
+<hr style="margin:20px 0;">
 
-  <div><label>Coordinator Phone
-    <input name="coordinator_phone" value="{{ ev.coordinator_phone or '' }}">
-  </label></div>
-  <div>
-    <label>
-      <input type="checkbox" name="call_sheet_published" {% if ev.call_sheet_published %}checked{% endif %}>
-      Call sheet published (visible to staff)
-    </label>
+<h3>Coordinator & Event Details</h3>
 
-  </div>
+<div class="field">
+  <label for="coordinator_name">Coordinator Name</label>
+  <input type="text" id="coordinator_name" name="coordinator_name"
+         value="{{ ev.coordinator_name or '' }}" placeholder="e.g. John Smith">
+</div>
+
+<div class="field">
+  <label for="coordinator_phone">Coordinator Phone</label>
+  <input type="tel" id="coordinator_phone" name="coordinator_phone"
+         value="{{ ev.coordinator_phone or '' }}" placeholder="(555) 123-4567">
+</div>
+
+<div class="field">
+  <label for="dress_code">Dress Code</label>
+  <input type="text" id="dress_code" name="dress_code"
+         value="{{ ev.dress_code or '' }}" placeholder="e.g. OSA Polo & Black Pants">
+</div>
+
+<div class="field">
+  <label for="notes">Notes</label>
+  <textarea id="notes" name="notes" rows="4" placeholder="Expectations, reminders, etc.">{{ ev.notes or '' }}</textarea>
+</div>
+
+<div class="field">
+  <label>
+    <input type="checkbox" name="call_sheet_published"
+           {% if ev.call_sheet_published %}checked{% endif %}>
+    Publish Call Sheet (make visible to staff)
+  </label>
+</div>
+
+<hr style="margin:20px 0;">
+
 
   <div><label>Main Date</label><input type="datetime-local" name="date" value="{{ ev.date|default('',true)|datetime_local }}"></div>
   <div><label>Setup Start</label><input type="datetime-local" name="setup_start" value="{{ ev.setup_start|default('',true)|datetime_local }}"></div>
