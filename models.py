@@ -88,6 +88,7 @@ class Event(Base):
     event_end = Column(DateTime)
     coordinator_name = Column(String, nullable=True)
     coordinator_phone = Column(String, nullable=True)
+    dress_code = Colum(String(255), nullable=True)
     call_sheet_published = Column(Boolean, default=False)
 
     # Venues
