@@ -90,6 +90,7 @@ class Event(Base):
     coordinator_phone = Column(String, nullable=True)
     dress_code = Column(String, nullable=True)
     call_sheet_published = Column(Boolean, default=False)
+    notes = Column(Text, nullable=True)
 
     # Venues
     venue = Column(Text)
