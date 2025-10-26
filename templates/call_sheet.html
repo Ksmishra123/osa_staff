@@ -89,34 +89,85 @@
   {% endif %}
 
   <!-- Assignments -->
-  <div class="h2">Assignments</div>
-  <table class="table">
-    <thead>
+ <style>
+  /* Call-sheet table tuning */
+  .assign-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed; /* predictable column widths */
+  }
+  .assign-table th,
+  .assign-table td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    vertical-align: top;
+  }
+  .assign-table thead th {
+    background: #f3f5f7;
+    font-weight: 700;
+    text-align: left;
+  }
+  .assign-pos { font-weight: 700; }                 /* bold Position */
+  .assign-name { font-weight: 600; }                /* slightly stronger */
+  .assign-phone, .assign-email { white-space: normal; word-break: break-word; }
+  .assign-notes {
+    white-space: pre-wrap;                          /* keep newlines */
+    word-break: break-word;                         /* wrap long booking codes/urls/emails */
+  }
+
+  /* Responsive niceties */
+  @media (max-width: 800px) {
+    .assign-table { table-layout: auto; }
+  }
+</style>
+
+<table class="assign-table">
+  <colgroup>
+    <!-- Tune widths: make Name/Phone/Email wider -->
+    <col style="width:16%">   <!-- Position -->
+    <col style="width:24%">   <!-- Name -->
+    <col style="width:15%">   <!-- Phone -->
+    <col style="width:25%">   <!-- Email -->
+    <col style="width:auto">  <!-- Transport / Notes (flex) -->
+  </colgroup>
+  <thead>
+    <tr>
+      <th>Position</th>
+      <th>Name</th>
+      <th>Phone</th>
+      <th>Email</th>
+      <th>Transport / Notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for a in rows %}
       <tr>
-        <th>Position</th>
-        <th>Name</th>
-        <th>Phone</th>
-        <th>Email</th>
-        <th>Transport</th>
+        <td class="assign-pos">{{ a.position.name if a.position else '' }}</td>
+        <td class="assign-name">
+          {% if a.person %}
+            {{ a.person.name }}
+          {% endif %}
+        </td>
+        <td class="assign-phone">
+          {% if a.person and a.person.phone %}{{ a.person.phone }}{% endif %}
+        </td>
+        <td class="assign-email">
+          {% if a.person and a.person.email %}{{ a.person.email }}{% endif %}
+        </td>
+        <td class="assign-notes">
+          {# Build a stacked multi-line block; each piece on its own line if present #}
+          {% set lines = [] %}
+          {% if a.transport_mode %}{% set _ = lines.append('Mode: ' ~ a.transport_mode) %}{% endif %}
+          {% if a.arrival_ts %}{% set _ = lines.append('Arrival: ' ~ a.arrival_ts.strftime('%Y-%m-%d %I:%M %p')) %}{% endif %}
+          {% if a.transport_booking %}{% set _ = lines.append('Booking: ' ~ a.transport_booking) %}{% endif %}
+          {% if a.transport_notes %}{% set _ = lines.append(a.transport_notes) %}{% endif %}
+          {{ lines|join('\n') }}
+        </td>
       </tr>
-    </thead>
-    <tbody>
-      {% for a in rows %}
-        {% set tbits = [] %}
-        {% if a.transport_mode %}{% set _ = tbits.append(a.transport_mode) %}{% endif %}
-        {% if a.arrival_ts %}{% set _ = tbits.append('Arr: ' ~ a.arrival_ts.strftime('%Y-%m-%d %H:%M')) %}{% endif %}
-        {% if a.transport_booking %}{% set _ = tbits.append(a.transport_booking) %}{% endif %}
-        {% if a.transport_notes %}{% set _ = tbits.append(a.transport_notes) %}{% endif %}
-        <tr>
-          <td>{{ a.position.name if a.position else '' }}</td>
-          <td>{{ a.person.name if a.person else '' }}</td>
-          <td>{{ a.person.phone if a.person else '' }}</td>
-          <td>{{ a.person.email if a.person else '' }}</td>
-          <td>{{ tbits|join(' | ') }}</td>
-        </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+    {% endfor %}
+  </tbody>
+</table>
+
 
   <!-- Hotels & Rooms -->
   <div class="h2">Hotel & Room Assignments</div>
