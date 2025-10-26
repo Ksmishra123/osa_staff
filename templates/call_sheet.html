@@ -155,14 +155,14 @@
           {% if a.person and a.person.email %}{{ a.person.email }}{% endif %}
         </td>
         <td class="assign-notes">
-          {# Build a stacked multi-line block; each piece on its own line if present #}
-          {% set lines = [] %}
-          {% if a.transport_mode %}{% set _ = lines.append('Mode: ' ~ a.transport_mode) %}{% endif %}
-          {% if a.arrival_ts %}{% set _ = lines.append('Arrival: ' ~ a.arrival_ts.strftime('%Y-%m-%d %I:%M %p')) %}{% endif %}
-          {% if a.transport_booking %}{% set _ = lines.append('Booking: ' ~ a.transport_booking) %}{% endif %}
-          {% if a.transport_notes %}{% set _ = lines.append(a.transport_notes) %}{% endif %}
-          {{ lines|join('\n') }}
+          {%- set lines = [] -%}
+          {%- if a.transport_mode -%}{%- set _ = lines.append('Mode: ' ~ a.transport_mode) -%}{%- endif -%}
+          {%- if a.arrival_ts -%}{%- set _ = lines.append('Arrival: ' ~ a.arrival_ts.strftime('%Y-%m-%d %I:%M %p')) -%}{%- endif -%}
+          {%- if a.transport_booking -%}{%- set _ = lines.append('Booking: ' ~ a.transport_booking) -%}{%- endif -%}
+          {%- if a.transport_notes -%}{%- set _ = lines.append(a.transport_notes) -%}{%- endif -%}
+          {{- lines|join('<br>')|safe -}}
         </td>
+
       </tr>
     {% endfor %}
   </tbody>
