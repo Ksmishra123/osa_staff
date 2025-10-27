@@ -729,61 +729,92 @@ def admin_assign(eid):
     people = db.query(Person).order_by(Person.name.asc()).all()
     positions = db.query(Position).order_by(Position.display_order.asc()).all()
 
-    if request.method == 'POST':
-        # 1) Clear existing assignments for this event
-        db.query(Assignment).filter(Assignment.event_id == eid).delete()
+    # Snapshot of existing assignments for change detection
+    existing = {
+        a.position_id: {
+            "person_id": a.person_id,
+            "transport_mode": a.transport_mode,
+            "transport_booking": a.transport_booking,
+            "arrival_ts": a.arrival_ts,
+            "transport_notes": a.transport_notes,
+        }
+        for a in db.query(Assignment).filter(Assignment.event_id == eid).all()
+    }
 
-        # 2) Recreate from form + collect who to email
-        created = []  # list[(person_id, position_name)]
-        for p in positions:
-            pid = request.form.get(f'pos_{p.id}')
+    if request.method == 'POST':
+        # Checkbox determines if we send emails this save
+        send_emails = (request.form.get('send_emails') == 'yes')
+
+        new_assignments = {}
+        changed_people = []  # list of tuples (person_id, position_name)
+
+        # Build the "new" assignments dict from the form
+        for pos in positions:
+            pid = request.form.get(f'pos_{pos.id}')
             if not pid:
                 continue
+            pid_int = int(pid)
+            new_data = {
+                "person_id": pid_int,
+                "transport_mode": request.form.get(f'pos_{pos.id}_mode') or None,
+                "transport_booking": request.form.get(f'pos_{pos.id}_booking') or None,
+                "arrival_ts": parse_dt(request.form.get(f'pos_{pos.id}_arrival') or ""),
+                "transport_notes": request.form.get(f'pos_{pos.id}_notes') or None,
+            }
+            new_assignments[pos.id] = new_data
+
+        # Replace all assignments for this event with the new set
+        db.query(Assignment).filter(Assignment.event_id == eid).delete()
+
+        for pos in positions:
+            if pos.id not in new_assignments:
+                continue
+            data = new_assignments[pos.id]
             a = Assignment(
                 event_id=eid,
-                position_id=p.id,
-                person_id=int(pid),
-                transport_mode=request.form.get(f'pos_{p.id}_mode') or None,
-                transport_booking=request.form.get(f'pos_{p.id}_booking') or None,
-                arrival_ts=parse_dt(request.form.get(f'pos_{p.id}_arrival') or ""),
-                transport_notes=request.form.get(f'pos_{p.id}_notes') or None,
+                position_id=pos.id,
+                **data
             )
             db.add(a)
-            created.append((int(pid), p.name))
 
-        # 3) Commit BEFORE sending emails
+            # Change detection: if brand-new or any field changed
+            old = existing.get(pos.id)
+            if not old or old != data:
+                changed_people.append((data["person_id"], pos.name))
+
         db.commit()
 
-        # 4) Queue emails (inside POST only)
-        from jinja2 import TemplateNotFound
-        for pid, pos_name in created:
-            person = db.get(Person, pid)
-            if not (person and person.email):
-                continue
-            try:
-                html = render_template(
-                    'emails/assignment_notice.html',
-                    person=person, ev=ev, position=pos_name
-                )
-            except TemplateNotFound:
-                date_txt = ev.date.strftime('%B %d, %Y - %I:%M %p') if ev.date else ''
-                html = (
-                    f"<p>Hi {person.name or ''},</p>"
-                    f"<p>You’ve been assigned to <b>{pos_name}</b> for "
-                    f"<b>{ev.city or 'Event'}</b> {date_txt}.</p>"
-                    f"<p>Log in to review and acknowledge.</p>"
-                )
-            subj_date = ev.date.strftime('%Y-%m-%d') if ev.date else ''
-            subject = f"Assignment: {ev.city or 'Event'} {subj_date} — {pos_name}"
-            send_email_async(person.email, subject, html)
+        # Send emails only if checkbox selected
+        notified = 0
+        if send_emails and changed_people:
+            for pid, pos_name in changed_people:
+                person = db.get(Person, pid)
+                if person and person.email:
+                    html = render_template(
+                        'emails/assignment_notice.html',
+                        person=person, ev=ev, position=pos_name
+                    )
+                    subject = f"Assignment Update: {ev.city or 'Event'} – {pos_name}"
+                    send_email_async(person.email, subject, html)
+                    notified += 1
 
-        flash('Assignments saved (emails queued).')
+        if send_emails:
+            flash(f"Assignments saved. {notified} staff notified.")
+        else:
+            # Let the admin know we suppressed emails intentionally
+            if changed_people:
+                flash(f"Assignments saved. {len(changed_people)} change(s) detected, emails not sent (checkbox off).")
+            else:
+                flash("Assignments saved. No changes detected; no emails queued.")
+
         return redirect(url_for('admin_events'))
 
-    # GET: Prefill current selections for the form
+    # GET branch: prefill current data
     currents = {
         a.position_id: a
-        for a in db.query(Assignment).filter(Assignment.event_id == eid).all()
+        for a in db.query(Assignment)
+                  .filter(Assignment.event_id == eid)
+                  .all()
     }
     return render_template('assign.html', ev=ev, people=people, positions=positions, current=currents)
 
