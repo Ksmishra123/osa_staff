@@ -172,21 +172,40 @@ def inject_helpers():
 # -----------------------------------------------------------------------------
 # Email helper (async via SendGrid)
 # -----------------------------------------------------------------------------
+
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail
+from jinja2 import TemplateNotFound
+
 SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
 FROM_EMAIL = os.getenv("FROM_EMAIL", "no-reply@onstageamerica.com")
 
-def send_email_async(to_email: str, subject: str, html: str):
-    """Fire-and-forget email via SendGrid in a thread."""
-    if not SENDGRID_API_KEY or not to_email:
-        return
+def send_email_async(to_email: str, subject: str, html: str) -> bool:
+    """
+    Fire-and-forget email via SendGrid in a thread.
+    Returns True if the send was scheduled, False if we skipped due to config.
+    Any SendGrid errors are logged.
+    """
+    if not SENDGRID_API_KEY:
+        app.logger.error("SENDGRID_API_KEY is not set; skipping email send.")
+        return False
+    if not to_email:
+        app.logger.error("No recipient email; skipping email send.")
+        return False
+
     def _send():
         try:
             sg = SendGridAPIClient(SENDGRID_API_KEY)
             msg = Mail(from_email=FROM_EMAIL, to_emails=to_email, subject=subject, html_content=html)
             sg.send(msg)
+            app.logger.info(f"✔ Assignment email sent to {to_email}")
         except Exception:
-            app.logger.exception("Email send failed")
+            app.logger.exception(f"Email send failed for {to_email}")
+
+    import threading
     threading.Thread(target=_send, daemon=True).start()
+    return True
+
 
 # -----------------------------------------------------------------------------
 # Static uploads (secured)
@@ -708,47 +727,83 @@ def admin_assign(eid):
     positions = db.query(Position).order_by(Position.display_order.asc()).all()
 
     if request.method == 'POST':
-        # Clear existing assignments for this event, then re-add with transport fields
-        db.query(Assignment).filter(Assignment.event_id == eid).delete()
+    # wipe and re-add assignments
+    db.query(Assignment).filter(Assignment.event_id == eid).delete()
 
-        for p in positions:
-            pid = request.form.get(f'pos_{p.id}')
-            if not pid:
-                continue
-            a = Assignment(
-                event_id=eid,
-                position_id=p.id,
-                person_id=int(pid),
-                transport_mode=request.form.get(f'pos_{p.id}_mode') or None,
-                transport_booking=request.form.get(f'pos_{p.id}_booking') or None,
-                arrival_ts=parse_dt(request.form.get(f'pos_{p.id}_arrival') or ""),
-                transport_notes=request.form.get(f'pos_{p.id}_notes') or None,
+    created = []  # collect (person_id, position_name)
+    for p in positions:
+        pid = request.form.get(f'pos_{p.id}')
+        if not pid:
+            continue
+        a = Assignment(
+            event_id=eid,
+            position_id=p.id,
+            person_id=int(pid),
+            transport_mode=request.form.get(f'pos_{p.id}_mode') or None,
+            transport_booking=request.form.get(f'pos_{p.id}_booking') or None,
+            arrival_ts=parse_dt(request.form.get(f'pos_{p.id}_arrival') or ""),
+            transport_notes=request.form.get(f'pos_{p.id}_notes') or None,
+        )
+        db.add(a)
+        created.append((int(pid), p.name))
+
+    db.commit()  # <-- commit BEFORE sending emails, so we can safely query people/events
+
+    # send emails (non-blocking)
+    from jinja2 import TemplateNotFound
+    for pid, pos_name in created:
+        person = db.get(Person, pid)
+        if not (person and person.email):
+            continue
+
+        try:
+            html = render_template(
+                'emails/assignment_notice.html',
+                person=person, ev=ev, position=pos_name
             )
-            db.add(a)
+        except TemplateNotFound:
+            # fallback minimal html
+            date_txt = ev.date.strftime('%B %d, %Y - %I:%M %p') if ev.date else ''
+            html = f"""
+            <p>Hi {person.name or ''},</p>
+            <p>You’ve been assigned to <b>{pos_name}</b> for <b>{ev.city or 'Event'}</b> {date_txt}.</p>
+            <p>Login to your portal to acknowledge.</p>
+            """
 
-        # notify assigned people
-        for p in positions:
-            pid = request.form.get(f'pos_{p.id}')
-            if not pid:
-                continue
-            person = db.get(Person, int(pid))
-            if person and person.email:
-                html = render_template('emails/assignment_notice.html', person=person, ev=ev, position=p.name)
-                send_email_async(
-                    person.email,
-                    f"Assignment: {ev.city} ({ev.date.strftime('%Y-%m-%d') if ev.date else ''})",
-                    html
-                )
+        subj_date = ev.date.strftime('%Y-%m-%d') if ev.date else ''
+        subject = f"Assignment: {ev.city or 'Event'} {subj_date} — {pos_name}"
+        ok = send_email_async(person.email, subject, html)
+        if not ok:
+            app.logger.warning(f"Skipped sending assignment email to {person.email} (missing config).")
 
-        db.commit()
-        flash('Assignments saved (including transportation).')
-        return redirect(url_for('admin_events'))
+    flash('Assignments saved (emails queued).')
+    return redirect(url_for('admin_events'))
+
 
     currents = {
         a.position_id: a
         for a in db.query(Assignment).filter(Assignment.event_id == eid).all()
     }
     return render_template('assign.html', ev=ev, people=people, positions=positions, current=currents)
+
+# -----------------------------------------------------------------------------
+# Admin: test route for email to see if it is working
+# -----------------------------------------------------------------------------
+@app.route('/admin/test-email')
+@login_required
+def admin_test_email():
+    if not is_admin():
+        abort(403)
+    me = current_user.person
+    to = request.args.get('to') or (me.email if me else None)
+    if not to:
+        return "No recipient email. Add ?to=you@example.com", 400
+
+    html = "<p>This is a test email from OSA staff app.</p>"
+    ok = send_email_async(to, "OSA test email", html)
+    if not ok:
+        return "Email not queued — check SENDGRID_API_KEY / FROM_EMAIL on Render.", 500
+    return f"Queued test email to {to}. Check your inbox.", 200
 
 # -----------------------------------------------------------------------------
 # Admin: People Delete or Bulk Delete
