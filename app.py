@@ -723,14 +723,18 @@ def admin_assign(eid):
 
     db = SessionLocal()
     ev = db.get(Event, eid)
+    if not ev:
+        abort(404)
+
     people = db.query(Person).order_by(Person.name.asc()).all()
     positions = db.query(Position).order_by(Position.display_order.asc()).all()
 
     if request.method == 'POST':
-        # wipe and re-add assignments
+        # 1) Clear existing assignments for this event
         db.query(Assignment).filter(Assignment.event_id == eid).delete()
 
-        created = []  # collect (person_id, position_name)
+        # 2) Recreate from form + collect who to email
+        created = []  # list[(person_id, position_name)]
         for p in positions:
             pid = request.form.get(f'pos_{p.id}')
             if not pid:
@@ -747,44 +751,42 @@ def admin_assign(eid):
             db.add(a)
             created.append((int(pid), p.name))
 
-    db.commit()  # <-- commit BEFORE sending emails, so we can safely query people/events
+        # 3) Commit BEFORE sending emails
+        db.commit()
 
-    # send emails (non-blocking)
-    from jinja2 import TemplateNotFound
-    for pid, pos_name in created:
-        person = db.get(Person, pid)
-        if not (person and person.email):
-            continue
+        # 4) Queue emails (inside POST only)
+        from jinja2 import TemplateNotFound
+        for pid, pos_name in created:
+            person = db.get(Person, pid)
+            if not (person and person.email):
+                continue
+            try:
+                html = render_template(
+                    'emails/assignment_notice.html',
+                    person=person, ev=ev, position=pos_name
+                )
+            except TemplateNotFound:
+                date_txt = ev.date.strftime('%B %d, %Y - %I:%M %p') if ev.date else ''
+                html = (
+                    f"<p>Hi {person.name or ''},</p>"
+                    f"<p>You’ve been assigned to <b>{pos_name}</b> for "
+                    f"<b>{ev.city or 'Event'}</b> {date_txt}.</p>"
+                    f"<p>Log in to review and acknowledge.</p>"
+                )
+            subj_date = ev.date.strftime('%Y-%m-%d') if ev.date else ''
+            subject = f"Assignment: {ev.city or 'Event'} {subj_date} — {pos_name}"
+            send_email_async(person.email, subject, html)
 
-        try:
-            html = render_template(
-                'emails/assignment_notice.html',
-                person=person, ev=ev, position=pos_name
-            )
-        except TemplateNotFound:
-            # fallback minimal html
-            date_txt = ev.date.strftime('%B %d, %Y - %I:%M %p') if ev.date else ''
-            html = f"""
-            <p>Hi {person.name or ''},</p>
-            <p>You’ve been assigned to <b>{pos_name}</b> for <b>{ev.city or 'Event'}</b> {date_txt}.</p>
-            <p>Login to your portal to acknowledge.</p>
-            """
+        flash('Assignments saved (emails queued).')
+        return redirect(url_for('admin_events'))
 
-        subj_date = ev.date.strftime('%Y-%m-%d') if ev.date else ''
-        subject = f"Assignment: {ev.city or 'Event'} {subj_date} — {pos_name}"
-        ok = send_email_async(person.email, subject, html)
-        if not ok:
-            app.logger.warning(f"Skipped sending assignment email to {person.email} (missing config).")
-
-    flash('Assignments saved (emails queued).')
-    return redirect(url_for('admin_events'))
-
-
+    # GET: Prefill current selections for the form
     currents = {
         a.position_id: a
         for a in db.query(Assignment).filter(Assignment.event_id == eid).all()
     }
     return render_template('assign.html', ev=ev, people=people, positions=positions, current=currents)
+
 
 # -----------------------------------------------------------------------------
 # Admin: test route for email to see if it is working
