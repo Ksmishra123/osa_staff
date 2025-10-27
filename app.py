@@ -796,16 +796,38 @@ def admin_assign(eid):
 def admin_test_email():
     if not is_admin():
         abort(403)
-    me = current_user.person
-    to = request.args.get('to') or (me.email if me else None)
-    if not to:
-        return "No recipient email. Add ?to=you@example.com", 400
 
-    html = "<p>This is a test email from OSA staff app.</p>"
-    ok = send_email_async(to, "OSA test email", html)
-    if not ok:
-        return "Email not queued — check SENDGRID_API_KEY / FROM_EMAIL on Render.", 500
-    return f"Queued test email to {to}. Check your inbox.", 200
+    # quick config report (redacted)
+    key_set = bool(os.getenv("SENDGRID_API_KEY"))
+    from_email = os.getenv("FROM_EMAIL")
+    to = request.args.get('to') or (current_user.person.email if current_user.is_authenticated else None)
+
+    if not key_set or not from_email:
+        return (
+            "Email not queued — check SENDGRID_API_KEY / FROM_EMAIL on Render.<br>"
+            f"SENDGRID_API_KEY set? {'yes' if key_set else 'no'}<br>"
+            f"FROM_EMAIL present? {'yes' if bool(from_email) else 'no'}",
+            500
+        )
+
+    # Try sending and surface the exact exception if any
+    try:
+        sg = SendGridAPIClient(os.getenv("SENDGRID_API_KEY"))
+        msg = Mail(
+            from_email=from_email,
+            to_emails=to or from_email,  # fallback to from_email
+            subject="OSA test email",
+            html_content="<p>This is a test email from OSA staff app.</p>"
+        )
+        resp = sg.send(msg)
+        return (
+            f"Queued test email to {to or from_email}. "
+            f"SendGrid status: {resp.status_code}", 200
+        )
+    except Exception as e:
+        # shows exact failure (e.g., 'The from address does not match a verified Sender Identity')
+        return (f"Send failed: {type(e).__name__}: {e}", 500)
+
 
 # -----------------------------------------------------------------------------
 # Admin: People Delete or Bulk Delete
