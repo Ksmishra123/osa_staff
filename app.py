@@ -727,25 +727,25 @@ def admin_assign(eid):
     positions = db.query(Position).order_by(Position.display_order.asc()).all()
 
     if request.method == 'POST':
-    # wipe and re-add assignments
-    db.query(Assignment).filter(Assignment.event_id == eid).delete()
+        # wipe and re-add assignments
+        db.query(Assignment).filter(Assignment.event_id == eid).delete()
 
-    created = []  # collect (person_id, position_name)
-    for p in positions:
-        pid = request.form.get(f'pos_{p.id}')
-        if not pid:
-            continue
-        a = Assignment(
-            event_id=eid,
-            position_id=p.id,
-            person_id=int(pid),
-            transport_mode=request.form.get(f'pos_{p.id}_mode') or None,
-            transport_booking=request.form.get(f'pos_{p.id}_booking') or None,
-            arrival_ts=parse_dt(request.form.get(f'pos_{p.id}_arrival') or ""),
-            transport_notes=request.form.get(f'pos_{p.id}_notes') or None,
-        )
-        db.add(a)
-        created.append((int(pid), p.name))
+        created = []  # collect (person_id, position_name)
+        for p in positions:
+            pid = request.form.get(f'pos_{p.id}')
+            if not pid:
+                continue
+            a = Assignment(
+                event_id=eid,
+                position_id=p.id,
+                person_id=int(pid),
+                transport_mode=request.form.get(f'pos_{p.id}_mode') or None,
+                transport_booking=request.form.get(f'pos_{p.id}_booking') or None,
+                arrival_ts=parse_dt(request.form.get(f'pos_{p.id}_arrival') or ""),
+                transport_notes=request.form.get(f'pos_{p.id}_notes') or None,
+            )
+            db.add(a)
+            created.append((int(pid), p.name))
 
     db.commit()  # <-- commit BEFORE sending emails, so we can safely query people/events
 
