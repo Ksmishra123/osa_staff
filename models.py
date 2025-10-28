@@ -142,6 +142,11 @@ class Assignment(Base):
     person_id = Column(Integer, ForeignKey("people.id", ondelete="CASCADE"), nullable=False, index=True)
 
     ack = Column(Boolean, default=False)  # person acknowledged
+    # in models.py, inside class Assignment(...)
+    seen_at       = Column(DateTime, nullable=True)   # when user first loaded /me
+    ack_at        = Column(DateTime, nullable=True)   # when user clicked Acknowledge
+    ack_ip        = Column(String(45), nullable=True) # IP that acknowledged (optional)
+    callsheet_seen_at = Column(DateTime, nullable=True)  # when user opened call sheet (optional)
 
     # Transportation fields (optional)
     transport_mode = Column(String)       # e.g., "flight", "drive"
