@@ -663,6 +663,7 @@ def admin_new_event():
 
     # GET
     return render_template('new_event.html', ev=None)
+
 @app.route('/admin/events/<int:eid>/edit', methods=['GET','POST'])
 @login_required
 def admin_edit_event(eid):
@@ -1455,7 +1456,8 @@ if not is_admin():
              .first())
     if rec and rec.callsheet_seen_at is None:
         rec.callsheet_seen_at = datetime.utcnow()
-        db.commit()    return render_template('call_sheet.html', ev=ev, rows=rows, hotels=hotels, day_rows=day_rows)
+        db.commit()    
+        return render_template('call_sheet.html', ev=ev, rows=rows, hotels=hotels, day_rows=day_rows)
 
 @app.route('/events')
 @login_required
