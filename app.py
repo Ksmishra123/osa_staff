@@ -535,22 +535,24 @@ def me():
     Ev = aliased(Event)
     Pos = aliased(Position)
 
-    rows = (
-        db.query(Assignment)
-          .join(Ev, Assignment.event_id == Ev.id)
-          .join(Pos, Assignment.position_id == Pos.id)
-          .options(
-              joinedload(Assignment.event),
-              joinedload(Assignment.position)
-          )
-          .filter(
-              Assignment.person_id == int(current_user.id),
-              Ev.date != None,
-              Ev.date >= today
-          )
-          .order_by(Ev.date.asc(), Pos.display_order.asc())
-          .all()
-    )
+    rows = (db.query(Assignment)
+              .join(Ev, Assignment.event_id == Ev.id)
+              .join(Pos, Assignment.position_id == Pos.id)
+              .options(joinedload(Assignment.event), joinedload(Assignment.position))
+              .filter(Assignment.person_id == int(current_user.id),
+                      Ev.date != None)
+              .order_by(Ev.date.asc(), Pos.display_order.asc())
+              .all())
+
+    # --- NEW: stamp seen_at the first time the user loads /me ---
+    now = datetime.utcnow()
+    any_updates = False
+    for a in rows:
+        if a.seen_at is None:
+            a.seen_at = now
+            any_updates = True
+    if any_updates:
+        db.commit()
 
     # Lodging for future events only
     user_lodging = (
@@ -574,13 +576,13 @@ def me():
 @app.route('/ack/<int:aid>', methods=['POST'])
 @login_required
 def ack(aid):
-    if is_viewer():
-        abort(403)  # viewers are read-only
     db = SessionLocal()
     a = db.get(Assignment, aid)
     if not a or a.person_id != int(current_user.id):
         abort(403)
     a.ack = True
+    a.ack_at = datetime.utcnow()         # NEW
+    a.ack_ip = request.remote_addr or '' # NEW
     db.commit()
     flash('Acknowledged.')
     return redirect(url_for('me'))
@@ -1445,8 +1447,16 @@ def call_sheet(eid):
             "judges": judges_dt,
             "notes":  d.notes or ''
         })
+# If the viewer is a normal assigned user, record that they opened the call sheet
+if not is_admin():
+    rec = (db.query(Assignment)
+             .filter(Assignment.event_id == eid,
+                     Assignment.person_id == int(current_user.id))
+             .first())
+    if rec and rec.callsheet_seen_at is None:
+        rec.callsheet_seen_at = datetime.utcnow()
+        db.commit()    return render_template('call_sheet.html', ev=ev, rows=rows, hotels=hotels, day_rows=day_rows)
 
-    return render_template('call_sheet.html', ev=ev, rows=rows, hotels=hotels, day_rows=day_rows)
 @app.route('/events')
 @login_required
 def events_list():
@@ -1459,6 +1469,28 @@ def events_list():
           .all()
     )
     return render_template('events_public.html', events=evs)
+
+# -----------------------------------------------------------------------------
+# Who has seen and acknowledged
+# -----------------------------------------------------------------------------
+@app.route('/admin/events/<int:eid>/receipts')
+@login_required
+def admin_event_receipts(eid):
+    if not is_admin():
+        abort(403)
+    db = SessionLocal()
+    ev = db.get(Event, eid)
+    if not ev: abort(404)
+
+    Pos = aliased(Position)
+    acks = (db.query(Assignment)
+              .join(Pos, Assignment.position_id == Pos.id)
+              .options(joinedload(Assignment.person), joinedload(Assignment.position))
+              .filter(Assignment.event_id == eid)
+              .order_by(Pos.display_order.asc())
+              .all())
+    return render_template('receipts.html', ev=ev, acks=acks)
+
 
 # -----------------------------------------------------------------------------
 # Call Sheet (PDF)
