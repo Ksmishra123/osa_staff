@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>Receipts — {{ ev.city }}{% if ev.date %} ({{ ev.date.strftime('%Y-%m-%d') }}){% endif %}</h1>
+
+<div class="table-responsive">
+  <table class="table table-sm">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Position</th>
+        <th>Name</th>
+        <th>Seen</th>
+        <th>Acknowledged</th>
+        <th>Ack IP</th>
+        <th>Call Sheet Opened</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for a in acks %}
+      <tr>
+        <td>{{ a.id }}</td>
+        <td>{{ a.position.name if a.position else '' }}</td>
+        <td>{{ a.person.name if a.person else '' }}</td>
+        <td>{{ a.seen_at.strftime('%Y-%m-%d %H:%M') if a.seen_at else '—' }}</td>
+        <td>
+          {% if a.ack_at %}
+            {{ a.ack_at.strftime('%Y-%m-%d %H:%M') }}
+          {% elif a.ack %}
+            (legacy: acknowledged)
+          {% else %}
+            —
+          {% endif %}
+        </td>
+        <td>{{ a.ack_ip or '—' }}</td>
+        <td>{{ a.callsheet_seen_at.strftime('%Y-%m-%d %H:%M') if a.callsheet_seen_at else '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
