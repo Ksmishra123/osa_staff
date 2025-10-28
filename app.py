@@ -205,6 +205,112 @@ def send_email_async(to_email: str, subject: str, html: str) -> bool:
     import threading
     threading.Thread(target=_send, daemon=True).start()
     return True
+# --- Google Sheets sync helpers ---------------------------------------------
+import json
+import gspread
+from google.oauth2.service_account import Credentials
+
+def _get_gspread_client():
+    sa_json = os.getenv("GOOGLE_SA_JSON", "")
+    if not sa_json:
+        return None
+    try:
+        info = json.loads(sa_json)
+        scopes = ["https://www.googleapis.com/auth/spreadsheets"]
+        creds = Credentials.from_service_account_info(info, scopes=scopes)
+        return gspread.authorize(creds)
+    except Exception:
+        app.logger.exception("Failed to build gspread client")
+        return None
+
+def _event_col_title(ev: Event) -> str:
+    if ev.date:
+        return f"{ev.date.strftime('%Y-%m-%d')} — {ev.city}"
+    return f"{ev.city or 'Event'}"
+
+def sync_assignments_sheet(db, only_event_id: int | None = None):
+    """
+    Sheet layout:
+      Row 1: ["Position", <event1>, <event2>, ...]
+      Subsequent rows: one row per Position (display_order asc),
+                       cells filled with assigned person's name per event.
+    If only_event_id is provided, we re-sync headers & that event's column.
+    Otherwise we sync all future events (today or later).
+    """
+    sheet_id = os.getenv("ASSIGN_SHEET_ID", "")
+    if not sheet_id:
+        return  # silently skip if not configured
+
+    gc = _get_gspread_client()
+    if not gc:
+        return
+
+    try:
+        sh = gc.open_by_key(sheet_id)
+        try:
+            ws = sh.worksheet("Assignments")
+        except gspread.exceptions.WorksheetNotFound:
+            ws = sh.add_worksheet(title="Assignments", rows=100, cols=26)
+    except Exception:
+        app.logger.exception("Unable to open/create Google Sheet")
+        return
+
+    # Positions (row headers)
+    positions = db.query(Position).order_by(Position.display_order.asc()).all()
+    pos_names = [p.name for p in positions]
+
+    # Which events to consider
+    ev_query = db.query(Event).order_by(Event.date.asc())
+    if only_event_id:
+        ev_query = ev_query.filter(Event.id == only_event_id)
+    else:
+        # default: future & today
+        today = datetime.utcnow().date()
+        ev_query = ev_query.filter(Event.date >= datetime(today.year, today.month, today.day))
+
+    events = ev_query.all()
+    if not events:
+        # still make sure we at least have the Position column
+        header = ["Position"]
+        data = [[n] for n in pos_names] if pos_names else []
+        # Resize and write
+        ws.resize(rows=max(2, len(data) + 1), cols=len(header))
+        ws.update("A1", [header] + data)
+        return
+
+    # Build a full header: Position + each event column
+    headers = ["Position"] + [_event_col_title(ev) for ev in events]
+
+    # Build a mapping: (pos_id, ev_id) -> person name (or "")
+    # For efficiency, fetch all needed assignments at once.
+    ev_ids = [ev.id for ev in events]
+    assigns = (
+        db.query(Assignment)
+          .join(Position, Assignment.position_id == Position.id)
+          .options(joinedload(Assignment.person), joinedload(Assignment.position))
+          .filter(Assignment.event_id.in_(ev_ids))
+          .all()
+    )
+    cell_map = {(a.position_id, a.event_id): (a.person.name if a.person else "") for a in assigns}
+
+    # Table to write
+    # First column = position names, subsequent columns = per-event person names
+    table = []
+    for p in positions:
+        row = [p.name]
+        for ev in events:
+            row.append(cell_map.get((p.id, ev.id), ""))
+        table.append(row)
+
+    # Resize sheet to fit (a bit generous)
+    ws.resize(rows=len(table) + 5, cols=len(headers) + 2)
+
+    # Write header row
+    ws.update("A1", [headers])
+
+    # Write the body (positions + cells)
+    if table:
+        ws.update("A2", table)
 
 
 # -----------------------------------------------------------------------------
@@ -811,11 +917,14 @@ def admin_assign(eid):
                 flash("Assignments saved. No changes detected; no emails queued.")
 
         return redirect(url_for('admin_events'))
-
-    # GET branch: prefill current data
-    currents = {
-        a.position_id: a
-        for a in db.query(Assignment)
+        # After db.commit() inside POST block
+        try:
+            sync_assignments_sheet(db, only_event_id=eid)
+        except Exception:
+            app.logger.exception("Sheets sync failed for event %s", eid)    # GET branch: prefill current data
+        currents = {
+            a.position_id: a
+            for a in db.query(Assignment)
                   .filter(Assignment.event_id == eid)
                   .all()
     }
