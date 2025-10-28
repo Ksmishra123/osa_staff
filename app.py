@@ -1381,83 +1381,96 @@ from datetime import timedelta
 from sqlalchemy.orm import joinedload
 from sqlalchemy.orm import aliased
 
+# -----------------------------------------------------------------------------
+# Call Sheet (secured)
+# -----------------------------------------------------------------------------
 @app.route('/events/<int:eid>/call-sheet')
 @login_required
 def call_sheet(eid):
     db = SessionLocal()
-    ev = db.get(Event, eid)
-    if not ev:
-        abort(404)
+    try:
+        ev = db.get(Event, eid)
+        if not ev:
+            abort(404)
 
-    # Access rules:
-    # - admin or viewer: always allowed (even if unpublished)
-    # - regular user: must be assigned AND call sheet must be published
-    if is_admin() or is_viewer():
-        allowed = True
-    else:
-        assigned = db.query(Assignment).filter(
+        # viewer rules: admin OR assigned to event OR viewer role
+        is_viewer = bool(getattr(current_user.person, "is_viewer", False))
+        assigned_count = db.query(Assignment).filter(
             Assignment.event_id == eid,
             Assignment.person_id == int(current_user.id)
-        ).count() > 0
-        allowed = assigned and bool(getattr(ev, "call_sheet_published", False))
+        ).count()
 
-    if not allowed:
-        abort(403)
+        allowed = is_admin() or assigned_count > 0 or is_viewer
+        if not allowed:
+            abort(403)
 
-    # Assignments (with stable ordering by position)
-    Pos = aliased(Position)
-    rows = (
-        db.query(Assignment)
-          .join(Pos, Assignment.position_id == Pos.id)
-          .options(
-              joinedload(Assignment.person),
-              joinedload(Assignment.position)
-          )
-          .filter(Assignment.event_id == eid)
-          .order_by(Pos.display_order.asc())
-          .all()
-    )
+        # if not published, only admin or viewer can see (assigned staff must wait)
+        if not ev.call_sheet_published and not (is_admin() or is_viewer):
+            abort(403)
 
-    # Hotels and rooms (with occupants)
-    hotels = (
-        db.query(Hotel)
-          .options(
-              joinedload(Hotel.rooms)
-                .joinedload(Room.occupants)
-                .joinedload(Roommate.person)
-          )
-          .filter(Hotel.event_id == eid)
-          .all()
-    )
+        Pos = aliased(Position)
+        rows = (
+            db.query(Assignment)
+              .join(Pos, Assignment.position_id == Pos.id)
+              .options(
+                  joinedload(Assignment.person),
+                  joinedload(Assignment.position)
+              )
+              .filter(Assignment.event_id == eid)
+              .order_by(Pos.display_order.asc())
+              .all()
+        )
 
-    # Multi-day schedule (EventDay)
-    days = (
-        db.query(EventDay)
-          .filter(EventDay.event_id == eid)
-          .order_by(EventDay.start_dt.asc())
-          .all()
-    )
-    day_rows = []
-    for d in days:
-        staff_dt  = d.staff_arrival_dt  or (d.start_dt - timedelta(minutes=60) if d.start_dt else None)
-        judges_dt = d.judges_arrival_dt or (d.start_dt - timedelta(minutes=30) if d.start_dt else None)
-        day_rows.append({
-            "start":  d.start_dt,
-            "setup":  d.setup_dt,
-            "staff":  staff_dt,
-            "judges": judges_dt,
-            "notes":  d.notes or ''
-        })
-# If the viewer is a normal assigned user, record that they opened the call sheet
-if not is_admin():
-    rec = (db.query(Assignment)
-             .filter(Assignment.event_id == eid,
-                     Assignment.person_id == int(current_user.id))
-             .first())
-    if rec and rec.callsheet_seen_at is None:
-        rec.callsheet_seen_at = datetime.utcnow()
-        db.commit()    
-        return render_template('call_sheet.html', ev=ev, rows=rows, hotels=hotels, day_rows=day_rows)
+        hotels = (
+            db.query(Hotel)
+              .options(
+                  joinedload(Hotel.rooms)
+                  .joinedload(Room.occupants)
+                  .joinedload(Roommate.person)
+              )
+              .filter(Hotel.event_id == eid)
+              .all()
+        )
+
+        # Multi-day schedule (optional)
+        days = (
+            db.query(EventDay)
+              .filter(EventDay.event_id == eid)
+              .order_by(EventDay.start_dt.asc())
+              .all()
+        )
+        day_rows = []
+        for d in days:
+            staff_dt = d.staff_arrival_dt or (
+                d.start_dt - timedelta(minutes=60) if d.start_dt else None
+            )
+            judges_dt = d.judges_arrival_dt or (
+                d.start_dt - timedelta(minutes=30) if d.start_dt else None
+            )
+            day_rows.append({
+                "start": d.start_dt,
+                "setup": d.setup_dt,
+                "staff": staff_dt,
+                "judges": judges_dt,
+                "notes": d.notes or ''
+            })
+
+        # (Optional) mark “seen” for assigned staff; guard the attribute
+        if not is_admin() and assigned_count > 0 and hasattr(Assignment, "callsheet_seen_at"):
+            rec = (
+                db.query(Assignment)
+                  .filter(Assignment.event_id == eid,
+                          Assignment.person_id == int(current_user.id))
+                  .first()
+            )
+            if rec and rec.callsheet_seen_at is None:
+                rec.callsheet_seen_at = datetime.utcnow()
+                db.commit()
+
+        return render_template('call_sheet.html',
+                               ev=ev, rows=rows, hotels=hotels, day_rows=day_rows)
+    finally:
+        db.close()
 
 @app.route('/events')
 @login_required
