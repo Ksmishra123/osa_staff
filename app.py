@@ -838,7 +838,12 @@ def admin_assign(eid):
     people = db.query(Person).order_by(Person.name.asc()).all()
     positions = db.query(Position).order_by(Position.display_order.asc()).all()
 
-    # Snapshot of existing assignments for change detection
+    # Snapshot of existing assignments (for change detection)
+    existing_rows = (
+        db.query(Assignment)
+          .filter(Assignment.event_id == eid)
+          .all()
+    )
     existing = {
         a.position_id: {
             "person_id": a.person_id,
@@ -847,95 +852,92 @@ def admin_assign(eid):
             "arrival_ts": a.arrival_ts,
             "transport_notes": a.transport_notes,
         }
-        for a in db.query(Assignment).filter(Assignment.event_id == eid).all()
+        for a in existing_rows
     }
 
-   if request.method == 'POST':
-    # Whether to email staff on this save
-    send_emails = (request.form.get('send_emails') == 'yes')
+    if request.method == 'POST':
+        # Checkbox determines if we send emails this save
+        send_emails = (request.form.get('send_emails') == 'yes')
 
-    # Build a snapshot of existing assignments for change detection
-    existing = {}
-    for a in db.query(Assignment).filter(Assignment.event_id == eid).all():
-        existing[a.position_id] = {
-            "person_id": a.person_id,
-            "transport_mode": a.transport_mode,
-            "transport_booking": a.transport_booking,
-            "arrival_ts": a.arrival_ts,
-            "transport_notes": a.transport_notes,
-        }
+        new_assignments = {}
+        changed_people = []  # list of tuples (person_id, position_name)
 
-    # Build the new assignments from the form
-    new_assignments = {}
-    for pos in positions:
-        pid = request.form.get(f'pos_{pos.id}')
-        if not pid:
-            continue
-        pid_int = int(pid)
-        new_assignments[pos.id] = {
-            "person_id": pid_int,
-            "transport_mode": request.form.get(f'pos_{pos.id}_mode') or None,
-            "transport_booking": request.form.get(f'pos_{pos.id}_booking') or None,
-            "arrival_ts": parse_dt(request.form.get(f'pos_{pos.id}_arrival') or ""),
-            "transport_notes": request.form.get(f'pos_{pos.id}_notes') or None,
-        }
+        # Build the "new" assignments dict from the form
+        for pos in positions:
+            pid = request.form.get(f'pos_{pos.id}')
+            if not pid:
+                continue
+            pid_int = int(pid)
+            new_data = {
+                "person_id": pid_int,
+                "transport_mode": request.form.get(f'pos_{pos.id}_mode') or None,
+                "transport_booking": request.form.get(f'pos_{pos.id}_booking') or None,
+                "arrival_ts": parse_dt(request.form.get(f'pos_{pos.id}_arrival') or ""),
+                "transport_notes": request.form.get(f'pos_{pos.id}_notes') or None,
+            }
+            new_assignments[pos.id] = new_data
 
-    # Replace all assignments for this event
-    db.query(Assignment).filter(Assignment.event_id == eid).delete()
-    changed_people = []  # list of (person_id, position_name)
+        # Replace all assignments for this event with the new set
+        db.query(Assignment).filter(Assignment.event_id == eid).delete()
 
-    for pos in positions:
-        data = new_assignments.get(pos.id)
-        if not data:
-            continue
-        db.add(Assignment(event_id=eid, position_id=pos.id, **data))
+        for pos in positions:
+            if pos.id not in new_assignments:
+                continue
+            data = new_assignments[pos.id]
+            a = Assignment(
+                event_id=eid,
+                position_id=pos.id,
+                **data
+            )
+            db.add(a)
 
-        # change detection vs old snapshot
-        old = existing.get(pos.id)
-        if (not old) or (old != data):
-            changed_people.append((data["person_id"], pos.name))
+            # Change detection: if brand-new or any field changed
+            old = existing.get(pos.id)
+            if not old or old != data:
+                changed_people.append((data["person_id"], pos.name))
 
-    db.commit()
+        db.commit()
 
-    # Email notifications (optional)
-    notified = 0
-    if send_emails and changed_people:
-        for pid, pos_name in changed_people:
-            person = db.get(Person, pid)
-            if person and person.email:
-                html = render_template(
-                    'emails/assignment_notice.html',
-                    person=person, ev=ev, position=pos_name
-                )
-                subject = f"Assignment Update: {ev.city or 'Event'} – {pos_name}"
-                send_email_async(person.email, subject, html)
-                notified += 1
+        # Optional: sync Google Sheet after DB is saved
+        try:
+            from sheets_sync import sync_assignments_sheet
+            sync_assignments_sheet(db, only_event_id=eid)
+        except Exception:
+            app.logger.exception("Sheets sync failed for event %s", eid)
 
-    # --- GOOGLE SHEETS SYNC (run BEFORE we return) ---
-    try:
-        sync_assignments_sheet(db, only_event_id=eid)
-    except Exception:
-        app.logger.exception("Sheets sync failed for event %s", eid)
+        # Send emails only if checkbox selected
+        notified = 0
+        if send_emails and changed_people:
+            for pid, pos_name in changed_people:
+                person = db.get(Person, pid)
+                if person and person.email:
+                    html = render_template(
+                        'emails/assignment_notice.html',
+                        person=person, ev=ev, position=pos_name
+                    )
+                    subject = f"Assignment Update: {ev.city or 'Event'} – {pos_name}"
+                    send_email_async(person.email, subject, html)
+                    notified += 1
 
-    # Final UX message + redirect
-    if send_emails:
-        flash(f"Assignments saved. {notified} staff notified.")
-    else:
-        if changed_people:
-            flash(f"Assignments saved. {len(changed_people)} change(s) detected, emails not sent (checkbox off).")
+        if send_emails:
+            flash(f"Assignments saved. {notified} staff notified.")
         else:
-            flash("Assignments saved. No changes detected; no emails queued.")
+            if changed_people:
+                flash(f"Assignments saved. {len(changed_people)} change(s) detected, emails not sent (checkbox off).")
+            else:
+                flash("Assignments saved. No changes detected; no emails queued.")
 
-    return redirect(url_for('admin_events'))
+        return redirect(url_for('admin_events'))
 
-# --- GET branch: prefill current data ---
-currents = {
-    a.position_id: a
-    for a in db.query(Assignment)
-              .filter(Assignment.event_id == eid)
-              .all()
-}
-return render_template('assign.html', ev=ev, people=people, positions=positions, current=currents)
+    # GET branch: prefill current data for the form
+    currents = {
+        a.position_id: a
+        for a in db.query(Assignment)
+                   .filter(Assignment.event_id == eid)
+                   .all()
+    }
+    return render_template('assign.html', ev=ev, people=people, positions=positions, current=currents)
+
 
 # -----------------------------------------------------------------------------
 # Admin: test route for email to see if it is working
