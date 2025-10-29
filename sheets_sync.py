@@ -50,6 +50,89 @@ def _parse_header_date(header: str) -> datetime:
         # large value so it sorts to end
         return datetime(9999, 12, 31)
 
+def _ensure_row_stripes(ws):
+    """
+    Freeze header, format header, and add a single alternating row-shading
+    conditional format rule if one doesn't already exist.
+    """
+    # Figure out current used size
+    values = ws.get_all_values()
+    if not values:
+        return
+    last_row = len(values)
+    last_col = max(len(r) for r in values) if values else 1
+    if last_col < 1:
+        last_col = 1
+
+    # Freeze header row and first column
+    try:
+        ws.freeze(rows=1, cols=1)
+    except Exception:
+        pass
+
+    # Build batchUpdate requests
+    header_fmt_req = {
+        "repeatCell": {
+            "range": {
+                "sheetId": ws.id,
+                "startRowIndex": 0,
+                "endRowIndex": 1,
+                "startColumnIndex": 0,
+                "endColumnIndex": last_col,
+            },
+            "cell": {
+                "userEnteredFormat": {
+                    "backgroundColor": {"red": 0.88, "green": 0.88, "blue": 0.88},
+                    "textFormat": {"bold": True}
+                }
+            },
+            "fields": "userEnteredFormat(backgroundColor,textFormat)"
+        }
+    }
+
+    # See if this sheet already has any conditional-format rules
+    meta = ws.spreadsheet.fetch_sheet_metadata()
+    this = next((s for s in meta.get("sheets", [])
+                 if s.get("properties", {}).get("sheetId") == ws.id), None)
+    existing_rules = (this or {}).get("conditionalFormats", [])
+
+    requests = [header_fmt_req]
+
+    # If no rules yet, add a single alternating row rule for the whole data block
+    if not existing_rules:
+        alt_rows_req = {
+            "addConditionalFormatRule": {
+                "rule": {
+                    "ranges": [{
+                        "sheetId": ws.id,
+                        # Shade all data rows (exclude header row)
+                        "startRowIndex": 1,
+                        "endRowIndex": last_row,
+                        "startColumnIndex": 0,
+                        "endColumnIndex": last_col
+                    }],
+                    "booleanRule": {
+                        "condition": {
+                            "type": "CUSTOM_FORMULA",
+                            "values": [{"userEnteredValue": "=ISEVEN(ROW())"}]
+                        },
+                        "format": {
+                            "backgroundColor": {"red": 0.96, "green": 0.96, "blue": 0.96}
+                        }
+                    }
+                },
+                "index": 0
+            }
+        }
+        requests.append(alt_rows_req)
+
+    if requests:
+        try:
+            ws.spreadsheet.batch_update({"requests": requests})
+        except Exception:
+            # Non-fatal: formatting shouldn’t break data sync
+            pass
+
 def sync_assignments_sheet(db, only_event_id=None):
     """Append/update a single event column in place, keep other columns.
        Assumes rows=positions, columns=events (by header).
@@ -206,4 +289,13 @@ def sync_assignments_sheet(db, only_event_id=None):
         ws.update(f"{start_a1}:{end_a1}", block)
 
     # Done
+        # ... after writing the event column values ...
+    # Pretty formatting (header + alternating row shading)
+    try:
+        _ensure_row_stripes(ws)
+    except Exception:
+        pass
+
+    return
+
     return
