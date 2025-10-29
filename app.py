@@ -898,12 +898,16 @@ def admin_assign(eid):
 
         db.commit()
 
-        # Optional: sync Google Sheet after DB is saved
-        try:
-            from sheets_sync import sync_assignments_sheet
-            sync_assignments_sheet(db, only_event_id=eid)
-        except Exception:
-            app.logger.exception("Sheets sync failed for event %s", eid)
+      try:
+        rows = (
+            db.query(Assignment)
+              .filter(Assignment.event_id == eid)
+              .options(joinedload(Assignment.person), joinedload(Assignment.position))
+              .all()
+        )
+        sync_assignments_sheet(db, only_event_id=eid, rows_for_event=rows, event=ev)
+    except Exception:
+        app.logger.exception("Sheets sync failed for event %s", eid)
 
         # Send emails only if checkbox selected
         notified = 0
