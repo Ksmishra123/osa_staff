@@ -131,25 +131,42 @@ def sync_assignments_sheet(db, only_event_id=None, rows_for_event=None, event=No
         ws.append_row(ordered, value_input_option="USER_ENTERED")
         logger.info(f"SHEETS: appended {payload['Locations']}")
 
-    # sort all rows by date
+    # --- Improved sorting by real date ---
     try:
-        # reload all, then sort by parsed date
+        from dateutil import parser
         vals = ws.get_all_values()
         if len(vals) > 1:
             rows = vals[1:]
-            def sortkey(r):
+
+            def _parse_date_label(label: str):
+                label = (label or "").strip()
+                if not label:
+                    return datetime.max
                 try:
-                    txt = r[col_idx["Dates"]]
-                    m = re.search(r"(\d{1,2})[/-](\d{1,2})[/-](\d{4})", txt)
+                    # Handle formats like "March 7-9, 2025" -> "March 7, 2025"
+                    if re.search(r"[A-Za-z]", label) and "-" in label:
+                        # Split at dash and drop trailing range
+                        first = label.split("-")[0].strip()
+                        year = re.search(r"(\d{4})", label)
+                        if year and year.group(1) not in first:
+                            first = f"{first}, {year.group(1)}"
+                        return parser.parse(first, fuzzy=True)
+                    # Handle short forms "3/7-9/2025"
+                    m = re.search(r"(\d{1,2})[/-](\d{1,2})[/-](\d{4})", label)
                     if m:
                         return datetime(int(m.group(3)), int(m.group(1)), int(m.group(2)))
+                    # Fallback generic parse
+                    return parser.parse(label, fuzzy=True)
                 except Exception:
-                    pass
-                return datetime.max
-            rows.sort(key=sortkey)
+                    return datetime.max
+
+            col_idx = {h: i for i, h in enumerate(HEADERS)}
+            rows.sort(key=lambda r: _parse_date_label(r[col_idx["Dates"]]))
             ws.update('A2', rows)
+            logger.info("SHEETS: re-sorted by date successfully")
     except Exception as e:
         logger.warning("SHEETS sort failed: %s", e)
+
     # After sorting:
     _apply_row_striping(ws)
     return 1
