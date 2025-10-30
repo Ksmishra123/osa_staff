@@ -10,24 +10,25 @@ logger = logging.getLogger(__name__)
 
 # Column headers you want in the sheet (left to right)
 HEADERS = [
-    "Locations", "Dates", "OSA Rep", "Announcer", "Extra Person / Gopher",
+    "Locations", "Dates", "OSA Rep", "Announcer", "Extra Person",
     "Backstage Manager", "Trophies", "Judge 1", "Judge 2", "Judge 3",
-    "Clothes Vendor", "GAP", "Hotel"
+    "Sales Desk", "PHOTO", "VIDEO", "Hotel"
 ]
 
 # Map your Position names -> column header
 POSITION_TO_HEADER = {
     "Director": "OSA Rep",
-    "Announcer": "Announcer",
-    "Extra": "Extra Person / Gopher",
-    "Gopher": "Extra Person / Gopher",
+    "Emcee": "Announcer",
+    "Extra hand": "Extra Person",
+    #"Gopher": "Extra Person / Gopher",
     "Backstage Manager": "Backstage Manager",
     "Trophies": "Trophies",
     "Judge 1": "Judge 1",
     "Judge 2": "Judge 2",
     "Judge 3": "Judge 3",
-    "Clothes Vendor": "Clothes Vendor",
-    "GAP": "GAP",
+    "Sales": "Sales Desk",
+    "Photo": "Photo",
+    "Video": "Video",
 }
 
 def _get_client_and_sheet():
@@ -60,6 +61,7 @@ def _event_key(city: str, date_label: str) -> str:
 
 def _format_date_range(ev, days):
     # Use multi-day range if EventDay exists; else fall back to ev.date or ev.event_start
+    """
     if days:
         dts = sorted([d.start_dt for d in days if d.start_dt])
         if dts:
@@ -68,6 +70,7 @@ def _format_date_range(ev, days):
             if first == last:
                 return first
             return f"{first} - {last}"
+    """
     # single-day fallback
     dt = ev.date or ev.event_start
     return dt.strftime("%B %-d, %Y") if dt else ""
