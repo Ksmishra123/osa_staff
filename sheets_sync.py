@@ -150,5 +150,41 @@ def sync_assignments_sheet(db, only_event_id=None, rows_for_event=None, event=No
             ws.update('A2', rows)
     except Exception as e:
         logger.warning("SHEETS sort failed: %s", e)
-
+    # After sorting:
+    _apply_row_striping(ws)
     return 1
+
+   # return 1
+    
+def _apply_row_striping(ws):
+    """Apply alternating background colors for readability."""
+    try:
+        sh = ws.spreadsheet
+        sheet_id = ws.id
+        total_rows = ws.row_count
+        total_cols = ws.col_count
+        # simple gray-white alternating pattern
+        requests = [
+            {
+                "addBanding": {
+                    "bandedRange": {
+                        "range": {
+                            "sheetId": sheet_id,
+                            "startRowIndex": 1,  # skip header row
+                            "endRowIndex": total_rows,
+                            "startColumnIndex": 0,
+                            "endColumnIndex": total_cols,
+                        },
+                        "rowProperties": {
+                            "firstBandColor": {"red": 0.98, "green": 0.98, "blue": 0.98},  # light gray
+                            "secondBandColor": {"red": 1, "green": 1, "blue": 1},         # white
+                        },
+                        "headerRowColor": {"red": 0.85, "green": 0.9, "blue": 0.95},  # light blue header
+                    }
+                }
+            }
+        ]
+        sh.batch_update({"requests": requests})
+        logger.info("SHEETS: applied alternating row colors")
+    except Exception as e:
+        logger.warning("SHEETS: failed to apply striping: %s", e)
