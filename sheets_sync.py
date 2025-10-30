@@ -17,7 +17,7 @@ HEADERS = [
 
 # Map your Position names -> column header
 POSITION_TO_HEADER = {
-    "OSA Rep": "OSA Rep",
+    "Director": "OSA Rep",
     "Announcer": "Announcer",
     "Extra": "Extra Person / Gopher",
     "Gopher": "Extra Person / Gopher",
