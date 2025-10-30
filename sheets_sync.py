@@ -8,25 +8,25 @@ logger = logging.getLogger(__name__)
 
 # Column headers you want in the sheet (left to right)
 HEADERS = [
-    "Locations", "Dates", "OSA Rep", "Announcer", "Extra Person",
+    "Locations", "Dates", "OSA Rep", "Announcer", "Extra Person / Gopher",
     "Backstage Manager", "Trophies", "Judge 1", "Judge 2", "Judge 3",
-    "Sales Desk", "PHOTO", "VIDEO", "Hotel"
+    "Clothes Vendor", "GAP", "Hotel"
 ]
 
-# Map your Position names -> column header
 POSITION_TO_HEADER = {
-    "Director": "OSA Rep",
-    "Emcee": "Announcer",
-    "Extra hand": "Extra Person",
-    #"Gopher": "Extra Person / Gopher",
-    "Backstage Manager": "Backstage Manager",
-    "Trophies": "Trophies",
-    "Judge 1": "Judge 1",
-    "Judge 2": "Judge 2",
-    "Judge 3": "Judge 3",
-    "Sales": "Sales Desk",
-    "Photo": "Photo",
-    "Video": "Video",
+    "osa rep": "OSA Rep",
+    "representative": "OSA Rep",
+    "announcer": "Announcer",
+    "extra": "Extra Person / Gopher",
+    "gopher": "Extra Person / Gopher",
+    "backstage": "Backstage Manager",
+    "troph": "Trophies",
+    "judge 1": "Judge 1",
+    "judge 2": "Judge 2",
+    "judge 3": "Judge 3",
+    "clothes": "Clothes Vendor",
+    "vendor": "Clothes Vendor",
+    "gap": "GAP",
 }
 
 def _normalize_key(text: str) -> str:
