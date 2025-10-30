@@ -11,3 +11,4 @@ reportlab>=4.0.4
 Pillow>=10.0.0
 gspread==6.1.2
 google-auth==2.34.0
+python-dateutil==2.9.0.post0
