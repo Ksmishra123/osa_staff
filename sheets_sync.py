@@ -15,7 +15,7 @@ HEADERS = [
 
 POSITION_TO_HEADER = {
     "osa rep": "OSA Rep",
-    "Director": "OSA Rep",
+    "director": "OSA Rep",
     "representative": "OSA Rep",
     "announcer": "Announcer",
     "extra": "Extra Person",
@@ -27,8 +27,8 @@ POSITION_TO_HEADER = {
     "judge 3": "Judge 3",
     "clothes": "Sales",
     "vendor": "Sales",
-    "Photo": "Photo",
-    "Video": "Video",
+    "photo": "Photo",
+    "video": "Video",
 }
 
 def _normalize_key(text: str) -> str:
