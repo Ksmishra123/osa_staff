@@ -15,9 +15,8 @@
 <td>{{ e.event_start.strftime('%Y-%m-%d %H:%M') if e.event_start else '' }}</td>
 <td>{{ e.event_end.strftime('%Y-%m-%d %H:%M') if e.event_end else '' }}</td>
 <td><a href='{{ url_for('admin_assign', eid=e.id) }}'>Assign</a> | <a href="{{ url_for('admin_event_lodging', eid=e.id) }}">Lodging</a> | <a href="{{ url_for('admin_event_days', eid=e.id) }}">Days</a>
-| <a href='{{ url_for('call_sheet', eid=e.id) }}' target='_blank'>Call Sheet</a> |<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('admin_event_receipts', eid=e.id) }}">Receipts</a>
-| <a href="{{ url_for('admin_event_bios', eid=e.id) }}">Print Bios</a>
-<a class="btn btn-sm btn-outline-primary" href="{{ url_for('admin_edit_event', eid=e.id) }}">Edit</a>
+| <a href='{{ url_for('call_sheet', eid=e.id) }}' target='_blank'>Call Sheet</a> |<a href="{{ url_for('admin_event_bios', eid=e.id) }}">Print Bios</a>|<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('admin_event_receipts', eid=e.id) }}">Receipts</a>
+| <a class="btn btn-sm btn-outline-primary" href="{{ url_for('admin_edit_event', eid=e.id) }}">Edit</a>
 <form method="post" action="{{ url_for('admin_toggle_publish', eid=e.id) }}" style="display:inline">
   <input type="hidden" name="publish" value="{{ 0 if e.call_sheet_published else 1 }}">
   <button class="btn btn-sm {{ 'btn-outline-secondary' if e.call_sheet_published else 'btn-success' }}">
