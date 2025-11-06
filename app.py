@@ -21,7 +21,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from models import (
     init_db, SessionLocal,
     Person, Event, Position, Assignment,
-    Hotel, Room, Roommate, EventDay
+    Hotel, Room, Roommate, EventDay, Attachment
 )
 
 # ReportLab for PDFs
