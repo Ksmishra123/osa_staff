@@ -1555,6 +1555,28 @@ def admin_delete_hotel(hid):
     
     return redirect(url_for('admin_event_lodging', eid=event_id))
 
+@app.route('/admin/rooms/<int:rid>/delete', methods=['POST'])
+@login_required
+def admin_delete_room(rid):
+    """Delete a specific room (and any roommates) from a hotel."""
+    if not is_admin():
+        abort(403)
+    db = SessionLocal()
+    room = db.get(Room, rid)
+    if not room:
+        abort(404)
+    event_id = room.hotel.event_id if room.hotel else None
+    try:
+        # delete roommates first
+        db.query(Roommate).filter(Roommate.room_id == rid).delete(synchronize_session=False)
+        db.delete(room)
+        db.commit()
+        flash(f"Room {room.room_number or rid} deleted.")
+    except Exception as e:
+        db.rollback()
+        flash(f"Error deleting room: {e.__class__.__name__}")
+    return redirect(url_for('admin_event_lodging', eid=event_id))
+
 # -----------------------------------------------------------------------------
 # Call Sheet (HTML)
 # -----------------------------------------------------------------------------
