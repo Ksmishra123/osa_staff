@@ -799,6 +799,11 @@ def admin_edit_event(eid):
         ev.setup_only = ('setup_only' in form)
         
         db.commit()
+     
+        for day in ev.days:
+            day.setup_only = (f"setup_only_{day.id}" in request.form)
+        db.commit()
+
         flash('Event updated.')
         return redirect(url_for('admin_events'))
 
