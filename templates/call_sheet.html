@@ -217,6 +217,19 @@
   {% else %}
     <div class="cs-sub">No hotel assignments yet.</div>
   {% endif %}
+{% if hotels or ev.attachments %}
+<hr>
+<h3>Event Files & Attachments</h3>
+<ul>
+  {% for att in ev.attachments %}
+    {% if att.visibility == 'public' and ev.call_sheet_published %}
+      <li><a href="{{ url_for('download_attachment', aid=att.id) }}">{{ att.description or att.filename }}</a></li>
+    {% elif att.visibility == 'staff' and current_user.is_authenticated %}
+      <li><a href="{{ url_for('download_attachment', aid=att.id) }}">{{ att.description or att.filename }}</a> (Staff only)</li>
+    {% endif %}
+  {% endfor %}
+</ul>
+{% endif %}
 
   <!-- Bottom Notes -->
   <div class="h2">Notes</div>
