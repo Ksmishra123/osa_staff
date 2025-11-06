@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Attachments for {{ ev.city }}</h2>
+
+<form method="post" enctype="multipart/form-data" class="mb-4">
+  <div><input type="file" name="file" required></div>
+  <div><input type="text" name="description" placeholder="Description (e.g. hotel info, schedule)"></div>
+  <div>
+    <label>Visibility:</label>
+    <select name="visibility">
+      <option value="admin">Admin Only</option>
+      <option value="staff" selected>Assigned Staff</option>
+      <option value="public">Public (visible with call sheet)</option>
+    </select>
+  </div>
+  <button class="btn btn-primary mt-2">Upload</button>
+</form>
+
+<table class="table table-striped">
+  <thead><tr><th>File</th><th>Description</th><th>Visibility</th><th>Date</th><th></th></tr></thead>
+  <tbody>
+  {% for att in attachments %}
+    <tr>
+      <td><a href="{{ url_for('download_attachment', aid=att.id) }}">{{ att.filename }}</a></td>
+      <td>{{ att.description }}</td>
+      <td>{{ att.visibility }}</td>
+      <td>{{ att.uploaded_at.strftime('%Y-%m-%d') }}</td>
+      <td>
+        <form method="post" action="{{ url_for('admin_delete_attachment', aid=att.id) }}"
+              onsubmit="return confirm('Delete {{ att.filename }}?');">
+          <button class="btn btn-sm btn-danger">Delete</button>
+        </form>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<a href="{{ url_for('admin_events') }}" class="btn btn-secondary">Back to Events</a>
+{% endblock %}
