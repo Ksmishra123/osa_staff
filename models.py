@@ -91,7 +91,7 @@ class Event(Base):
     dress_code = Column(String, nullable=True)
     call_sheet_published = Column(Boolean, default=False)
     notes = Column(Text, nullable=True)
-    setup_only = Column(Boolean, default=False)
+    #setup_only = Column(Boolean, default=False)
     # Venues
     venue = Column(Text)
     hotel = Column(Text)
@@ -100,6 +100,8 @@ class Event(Base):
     assignments = relationship("Assignment", back_populates="event", cascade="all, delete-orphan")
     hotels = relationship("Hotel", back_populates="event", cascade="all, delete-orphan")
     event_days = relationship("EventDay", back_populates="event", cascade="all, delete-orphan")
+    days = relationship("EventDay", backref="event", cascade="all, delete-orphan")
+    ALTER TABLE event_days ADD COLUMN setup_only BOOLEAN DEFAULT 0;
 
     def __repr__(self) -> str:
         return f"<Event id={self.id} city={self.city!r} date={self.date!r}>"
@@ -116,7 +118,7 @@ class EventDay(Base):
     staff_arrival_dt = Column(DateTime)     # optional; default = start_dt - 60 mins
     judges_arrival_dt = Column(DateTime)    # optional; default = start_dt - 30 mins
     notes = Column(Text)
-
+    setup_only = Column(Boolean, default=False)
     event = relationship("Event", back_populates="event_days")
 
 class Position(Base):
