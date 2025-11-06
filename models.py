@@ -91,7 +91,7 @@ class Event(Base):
     dress_code = Column(String, nullable=True)
     call_sheet_published = Column(Boolean, default=False)
     notes = Column(Text, nullable=True)
-
+    setup_only = Column(Boolean, default=False)
     # Venues
     venue = Column(Text)
     hotel = Column(Text)
