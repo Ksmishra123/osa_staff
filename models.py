@@ -101,7 +101,7 @@ class Event(Base):
     hotels = relationship("Hotel", back_populates="event", cascade="all, delete-orphan")
     event_days = relationship("EventDay", back_populates="event", cascade="all, delete-orphan")
     days = relationship("EventDay", backref="event", cascade="all, delete-orphan")
-    ALTER TABLE event_days ADD COLUMN setup_only BOOLEAN DEFAULT 0;
+    
 
     def __repr__(self) -> str:
         return f"<Event id={self.id} city={self.city!r} date={self.date!r}>"
