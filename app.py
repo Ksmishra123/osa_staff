@@ -49,6 +49,9 @@ init_db()
 # -----------------------------------------------------------------------------
 # Uploads config (headshots)
 # -----------------------------------------------------------------------------
+UPLOAD_ATTACHMENTS_DIR = os.path.join(os.getcwd(), 'uploads', 'attachments')
+os.makedirs(UPLOAD_ATTACHMENTS_DIR, exist_ok=True)
+
 UPLOAD_DIR = os.getenv("UPLOAD_DIR", "/data/uploads")
 ALLOWED_HEADSHOT_EXTS = {"png", "jpg", "jpeg", "gif"}
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -1628,6 +1631,70 @@ def admin_event_receipts(eid):
               .all())
     return render_template('receipts.html', ev=ev, acks=acks)
 
+@app.route('/admin/events/<int:eid>/attachments', methods=['GET', 'POST'])
+@login_required
+def admin_event_attachments(eid):
+    if not is_admin():
+        abort(403)
+
+    db = SessionLocal()
+    ev = db.get(Event, eid)
+    if not ev:
+        abort(404)
+
+    if request.method == 'POST':
+        file = request.files.get('file')
+        desc = request.form.get('description', '').strip()
+        vis = request.form.get('visibility', 'staff')
+
+        if not file or not file.filename:
+            flash("Please choose a file to upload.")
+            return redirect(url_for('admin_event_attachments', eid=eid))
+
+        fname = secure_filename(file.filename)
+        timestamp = int(datetime.utcnow().timestamp())
+        save_path = os.path.join(UPLOAD_ATTACHMENTS_DIR, f"{timestamp}_{fname}")
+        file.save(save_path)
+
+        att = Attachment(
+            event_id=eid,
+            filename=fname,
+            file_path=save_path,
+            description=desc,
+            visibility=vis,
+            uploaded_by=current_user.id if current_user else None
+        )
+        db.add(att)
+        db.commit()
+        flash("Attachment uploaded successfully.")
+        return redirect(url_for('admin_event_attachments', eid=eid))
+
+    attachments = db.query(Attachment).filter_by(event_id=eid).order_by(Attachment.uploaded_at.desc()).all()
+    return render_template('event_attachments.html', ev=ev, attachments=attachments)
+
+@app.route('/admin/attachments/<int:aid>/delete', methods=['POST'])
+@login_required
+def admin_delete_attachment(aid):
+    if not is_admin():
+        abort(403)
+
+    db = SessionLocal()
+    att = db.get(Attachment, aid)
+    if not att:
+        abort(404)
+
+    try:
+        if os.path.exists(att.file_path):
+            os.remove(att.file_path)
+        eid = att.event_id
+        db.delete(att)
+        db.commit()
+        flash("Attachment deleted.")
+    except Exception as e:
+        flash(f"Error deleting file: {e}")
+        eid = att.event_id if att else None
+
+    return redirect(url_for('admin_event_attachments', eid=eid))
 
 # -----------------------------------------------------------------------------
 # Call Sheet (PDF)
@@ -1835,6 +1902,36 @@ def build_call_sheet_pdf(ev, rows, hotels):
     doc.build(story)
     buf.seek(0)
     return buf
+# -----------------------------------------------------------------------------
+# Secure Attachment Downloads Route
+# -----------------------------------------------------------------------------
+
+@app.route('/attachments/<int:aid>')
+@login_required
+def download_attachment(aid):
+    db = SessionLocal()
+    att = db.get(Attachment, aid)
+    if not att:
+        abort(404)
+
+    ev = db.get(Event, att.event_id)
+    if not ev:
+        abort(404)
+
+    can_view = False
+    if is_admin():
+        can_view = True
+    elif att.visibility == 'public' and ev.call_sheet_published:
+        can_view = True
+    elif att.visibility == 'staff':
+        assigned_ids = [a.person_id for a in db.query(Assignment).filter_by(event_id=ev.id).all()]
+        if current_user.id in assigned_ids:
+            can_view = True
+
+    if not can_view:
+        abort(403)
+
+    return send_file(att.file_path, as_attachment=True, download_name=att.filename)
 
 # -----------------------------------------------------------------------------
 # Dev entrypoint
