@@ -796,7 +796,7 @@ def admin_edit_event(eid):
         ev.coordinator_name = (request.form.get('coordinator_name') or '').strip()
         ev.coordinator_phone = normalize_phone(request.form.get('coordinator_phone',''))
         ev.call_sheet_published = truthy(request.form.get('call_sheet_published'))
-        ev.setup_only = ('setup_only' inform)
+        ev.setup_only = ('setup_only' in form)
         
         db.commit()
         flash('Event updated.')
