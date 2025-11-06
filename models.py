@@ -100,7 +100,7 @@ class Event(Base):
     assignments = relationship("Assignment", back_populates="event", cascade="all, delete-orphan")
     hotels = relationship("Hotel", back_populates="event", cascade="all, delete-orphan")
     event_days = relationship("EventDay", back_populates="event", cascade="all, delete-orphan")
-    days = relationship("EventDay", back_populates="parent_event", cascade="all, delete-orphan")
+    days = relationship("EventDay", back_populates="event", cascade="all, delete-orphan")
     
 
     def __repr__(self) -> str:
@@ -119,7 +119,7 @@ class EventDay(Base):
     judges_arrival_dt = Column(DateTime)    # optional; default = start_dt - 30 mins
     notes = Column(Text)
     setup_only = Column(Boolean, default=False)
-    parent_event = relationship("Event", back_populates="event_days")
+    event = relationship("Event", back_populates="days")
 
 class Position(Base):
     __tablename__ = "positions"
