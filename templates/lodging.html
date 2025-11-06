@@ -58,23 +58,32 @@
         <tbody>
           {% for r in h.rooms %}
             <tr>
-              <td>{{ r.room_number or '-' }}</td>
-              <td>{{ r.check_in or '' }}</td>
-              <td>{{ r.check_out or '' }}</td>
-              <td>{{ r.confirmation or '' }}</td>
-              <td>
-                {% set names = [] %}
-                {% if r.occupants %}
-                  {% for rm in r.occupants %}
-                    {% if rm.person and rm.person.name %}
-                      {% set _ = names.append(rm.person.name) %}
-                    {% endif %}
-                  {% endfor %}
-                {% endif %}
-                {{ names|join(', ') if names else '—' }}
-              </td>
+                <td>{{ r.room_number or '-' }}</td>
+                <td>{{ r.check_in or '' }}</td>
+                <td>{{ r.check_out or '' }}</td>
+                <td>{{ r.confirmation or '' }}</td>
+                <td>
+                  {% set names = [] %}
+                  {% if r.occupants %}
+                    {% for rm in r.occupants %}
+                      {% if rm.person and rm.person.name %}
+                        {% set _ = names.append(rm.person.name) %}
+                      {% endif %}
+                    {% endfor %}
+                  {% endif %}
+                  {{ names|join(', ') if names else '—' }}
+                </td>
+                <td style="text-align:right;">
+                  <form method="post" 
+                      action="{{ url_for('admin_delete_room', rid=r.id) }}" 
+                      onsubmit="return confirm('Delete room {{ r.room_number or r.id }} and its occupants?');"
+                      style="display:inline;">
+                    <button class="btn btn-sm btn-outline-danger">Delete</button>
+                  </form>
+                </td>
             </tr>
           {% endfor %}
+
         </tbody>
       </table>
     {% else %}
