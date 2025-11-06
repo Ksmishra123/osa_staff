@@ -216,3 +216,18 @@ class Roommate(Base):
 
     def __repr__(self) -> str:
         return f"<Roommate id={self.id} room_id={self.room_id} person_id={self.person_id}>"
+
+
+class Attachment(Base):
+    __tablename__ = 'attachments'
+    id = Column(Integer, primary_key=True)
+    event_id = Column(Integer, ForeignKey('events.id'), nullable=False)
+    filename = Column(String, nullable=False)
+    file_path = Column(String, nullable=False)
+    description = Column(String)
+    visibility = Column(String, nullable=False, default='staff')  # admin | staff | public
+    uploaded_at = Column(DateTime, default=datetime.utcnow)
+    uploaded_by = Column(Integer, ForeignKey('people.id'))
+
+    event = relationship('Event', backref='attachments')
+
