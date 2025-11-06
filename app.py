@@ -1500,6 +1500,60 @@ def admin_event_lodging(eid):
         target_state=target_state
     )
 # -----------------------------------------------------------------------------
+# Admin: Edit and Delete Hotels (integrates with reuse-by-state logic)
+# -----------------------------------------------------------------------------
+
+@app.route('/admin/hotel/<int:hid>/edit', methods=['GET', 'POST'])
+@login_required
+def admin_edit_hotel(hid):
+    if not is_admin():
+        abort(403)
+    db = SessionLocal()
+    hotel = db.get(Hotel, hid)
+    if not hotel:
+        abort(404)
+
+    if request.method == 'POST':
+        hotel.name = request.form.get('name', '').strip()
+        hotel.address = request.form.get('address', '').strip()
+        hotel.phone = request.form.get('phone', '').strip()
+        hotel.state = request.form.get('state', '').strip().upper()
+        hotel.notes = request.form.get('notes', '').strip()
+        db.commit()
+        flash(f"Hotel '{hotel.name}' updated successfully.")
+        return redirect(url_for('admin_event_lodging', eid=request.form.get('event_id')))
+
+    eid = request.args.get('eid')
+    return render_template('edit_hotel.html', hotel=hotel, eid=eid)
+
+
+@app.route('/admin/hotel/<int:hid>/delete', methods=['POST'])
+@login_required
+def admin_delete_hotel(hid):
+    if not is_admin():
+        abort(403)
+    db = SessionLocal()
+    hotel = db.get(Hotel, hid)
+    if not hotel:
+        abort(404)
+
+    event_id = request.form.get('event_id')
+    try:
+        if hotel.rooms and len(hotel.rooms) > 0:
+            flash("Cannot delete hotel that has assigned rooms. Please remove rooms first.")
+            return redirect(url_for('admin_event_lodging', eid=event_id))
+
+        name = hotel.name
+        db.delete(hotel)
+        db.commit()
+        flash(f"Hotel '{name}' deleted successfully.")
+    except Exception as e:
+        db.rollback()
+        flash(f"Error deleting hotel: {e}")
+
+    return redirect(url_for('admin_event_lodging', eid=event_id))
+
+# -----------------------------------------------------------------------------
 # Call Sheet (HTML)
 # -----------------------------------------------------------------------------
 from datetime import timedelta
