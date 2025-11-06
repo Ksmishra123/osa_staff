@@ -38,6 +38,18 @@
       {% if h.phone %}{% if h.address %} — {% endif %}{{ h.phone }}{% endif %}
     </div>
     {% if h.notes %}<div><em>{{ h.notes }}</em></div>{% endif %}
+<div style="margin-top:6px;">
+  <a href="{{ url_for('admin_edit_hotel', hid=h.id, eid=ev.id) }}" 
+     class="btn btn-sm btn-outline-primary">Edit</a>
+
+  <form method="post" 
+        action="{{ url_for('admin_delete_hotel', hid=h.id) }}" 
+        style="display:inline"
+        onsubmit="return confirm('Delete {{ h.name }}? This cannot be undone.');">
+    <input type="hidden" name="event_id" value="{{ ev.id }}">
+    <button class="btn btn-sm btn-outline-danger">Delete</button>
+  </form>
+</div>
 
     <h4 style="margin-top:10px;">Rooms</h4>
     {% if h.rooms and h.rooms|length %}
