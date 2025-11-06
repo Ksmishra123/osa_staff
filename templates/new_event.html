@@ -10,6 +10,12 @@
   <label>Main Date/Time
     <input type="datetime-local" name="date">
   </label>
+<div class="field">
+  <label>
+    <input type="checkbox" name="setup_only" {% if ev and ev.setup_only %}checked{% endif %}>
+    Setup-Only Day (Judges not required)
+  </label>
+</div>
 
   <label>Setup Start
     <input type="datetime-local" name="setup_start">
