@@ -15,6 +15,11 @@
   .btn-print { float:right; margin: 6px 0 0 0; }
   .welcome { margin:10px 0 8px; }
   .logo { display:block; margin:0 auto 6px; height:64px; }
+
+  .setup-row {
+    background: #fff6e5; /* soft amber for setup days */
+  }
+
   @media print {
     .no-print { display:none; }
     .btn-print { display:none; }
@@ -42,7 +47,7 @@
     Thank you for being part of the On Stage America team. We expect the team to be professional and dress as described in the dress code. Backstage Manager must be constantly vigilant backstage (and keep an eye on stage), greeting kids and teachers as they approach. Other backstage staff should assist the Backstage Manager during heavy loads. Judges: please be careful with comments—many studios play them directly to the kids. Absolutely no foul language; do not discuss dancers, studios, or routines within earshot of others (use the staff room or hotel, and remember walls can be thin).
   </div>
 
-  <!-- Top info -->
+  <!-- Event Info -->
   <div class="h2">Event Information</div>
   <div class="grid2">
     <div class="label">City</div><div class="val">{{ ev.city or '—' }}</div>
@@ -61,7 +66,7 @@
     {% endif %}
   </div>
 
-   <!-- Multi-day schedule (if any) -->
+  <!-- Daily Schedule -->
   {% if day_rows and day_rows|length %}
     <div class="h2">Daily Schedule</div>
     <table class="table">
@@ -76,117 +81,71 @@
       </thead>
       <tbody>
         {% for d in day_rows %}
-          <tr>
-            <td>{{ d.start.strftime('%B %d, %Y - %I:%M %p') if d.start else '' }}</td>
+          <tr class="{% if d.setup_only %}setup-row{% endif %}">
+            <td>
+              {{ d.start.strftime('%B %d, %Y - %I:%M %p') if d.start else '' }}
+              {% if d.setup_only %}
+                <br><strong>(Setup Only — No Judges Required)</strong>
+              {% endif %}
+            </td>
             <td>{{ d.setup.strftime('%B %d, %Y - %I:%M %p') if d.setup else '' }}</td>
             <td>{{ d.staff.strftime('%B %d, %Y - %I:%M %p') if d.staff else '' }}</td>
-            <td>{{ d.judges.strftime('%B %d, %Y - %I:%M %p') if d.judges else '' }}</td>
+            <td>
+              {% if not d.setup_only %}
+                {{ d.judges.strftime('%B %d, %Y - %I:%M %p') if d.judges else '' }}
+              {% else %}
+                <em>—</em>
+              {% endif %}
+            </td>
             <td>{{ d.notes }}</td>
           </tr>
-
-          {# 🔹 INSERTED: Setup-only banner per day #}
-          {% if d.setup_only %}
-            <tr>
-              <td colspan="5" style="background:#ffe6e6; border:1px solid #ffcccc; color:#b30000; font-weight:600;">
-                ⚙️ This day is marked as <strong>Setup-Only</strong> — Judges are not required.
-              </td>
-            </tr>
-          {% endif %}
         {% endfor %}
       </tbody>
     </table>
   {% endif %}
 
+  <!-- Staff Assignments -->
+  <div class="h2">Assignments</div>
+  <table class="assign-table">
+    <colgroup>
+      <col style="width:12%">
+      <col style="width:22%">
+      <col style="width:15%">
+      <col style="width:25%">
+      <col style="width:auto">
+    </colgroup>
+    <thead>
+      <tr>
+        <th>Position</th>
+        <th>Name</th>
+        <th>Phone</th>
+        <th>Email</th>
+        <th>Transport / Notes</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for a in rows %}
+        <tr>
+          <td class="assign-pos">{{ a.position.name if a.position else '' }}</td>
+          <td class="assign-name">{{ a.person.name if a.person else '' }}</td>
+          <td class="assign-phone">{{ a.person.phone if a.person and a.person.phone else '' }}</td>
+          <td class="assign-email">{{ a.person.email if a.person and a.person.email else '' }}</td>
+          <td class="assign-notes">
+            {%- set lines = [] -%}
+            {%- if a.transport_mode -%}{%- set _ = lines.append('Mode: ' ~ a.transport_mode) -%}{%- endif -%}
+            {%- if a.arrival_ts -%}{%- set _ = lines.append('Arrival: ' ~ a.arrival_ts.strftime('%B %d, %Y %I:%M %p')) -%}{%- endif -%}
+            {%- if a.transport_booking -%}{%- set _ = lines.append('Booking: ' ~ a.transport_booking) -%}{%- endif -%}
+            {%- if a.transport_notes -%}{%- set _ = lines.append(a.transport_notes) -%}{%- endif -%}
+            {{- lines|join('<br>')|safe -}}
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
 
-  <!-- Assignments -->
- <style>
-  /* Call-sheet table tuning */
-  .assign-table {
-    width: 100%;
-    border-collapse: collapse;
-    table-layout: fixed; /* predictable column widths */
-  }
-  .assign-table th,
-  .assign-table td {
-    border: 1px solid #ddd;
-    padding: 8px;
-    vertical-align: top;
-  }
-  .assign-table thead th {
-    background: #f3f5f7;
-    font-weight: 700;
-    text-align: left;
-  }
-  .assign-pos { font-weight: 700; }                 /* bold Position */
-  .assign-name { font-weight: 600; }                /* slightly stronger */
-  .assign-phone, .assign-email { white-space: normal; word-break: break-word; }
-  .assign-notes {
-    white-space: pre-wrap;                          /* keep newlines */
-    word-break: break-word;                         /* wrap long booking codes/urls/emails */
-  }
-
-  /* Responsive niceties */
-  @media (max-width: 800px) {
-    .assign-table { table-layout: auto; }
-  }
-</style>
-
-<table class="assign-table">
-  <colgroup>
-    <!-- Tune widths: make Name/Phone/Email wider -->
-    <col style="width:12%">   <!-- Position -->
-    <col style="width:22%">   <!-- Name -->
-    <col style="width:15%">   <!-- Phone -->
-    <col style="width:25%">   <!-- Email -->
-    <col style="width:auto">  <!-- Transport / Notes (flex) -->
-  </colgroup>
-  <thead>
-    <tr>
-      <th>Position</th>
-      <th>Name</th>
-      <th>Phone</th>
-      <th>Email</th>
-      <th>Transport / Notes</th>
-    </tr>
-  </thead>
-  <tbody>
-{% for a in rows %}
-  {% if ev.setup_only or (a.day and a.day.setup_only and "Judge" in a.position.name) %}
-    <tr style="opacity:0.6;">
-      <td class="assign-pos">{{ a.position.name if a.position else '' }}</td>
-      <td colspan="4" style="color:#b30000;">Setup-Only Day – Judges Not Required</td>
-    </tr>
-  {% else %}
-    <tr>
-      <td class="assign-pos">{{ a.position.name if a.position else '' }}</td>
-      <td class="assign-name">
-        {% if a.person %}{{ a.person.name }}{% endif %}
-      </td>
-      <td class="assign-phone">
-        {% if a.person and a.person.phone %}{{ a.person.phone }}{% endif %}
-      </td>
-      <td class="assign-email">
-        {% if a.person and a.person.email %}{{ a.person.email }}{% endif %}
-      </td>
-      <td class="assign-notes">
-        {%- set lines = [] -%}
-        {%- if a.transport_mode -%}{%- set _ = lines.append('Mode: ' ~ a.transport_mode) -%}{%- endif -%}
-        {%- if a.arrival_ts -%}{%- set _ = lines.append('Arrival: ' ~ a.arrival_ts.strftime('%B %d, %Y - %I:%M %p')) -%}{%- endif -%}
-        {%- if a.transport_booking -%}{%- set _ = lines.append('Booking: ' ~ a.transport_booking) -%}{%- endif -%}
-        {%- if a.transport_notes -%}{%- set _ = lines.append(a.transport_notes) -%}{%- endif -%}
-        {{- lines|join('<br>')|safe -}}
-      </td>
-    </tr>
-  {% endif %}
-{% endfor %}
-
-  </tbody>
-</table>
-
-
-  <!-- Hotels & Rooms -->
+  <!-- Hotels -->
   <div class="h2">Hotel & Room Assignments</div>
-  {% if hotels and hotels|length %}
+  {% if hotels %}
     {% for h in hotels %}
       <div style="margin:8px 0;"><strong>{{ h.name }}</strong></div>
       {% if h.address or h.phone %}
@@ -195,18 +154,9 @@
         </div>
       {% endif %}
       {% if h.notes %}<div style="margin-bottom:6px;"><em>{{ h.notes }}</em></div>{% endif %}
-
-      {% if h.rooms and h.rooms|length %}
+      {% if h.rooms %}
         <table class="table" style="margin-bottom:12px;">
-          <thead>
-            <tr>
-              <th>Room</th>
-              <th>Occupants</th>
-              <th>Check-in</th>
-              <th>Check-out</th>
-              <th>Confirmation</th>
-            </tr>
-          </thead>
+          <thead><tr><th>Room</th><th>Occupants</th><th>Check-in</th><th>Check-out</th><th>Confirmation</th></tr></thead>
           <tbody>
             {% for r in h.rooms %}
               <tr>
@@ -218,33 +168,32 @@
                   {% endfor %}
                   {{ names|join(', ') if names else '—' }}
                 </td>
-                <td>{{ r.check_in.strftime('%Y-%m-%d') if r.check_in else '' }}</td>
-                <td>{{ r.check_out.strftime('%Y-%m-%d') if r.check_out else '' }}</td>
+                <td>{{ r.check_in.strftime('%B %d, %Y') if r.check_in else '' }}</td>
+                <td>{{ r.check_out.strftime('%B %d, %Y') if r.check_out else '' }}</td>
                 <td>{{ r.confirmation or '' }}</td>
               </tr>
             {% endfor %}
           </tbody>
         </table>
-      {% else %}
-        <div class="cs-sub" style="margin-bottom:10px;">No rooms added yet.</div>
       {% endif %}
     {% endfor %}
   {% else %}
     <div class="cs-sub">No hotel assignments yet.</div>
   {% endif %}
-{% if hotels or ev.attachments %}
-<hr>
-<h3>Event Files & Attachments</h3>
-<ul>
-  {% for att in ev.attachments %}
-    {% if att.visibility == 'public' and ev.call_sheet_published %}
-      <li><a href="{{ url_for('download_attachment', aid=att.id) }}">{{ att.description or att.filename }}</a></li>
-    {% elif att.visibility == 'staff' and current_user.is_authenticated %}
-      <li><a href="{{ url_for('download_attachment', aid=att.id) }}">{{ att.description or att.filename }}</a> (Staff only)</li>
-    {% endif %}
-  {% endfor %}
-</ul>
-{% endif %}
+
+  <!-- Attachments -->
+  {% if ev.attachments %}
+    <hr><h3>Event Files & Attachments</h3>
+    <ul>
+      {% for att in ev.attachments %}
+        {% if att.visibility == 'public' and ev.call_sheet_published %}
+          <li><a href="{{ url_for('download_attachment', aid=att.id) }}">{{ att.description or att.filename }}</a></li>
+        {% elif att.visibility == 'staff' and current_user.is_authenticated %}
+          <li><a href="{{ url_for('download_attachment', aid=att.id) }}">{{ att.description or att.filename }}</a> (Staff only)</li>
+        {% endif %}
+      {% endfor %}
+    </ul>
+  {% endif %}
 
   <!-- Bottom Notes -->
   <div class="h2">Notes</div>
