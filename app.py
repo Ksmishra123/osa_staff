@@ -1533,24 +1533,26 @@ def admin_delete_hotel(hid):
     if not is_admin():
         abort(403)
     db = SessionLocal()
-    hotel = db.get(Hotel, hid)
-    if not hotel:
+    h = db.get(Hotel, hid)
+    if not h:
         abort(404)
 
     event_id = request.form.get('event_id')
     try:
-        if hotel.rooms and len(hotel.rooms) > 0:
-            flash("Cannot delete hotel that has assigned rooms. Please remove rooms first.")
-            return redirect(url_for('admin_event_lodging', eid=event_id))
+        # delete any roommates linked to rooms of this hotel
+        room_ids = [r.id for r in h.rooms]
+        if room_ids:
+            db.query(Roommate).filter(Roommate.room_id.in_(room_ids)).delete(synchronize_session=False)
+            db.query(Room).filter(Room.id.in_(room_ids)).delete(synchronize_session=False)
 
-        name = hotel.name
-        db.delete(hotel)
+        # finally delete the hotel itself
+        db.delete(h)
         db.commit()
-        flash(f"Hotel '{name}' deleted successfully.")
+        flash(f"Hotel '{h.name}' and its rooms were deleted.")
     except Exception as e:
         db.rollback()
-        flash(f"Error deleting hotel: {e}")
-
+        flash(f"Error deleting hotel: {e.__class__.__name__}")
+    
     return redirect(url_for('admin_event_lodging', eid=event_id))
 
 # -----------------------------------------------------------------------------
