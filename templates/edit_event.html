@@ -75,6 +75,21 @@
     <label>Hotel (notes)</label>
     <input name="hotel" value="{{ ev.hotel or '' }}">
   </div>
+  {% if ev.days %}
+    <hr>
+    <h4>Daily Details</h4>
+    {% for d in ev.days %}
+      <div class="field" style="margin-bottom:6px;">
+        <label>
+          <strong>{{ d.day_label }}</strong> — {{ d.date.strftime('%B %d, %Y') }}
+          <input type="checkbox"
+                 name="setup_only_{{ d.id }}"
+                 {% if d.setup_only %}checked{% endif %}>
+          Setup-Only (Judges not required)
+        </label>
+      </div>
+    {% endfor %}
+  {% endif %}
 
   <div style="margin-top:16px;">
     <button class="btn btn-primary" type="submit">Save</button>
