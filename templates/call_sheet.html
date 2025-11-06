@@ -61,7 +61,7 @@
     {% endif %}
   </div>
 
-  <!-- Multi-day schedule (if any) -->
+   <!-- Multi-day schedule (if any) -->
   {% if day_rows and day_rows|length %}
     <div class="h2">Daily Schedule</div>
     <table class="table">
@@ -83,10 +83,20 @@
             <td>{{ d.judges.strftime('%B %d, %Y - %I:%M %p') if d.judges else '' }}</td>
             <td>{{ d.notes }}</td>
           </tr>
+
+          {# 🔹 INSERTED: Setup-only banner per day #}
+          {% if d.setup_only %}
+            <tr>
+              <td colspan="5" style="background:#ffe6e6; border:1px solid #ffcccc; color:#b30000; font-weight:600;">
+                ⚙️ This day is marked as <strong>Setup-Only</strong> — Judges are not required.
+              </td>
+            </tr>
+          {% endif %}
         {% endfor %}
       </tbody>
     </table>
   {% endif %}
+
 
   <!-- Assignments -->
  <style>
@@ -140,31 +150,36 @@
     </tr>
   </thead>
   <tbody>
-    {% for a in rows %}
-      <tr>
-        <td class="assign-pos">{{ a.position.name if a.position else '' }}</td>
-        <td class="assign-name">
-          {% if a.person %}
-            {{ a.person.name }}
-          {% endif %}
-        </td>
-        <td class="assign-phone">
-          {% if a.person and a.person.phone %}{{ a.person.phone }}{% endif %}
-        </td>
-        <td class="assign-email">
-          {% if a.person and a.person.email %}{{ a.person.email }}{% endif %}
-        </td>
-        <td class="assign-notes">
-          {%- set lines = [] -%}
-          {%- if a.transport_mode -%}{%- set _ = lines.append('Mode: ' ~ a.transport_mode) -%}{%- endif -%}
-          {%- if a.arrival_ts -%}{%- set _ = lines.append('Arrival: ' ~ a.arrival_ts.strftime('%Y-%m-%d %I:%M %p')) -%}{%- endif -%}
-          {%- if a.transport_booking -%}{%- set _ = lines.append('Booking: ' ~ a.transport_booking) -%}{%- endif -%}
-          {%- if a.transport_notes -%}{%- set _ = lines.append(a.transport_notes) -%}{%- endif -%}
-          {{- lines|join('<br>')|safe -}}
-        </td>
+{% for a in rows %}
+  {% if ev.setup_only or (a.day and a.day.setup_only and "Judge" in a.position.name) %}
+    <tr style="opacity:0.6;">
+      <td class="assign-pos">{{ a.position.name if a.position else '' }}</td>
+      <td colspan="4" style="color:#b30000;">Setup-Only Day – Judges Not Required</td>
+    </tr>
+  {% else %}
+    <tr>
+      <td class="assign-pos">{{ a.position.name if a.position else '' }}</td>
+      <td class="assign-name">
+        {% if a.person %}{{ a.person.name }}{% endif %}
+      </td>
+      <td class="assign-phone">
+        {% if a.person and a.person.phone %}{{ a.person.phone }}{% endif %}
+      </td>
+      <td class="assign-email">
+        {% if a.person and a.person.email %}{{ a.person.email }}{% endif %}
+      </td>
+      <td class="assign-notes">
+        {%- set lines = [] -%}
+        {%- if a.transport_mode -%}{%- set _ = lines.append('Mode: ' ~ a.transport_mode) -%}{%- endif -%}
+        {%- if a.arrival_ts -%}{%- set _ = lines.append('Arrival: ' ~ a.arrival_ts.strftime('%B %d, %Y - %I:%M %p')) -%}{%- endif -%}
+        {%- if a.transport_booking -%}{%- set _ = lines.append('Booking: ' ~ a.transport_booking) -%}{%- endif -%}
+        {%- if a.transport_notes -%}{%- set _ = lines.append(a.transport_notes) -%}{%- endif -%}
+        {{- lines|join('<br>')|safe -}}
+      </td>
+    </tr>
+  {% endif %}
+{% endfor %}
 
-      </tr>
-    {% endfor %}
   </tbody>
 </table>
 
