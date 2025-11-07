@@ -1,14 +1,20 @@
 <!DOCTYPE html>
 <html>
-  <body style="font-family: Arial, sans-serif;">
-    <p>Hi {{ person.name }},</p>
-    <p>{{ body|safe }}</p>
-
-    <p>— On Stage America Team</p>
-    <hr>
-    <small>
-      This message was sent regarding <strong>{{ ev.city }}</strong>
-      {% if ev.event_start %} ({{ ev.event_start.strftime('%B %d, %Y') }}){% endif %}
-    </small>
-  </body>
+<head>
+  <meta charset="utf-8">
+  <title>{{ ev.city }} — Staff Notice</title>
+  <style>
+    body { font-family: Arial, sans-serif; color: #333; line-height: 1.5; }
+    .footer { margin-top: 24px; font-size: 12px; color: #888; }
+  </style>
+</head>
+<body>
+  <h2>On Stage America — {{ ev.city }}</h2>
+  {% if ev.event_start %}<p><strong>{{ ev.event_start.strftime('%B %d, %Y') }}</strong></p>{% endif %}
+  <hr>
+  <div>{{ body|safe }}</div>
+  <div class="footer">
+    <p>This message was sent via On Stage America staff portal.</p>
+  </div>
+</body>
 </html>
