@@ -81,7 +81,7 @@
     {% for d in ev.days %}
       <div class="field" style="margin-bottom:6px;">
         <label>
-          <strong>{{ d.day_label }}</strong> — {{ d.date.strftime('%B %d, %Y') }}
+          <strong>{{ d.day_label }}</strong> — {{ d.day_date.strftime('%B %d, %Y') }}
           <input type="checkbox"
                  name="setup_only_{{ d.id }}"
                  {% if d.setup_only %}checked{% endif %}>
