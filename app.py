@@ -1688,7 +1688,7 @@ def call_sheet(eid):
                 "setup": d.setup_dt,
                 "staff": staff_dt,
                 "judges": judges_dt,
-                "notes": d.notes or ''
+                "notes": d.notes or '',
                 "setup_only": d.setup_only or False
             })
 
