@@ -388,18 +388,23 @@ def admin_event_days(eid):
     if not ev:
         abort(404)
 
+    def parse_iso(s):
+        try:
+            return datetime.fromisoformat(s) if s else None
+        except Exception:
+            return None
+
     if request.method == 'POST':
         action = request.form.get('action')
 
+        # --- Add new day ---
         if action == 'add_day':
-            def parse_iso(s):
-                return datetime.fromisoformat(s) if s else None
-
             start_dt = parse_iso(request.form.get('start_dt'))
             setup_dt = parse_iso(request.form.get('setup_dt'))
             staff_arrival_dt = parse_iso(request.form.get('staff_arrival_dt'))
             judges_arrival_dt = parse_iso(request.form.get('judges_arrival_dt'))
             day_date = start_dt.date() if start_dt else None
+            setup_only = bool(request.form.get('setup_only'))
 
             if not start_dt:
                 flash("Start date/time is required for a day.")
@@ -411,12 +416,31 @@ def admin_event_days(eid):
                     setup_dt=setup_dt,
                     staff_arrival_dt=staff_arrival_dt,
                     judges_arrival_dt=judges_arrival_dt,
+                    setup_only=setup_only,
                     notes=(request.form.get('notes') or '').strip()
                 )
                 db.add(d)
                 db.commit()
                 flash("Day added.")
 
+        # --- Edit existing day ---
+        elif action == 'edit_day':
+            did = int(request.form.get('day_id') or 0)
+            d = db.get(EventDay, did)
+            if d and d.event_id == eid:
+                d.start_dt = parse_iso(request.form.get('start_dt'))
+                d.setup_dt = parse_iso(request.form.get('setup_dt'))
+                d.staff_arrival_dt = parse_iso(request.form.get('staff_arrival_dt'))
+                d.judges_arrival_dt = parse_iso(request.form.get('judges_arrival_dt'))
+                d.day_date = d.start_dt.date() if d.start_dt else d.day_date
+                d.notes = (request.form.get('notes') or '').strip()
+                d.setup_only = bool(request.form.get('setup_only'))
+                db.commit()
+                flash("Day updated.")
+            else:
+                flash("Invalid day selected for edit.")
+
+        # --- Delete ---
         elif action == 'delete_day':
             did = int(request.form.get('day_id') or 0)
             if did:
@@ -429,13 +453,15 @@ def admin_event_days(eid):
 
         return redirect(url_for('admin_event_days', eid=eid))
 
+    # --- GET ---
     days = (
         db.query(EventDay)
-          .filter(EventDay.event_id == eid)
-          .order_by(EventDay.start_dt.asc())
-          .all()
+        .filter(EventDay.event_id == eid)
+        .order_by(EventDay.start_dt.asc())
+        .all()
     )
     return render_template('event_days.html', ev=ev, days=days)
+
 
 # -----------------------------------------------------------------------------
 # Register (enhanced profile + headshot)
