@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Send Email — {{ ev.city }}</h2>
+<p><strong>{{ ev.city }}</strong> — {{ ev.event_start.strftime('%B %d, %Y') if ev.event_start else '' }}</p>
+
+<form method="post">
+  <div class="field">
+    <label>Subject</label>
+    <input name="subject" required placeholder="Enter subject line" class="form-control">
+  </div>
+
+  <div class="field">
+    <label>Message</label>
+    <textarea name="body" rows="8" placeholder="Write your message (HTML supported)" class="form-control"></textarea>
+  </div>
+
+  <button class="btn btn-primary">Send Email</button>
+  <a href="{{ url_for('admin_events') }}" class="btn btn-secondary">Cancel</a>
+</form>
+
+<hr>
+<h4>Recipients ({{ people|length }})</h4>
+<ul>
+  {% for p in people %}
+    <li>{{ p.name }} — {{ p.email }}</li>
+  {% endfor %}
+</ul>
+{% endblock %}
