@@ -1,44 +1,98 @@
 {% extends 'base.html' %}
 {% block content %}
+
 <h2>Send Email — {{ ev.city }}</h2>
-<p><strong>{{ ev.city }}</strong> — {{ ev.event_start.strftime('%B %d, %Y') if ev.event_start else '' }}</p>
+<p><strong>{{ ev.city }}</strong>
+  {% if ev.event_start %} — {{ ev.event_start.strftime('%B %d, %Y') }}{% endif %}
+</p>
 
 <form method="post">
+  <input type="hidden" id="send_mode" name="send_mode" value="all">
+
   <div class="field">
     <label>Subject</label>
-    <input name="subject" required placeholder="Enter subject line" class="form-control">
+    <input name="subject" id="subject" required placeholder="Enter subject line" class="form-control">
   </div>
 
- <div class="field">
-  <label>Message</label>
-  <textarea id="body" name="body" rows="10" placeholder="Write your message here..."></textarea>
-</div>
+  <div class="field">
+    <label>Message</label>
+    <textarea id="body" name="body" rows="10" placeholder="Write your message here..."></textarea>
+  </div>
 
-<!-- TinyMCE Editor -->
-<script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
-<script>
-  tinymce.init({
-    selector: '#body',
-    height: 400,
-    menubar: false,
-    plugins: 'link lists code table',
-    toolbar:
-      'undo redo | styleselect | bold italic underline | bullist numlist | link table | code',
-    branding: false,
-    content_style: 'body { font-family: Arial, sans-serif; font-size:14px }'
-  });
-</script>
-
-
-  <button class="btn btn-primary">Send Email</button>
-  <a href="{{ url_for('admin_events') }}" class="btn btn-secondary">Cancel</a>
+  <div style="margin-top:12px;">
+    <button class="btn btn-primary" type="submit">Send from App</button>
+    <button class="btn btn-outline-secondary" type="button" id="send-test">Send Test to Myself</button>
+    <a href="{{ url_for('admin_events') }}" class="btn btn-secondary">Cancel</a>
+  </div>
 </form>
 
 <hr>
+
 <h4>Recipients ({{ people|length }})</h4>
-<ul>
-  {% for p in people %}
-    <li>{{ p.name }} — {{ p.email }}</li>
-  {% endfor %}
-</ul>
+{% if people and people|length %}
+  {% set all_emails = people | map(attribute='email') | select('string') | join(',') %}
+  <div style="margin-bottom:10px;">
+    <a href="mailto:?bcc={{ all_emails | urlencode }}"
+       class="btn btn-outline-primary btn-sm">
+       ✉️ Open in My Email App (BCC all staff)
+    </a>
+  </div>
+  <ul>
+    {% for p in people %}
+      <li>{{ p.name }} — {{ p.email }}</li>
+    {% endfor %}
+  </ul>
+{% else %}
+  <p><em>No staff emails found for this event.</em></p>
+{% endif %}
+
+<hr>
+
+<h3>📬 Live Preview</h3>
+<div id="email-preview" style="
+  border: 1px solid #ccc;
+  padding: 16px;
+  border-radius: 8px;
+  background: #f9f9f9;
+  font-family: Arial, sans-serif;
+  line-height: 1.5;
+  min-height: 200px;
+  white-space: pre-wrap;
+">
+  <em>Start typing your message above to see the preview...</em>
+</div>
+
+<!-- Trumbowyg WYSIWYG Editor -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/trumbowyg@2.27.3/dist/ui/trumbowyg.min.css">
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/trumbowyg@2.27.3/dist/trumbowyg.min.js"></script>
+
+<script>
+  $(function() {
+    // Initialize Trumbowyg
+    $('#body').trumbowyg({
+      btns: [
+        ['bold', 'italic', 'underline'],
+        ['unorderedList', 'orderedList'],
+        ['link'],
+        ['removeformat']
+      ],
+      autogrow: true
+    });
+
+    // Live preview updates
+    $('#body').on('tbwchange keyup', function() {
+      const content = $('#body').trumbowyg('html');
+      document.getElementById('email-preview').innerHTML =
+        content || '<em>Start typing your message above to see the preview...</em>';
+    });
+
+    // Handle test email button
+    $('#send-test').on('click', function() {
+      $('#send_mode').val('test');
+      $(this).closest('form').submit();
+    });
+  });
+</script>
+
 {% endblock %}
