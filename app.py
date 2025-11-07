@@ -1689,7 +1689,7 @@ def call_sheet(eid):
                 "staff": staff_dt,
                 "judges": judges_dt,
                 "notes": d.notes or ''
-                "setup_only"; d.setup_only or False
+                "setup_only": d.setup_only or False
             })
 
         # (Optional) mark “seen” for assigned staff; guard the attribute
