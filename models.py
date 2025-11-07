@@ -100,7 +100,7 @@ class Event(Base):
     assignments = relationship("Assignment", back_populates="event", cascade="all, delete-orphan")
     hotels = relationship("Hotel", back_populates="event", cascade="all, delete-orphan")
     event_days = relationship("EventDay", back_populates="event", cascade="all, delete-orphan")
-    days = relationship("EventDay", back_populates="event", overlapt="event_days", cascade="all, delete-orphan")
+    days = relationship("EventDay", back_populates="event", overlaps="event_days", cascade="all, delete-orphan")
     
 
     def __repr__(self) -> str:
