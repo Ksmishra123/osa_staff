@@ -9,10 +9,26 @@
     <input name="subject" required placeholder="Enter subject line" class="form-control">
   </div>
 
-  <div class="field">
-    <label>Message</label>
-    <textarea name="body" rows="8" placeholder="Write your message (HTML supported)" class="form-control"></textarea>
-  </div>
+ <div class="field">
+  <label>Message</label>
+  <textarea id="body" name="body" rows="10" placeholder="Write your message here..."></textarea>
+</div>
+
+<!-- TinyMCE Editor -->
+<script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
+<script>
+  tinymce.init({
+    selector: '#body',
+    height: 400,
+    menubar: false,
+    plugins: 'link lists code table',
+    toolbar:
+      'undo redo | styleselect | bold italic underline | bullist numlist | link table | code',
+    branding: false,
+    content_style: 'body { font-family: Arial, sans-serif; font-size:14px }'
+  });
+</script>
+
 
   <button class="btn btn-primary">Send Email</button>
   <a href="{{ url_for('admin_events') }}" class="btn btn-secondary">Cancel</a>
