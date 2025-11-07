@@ -1,48 +1,101 @@
-{% extends 'base.html' %}{% block content %}
-<h1>Event Days — {{ ev.city }}{% if ev.date %} ({{ ev.date.strftime('%Y-%m-%d') }}){% endif %}</h1>
+{% extends 'base.html' %}
+{% block content %}
+<h2>Event Days — {{ ev.city }}</h2>
 
-<div class="card" style="padding:10px; margin-bottom:12px;">
-  <h3 style="margin:0 0 8px;">Add a Day</h3>
-  <form method="post">
-    <input type="hidden" name="action" value="add_day">
-    <div style="display:grid; grid-template-columns: repeat(2, minmax(240px,1fr)); gap:10px;">
-      <label>Start (date & time)<br><input type="datetime-local" name="start_dt" required></label>
-      <label>Setup (optional)<br><input type="datetime-local" name="setup_dt"></label>
-      <label>Staff arrival (optional)<br><input type="datetime-local" name="staff_arrival_dt" placeholder="default = 1 hr before start"></label>
-      <label>Judges arrival (optional)<br><input type="datetime-local" name="judges_arrival_dt" placeholder="default = 30 min before start"></label>
-      <label style="grid-column:1 / -1;">Notes<br><input name="notes"></label>
+<!-- Add Day -->
+<hr>
+<h4>Add New Day</h4>
+<form method="post" style="margin-bottom:20px;">
+  <input type="hidden" name="action" value="add_day">
+  <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center;">
+    <div>
+      <label>Start</label><br>
+      <input type="datetime-local" name="start_dt" required>
     </div>
-    <div style="margin-top:8px;"><button type="submit">Add Day</button></div>
-  </form>
-</div>
+    <div>
+      <label>Setup</label><br>
+      <input type="datetime-local" name="setup_dt">
+    </div>
+    <div>
+      <label>Staff Arrival</label><br>
+      <input type="datetime-local" name="staff_arrival_dt">
+    </div>
+    <div>
+      <label>Judges Arrival</label><br>
+      <input type="datetime-local" name="judges_arrival_dt">
+    </div>
+    <div style="align-self:flex-end;">
+      <label>
+        <input type="checkbox" name="setup_only" value="1">
+        Setup Only
+      </label>
+    </div>
+    <div style="flex:1;">
+      <label>Notes</label><br>
+      <input type="text" name="notes" style="width:100%;" placeholder="Optional notes">
+    </div>
+    <div style="align-self:flex-end;">
+      <button class="btn btn-primary btn-sm">Add</button>
+    </div>
+  </div>
+</form>
 
+<!-- List of Days -->
+<hr>
+<h4>Existing Days</h4>
 {% if days %}
-<table class="table">
-  <thead><tr>
-    <th>Start</th><th>Setup</th><th>Staff arrival</th><th>Judges arrival</th><th>Notes</th><th></th>
-  </tr></thead>
-  <tbody>
-    {% for d in days %}
-    <tr>
-      <td>{{ d.start_dt|dt_long }}</td>
-      <td>{{ d.setup_dt|dt_long }}</td>
-      <td>{{ d.staff_arrival_dt|dt_long }}</td>
-      <td>{{ d.judges_arrival_dt|dt_long }}</td>
-      <td>{{ d.notes or '' }}</td>
-      <td>
-        <form method="post" style="display:inline;">
-          <input type="hidden" name="action" value="delete_day">
-          <input type="hidden" name="day_id" value="{{ d.id }}">
-          <button type="submit" onclick="return confirm('Delete this day?')">Delete</button>
-        </form>
-      </td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-{% else %}
-<p>No days added yet.</p>
-{% endif %}
+  <table class="table table-striped" style="width:100%; border-collapse:collapse;">
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Setup</th>
+        <th>Staff</th>
+        <th>Judges</th>
+        <th>Setup Only?</th>
+        <th>Notes</th>
+        <th style="width:200px;">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for d in days %}
+      <tr>
+        <td>{{ d.start_dt.strftime('%B %d, %Y %I:%M %p') if d.start_dt else '' }}</td>
+        <td>{{ d.setup_dt.strftime('%B %d, %Y %I:%M %p') if d.setup_dt else '' }}</td>
+        <td>{{ d.staff_arrival_dt.strftime('%B %d, %Y %I:%M %p') if d.staff_arrival_dt else '' }}</td>
+        <td>{{ d.judges_arrival_dt.strftime('%B %d, %Y %I:%M %p') if d.judges_arrival_dt else '' }}</td>
+        <td>{% if d.setup_only %}✅{% else %}—{% endif %}</td>
+        <td>{{ d.notes or '' }}</td>
+        <td>
+          <!-- Edit form toggle -->
+          <details>
+            <summary style="cursor:pointer;">Edit</summary>
+            <form method="post" style="margin-top:6px;">
+              <input type="hidden" name="action" value="edit_day">
+              <input type="hidden" name="day_id" value="{{ d.id }}">
+              <div style="display:flex; flex-wrap:wrap; gap:6px;">
+                <input type="datetime-local" name="start_dt" value="{{ d.start_dt|datetime_local }}">
+                <input type="datetime-local" name="setup_dt" value="{{ d.setup_dt|datetime_local }}">
+                <input type="datetime-local" name="staff_arrival_dt" value="{{ d.staff_arrival_dt|datetime_local }}">
+                <input type="datetime-local" name="judges_arrival_dt" value="{{ d.judges_arrival_dt|datetime_local }}">
+                <label><input type="checkbox" name="setup_only" value="1" {% if d.setup_only %}checked{% endif %}> Setup Only</label>
+                <input type="text" name="notes" value="{{ d.notes or '' }}" placeholder="Notes" style="flex:1;">
+                <button class="btn btn-outline-primary btn-sm">Save</button>
+              </div>
+            </form>
+          </details>
 
-<div style="margin-top:8px;"><a href="{{ url_for('admin_events') }}">Back to Events</a></div>
+          <!-- Delete -->
+          <form method="post" style="margin-top:4px;" onsubmit="return confirm('Delete this day?');">
+            <input type="hidden" name="action" value="delete_day">
+            <input type="hidden" name="day_id" value="{{ d.id }}">
+            <button class="btn btn-outline-danger btn-sm">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% else %}
+  <p><em>No days added yet.</em></p>
+{% endif %}
 {% endblock %}
