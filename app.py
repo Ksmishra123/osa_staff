@@ -1807,6 +1807,51 @@ def admin_delete_attachment(aid):
         eid = att.event_id if att else None
 
     return redirect(url_for('admin_event_attachments', eid=eid))
+# -----------------------------------------------------------------------------
+# Send Emails
+# -----------------------------------------------------------------------------
+@app.route('/admin/events/<int:eid>/email', methods=['GET', 'POST'])
+@login_required
+def admin_event_email(eid):
+    if not is_admin():
+        abort(403)
+
+    db = SessionLocal()
+    ev = db.get(Event, eid)
+    if not ev:
+        abort(404)
+
+    # Gather assigned staff (unique emails only)
+    assignments = (
+        db.query(Assignment)
+        .filter(Assignment.event_id == eid)
+        .join(Person)
+        .all()
+    )
+    recipients = [a.person for a in assignments if a.person and a.person.email]
+    unique_recipients = {p.email: p for p in recipients}.values()
+
+    if request.method == 'POST':
+        subject = request.form.get('subject')
+        body = request.form.get('body')
+        send_count = 0
+
+        for person in unique_recipients:
+            personalized_html = render_template(
+                'emails/generic_staff_notice.html',
+                person=person, ev=ev, body=body
+            )
+            send_email_async(
+                person.email,
+                subject or f"Event Update — {ev.city}",
+                personalized_html
+            )
+            send_count += 1
+
+        flash(f"Email sent to {send_count} staff members.")
+        return redirect(url_for('admin_events'))
+
+    return render_template('event_email.html', ev=ev, people=unique_recipients)
 
 # -----------------------------------------------------------------------------
 # Call Sheet (PDF)
