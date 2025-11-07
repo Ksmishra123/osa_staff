@@ -1821,7 +1821,7 @@ def admin_event_email(eid):
     if not ev:
         abort(404)
 
-    # All staff with assignments for this event
+    # Staff with assignments
     people = (
         db.query(Person)
         .join(Assignment, Assignment.person_id == Person.id)
@@ -1839,19 +1839,25 @@ def admin_event_email(eid):
             flash("Subject and message are required.")
             return redirect(url_for('admin_event_email', eid=eid))
 
-        # Send test email only to logged-in admin
+        # Determine recipient list
         if send_mode == 'test':
-            recipient_list = [current_user.email]
-            flash_target = "✅ Test email sent to yourself."
+            test_email = getattr(current_user, "email", None) or "admin@onstageamerica.com"
+            recipient_list = [test_email]
+            flash_target = f"✅ Test email sent to {test_email}."
         else:
             recipient_list = [p.email for p in people if p.email]
             flash_target = f"✅ Email sent to {len(recipient_list)} staff."
 
         for email in recipient_list:
-            person = current_user if send_mode == 'test' else next((p for p in people if p.email == email), None)
+            person = (
+                current_user if send_mode == 'test'
+                else next((p for p in people if p.email == email), None)
+            )
             html_body = render_template(
                 'emails/generic_staff_notice.html',
-                person=person, ev=ev, body=body
+                person=person,
+                ev=ev,
+                body=body
             )
             send_email(subject, html_body, [email])
 
