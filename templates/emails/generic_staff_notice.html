@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html>
+  <body style="font-family: Arial, sans-serif;">
+    <p>Hi {{ person.name }},</p>
+    <p>{{ body|safe }}</p>
+
+    <p>— On Stage America Team</p>
+    <hr>
+    <small>
+      This message was sent regarding <strong>{{ ev.city }}</strong>
+      {% if ev.event_start %} ({{ ev.event_start.strftime('%B %d, %Y') }}){% endif %}
+    </small>
+  </body>
+</html>
