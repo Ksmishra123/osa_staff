@@ -68,41 +68,41 @@
 
   <!-- Daily Schedule -->
   {% if day_rows and day_rows|length %}
-    <div class="h2">Daily Schedule</div>
-    <table class="table">
-      <thead>
-        <tr>
-          <th>Day Start</th>
-          <th>Setup</th>
-          <th>Staff Arrival</th>
-          <th>Judges Arrival</th>
-          <th>Notes</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for d in day_rows %}
-          <tr class="{% if d.setup_only %}setup-row{% endif %}">
-            <td>
-              {{ d.start.strftime('%B %d, %Y - %I:%M %p') if d.start else '' }}
-              {% if d.setup_only %}
-                <br><strong>(Setup Only — No Judges Required)</strong>
-              {% endif %}
-            </td>
+  <div class="h2">Daily Schedule</div>
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Day Start</th>
+        <th>Setup</th>
+        <th>Staff Arrival</th>
+        <th>Judges Arrival</th>
+        <th>Notes</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for d in day_rows %}
+        {% if d.setup_only %}
+          <tr style="background:#fff8e1;">
+            <td>{{ d.start.strftime('%B %d, %Y - %I:%M %p') if d.start else '' }}</td>
             <td>{{ d.setup.strftime('%B %d, %Y - %I:%M %p') if d.setup else '' }}</td>
             <td>{{ d.staff.strftime('%B %d, %Y - %I:%M %p') if d.staff else '' }}</td>
-            <td>
-              {% if not d.setup_only %}
-                {{ d.judges.strftime('%B %d, %Y - %I:%M %p') if d.judges else '' }}
-              {% else %}
-                <em>—</em>
-              {% endif %}
-            </td>
-            <td>{{ d.notes }}</td>
+            <td><em>Setup Only — No Judges Required</em></td>
+            <td>{{ d.notes or '' }}</td>
           </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  {% endif %}
+        {% else %}
+          <tr>
+            <td>{{ d.start.strftime('%B %d, %Y - %I:%M %p') if d.start else '' }}</td>
+            <td>{{ d.setup.strftime('%B %d, %Y - %I:%M %p') if d.setup else '' }}</td>
+            <td>{{ d.staff.strftime('%B %d, %Y - %I:%M %p') if d.staff else '' }}</td>
+            <td>{{ d.judges.strftime('%B %d, %Y - %I:%M %p') if d.judges else '' }}</td>
+            <td>{{ d.notes or '' }}</td>
+          </tr>
+        {% endif %}
+      {% endfor %}
+    </tbody>
+  </table>
+{% endif %}
+
 
   <!-- Staff Assignments -->
   <div class="h2">Assignments</div>
