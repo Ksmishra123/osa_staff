@@ -20,6 +20,16 @@
 | <a class="btn btn-sm btn-outline-primary" href="{{ url_for('admin_edit_event', eid=e.id) }}">Edit</a><a href="{{ url_for('admin_event_attachments', eid=e.id) }}" class="btn btn-sm btn-outline-secondary">
       📎 Attachments
     </a>
+  <h3>📧 Email All Staff</h3>
+  {% if people and people|length %}
+    {% set all_emails = people | map(attribute='email') | select('string') | join(',') %}
+    <p>You can send an email using your default email client:</p>
+    <a href="mailto:?bcc={{ all_emails | urlencode }}"
+       class="btn btn-outline-primary btn-sm">Open in Email App</a>
+  {% else %}
+    <p><em>No staff emails found for this event.</em></p>
+  {% endif %}
+
 <form method="post" action="{{ url_for('admin_toggle_publish', eid=e.id) }}" style="display:inline">
   <input type="hidden" name="publish" value="{{ 0 if e.call_sheet_published else 1 }}">
   <button class="btn btn-sm {{ 'btn-outline-secondary' if e.call_sheet_published else 'btn-success' }}">
