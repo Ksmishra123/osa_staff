@@ -1821,37 +1821,44 @@ def admin_event_email(eid):
     if not ev:
         abort(404)
 
-    # Gather assigned staff (unique emails only)
-    assignments = (
-        db.query(Assignment)
+    # All staff with assignments for this event
+    people = (
+        db.query(Person)
+        .join(Assignment, Assignment.person_id == Person.id)
         .filter(Assignment.event_id == eid)
-        .join(Person)
+        .distinct()
         .all()
     )
-    recipients = [a.person for a in assignments if a.person and a.person.email]
-    unique_recipients = {p.email: p for p in recipients}.values()
 
     if request.method == 'POST':
-        subject = request.form.get('subject')
-        body = request.form.get('body')
-        send_count = 0
+        subject = request.form.get('subject', '').strip()
+        body = request.form.get('body', '').strip()
+        send_mode = request.form.get('send_mode', 'all')
 
-        for person in unique_recipients:
-            personalized_html = render_template(
+        if not subject or not body:
+            flash("Subject and message are required.")
+            return redirect(url_for('admin_event_email', eid=eid))
+
+        # Send test email only to logged-in admin
+        if send_mode == 'test':
+            recipient_list = [current_user.email]
+            flash_target = "✅ Test email sent to yourself."
+        else:
+            recipient_list = [p.email for p in people if p.email]
+            flash_target = f"✅ Email sent to {len(recipient_list)} staff."
+
+        for email in recipient_list:
+            person = current_user if send_mode == 'test' else next((p for p in people if p.email == email), None)
+            html_body = render_template(
                 'emails/generic_staff_notice.html',
                 person=person, ev=ev, body=body
             )
-            send_email_async(
-                person.email,
-                subject or f"Event Update — {ev.city}",
-                personalized_html
-            )
-            send_count += 1
+            send_email(subject, html_body, [email])
 
-        flash(f"Email sent to {send_count} staff members.")
-        return redirect(url_for('admin_events'))
+        flash(flash_target)
+        return redirect(url_for('admin_event_email', eid=eid))
 
-    return render_template('event_email.html', ev=ev, people=unique_recipients)
+    return render_template('event_email.html', ev=ev, people=people)
 
 # -----------------------------------------------------------------------------
 # Call Sheet (PDF)
