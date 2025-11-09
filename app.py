@@ -1910,7 +1910,7 @@ def admin_call_sheet_pdf(eid):
     # --- TOP HEADER: Centered Logo + Event Info ---
     try:
         logo_path = os.path.join(app.static_folder, "OSA_Logo_Silver_Gold.png")
-        story.append(Image(logo_path, width=2.5*inch))
+        story.append(Image(logo_path, width=2.5*inch, height=2*inch))
     except Exception as e:
         app.logger.warning(f"Logo load failed: {e}")
 
