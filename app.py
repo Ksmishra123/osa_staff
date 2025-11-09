@@ -1908,216 +1908,191 @@ class Watermark(Flowable):
             print("⚠️ Watermark failed:", e)
 
 
-@app.route("/admin/events/<int:eid>/callsheet.pdf")
+@app.route('/admin/events/<int:eid>/callsheet.pdf')
 @login_required
 def admin_call_sheet_pdf(eid):
-    if not is_admin():
-        abort(403)
+    from io import BytesIO
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.units import inch
+    from reportlab.pdfbase.pdfmetrics import stringWidth
 
     db = SessionLocal()
     ev = db.get(Event, eid)
     if not ev:
         abort(404)
 
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=letter,
+        topMargin=0.75 * inch,
+        bottomMargin=0.75 * inch,
+        leftMargin=0.75 * inch,
+        rightMargin=0.75 * inch,
+    )
+
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle(name='SectionHeader', fontSize=13, leading=15, spaceAfter=8, spaceBefore=10, fontName='Helvetica-Bold'))
+    styles.add(ParagraphStyle(name='NormalText', fontSize=10, leading=13))
+    story = []
+
+    # --- HEADER ---
+    story.append(Paragraph(f"<b>On Stage America Call Sheet — {ev.city or ''}</b>", styles['SectionHeader']))
+    if ev.event_start:
+        story.append(Paragraph(f"{ev.event_start.strftime('%B %d, %Y')}", styles['NormalText']))
+    story.append(Spacer(1, 8))
+
+    # --- EVENT INFO TABLE ---
+    info_data = [
+        ['City', ev.city or '—'],
+        ['Venue', ev.venue or '—'],
+        ['Setup', ev.setup_start.strftime('%B %d, %Y - %I:%M %p') if ev.setup_start else '—'],
+        ['Start', ev.event_start.strftime('%B %d, %Y - %I:%M %p') if ev.event_start else '—'],
+        ['End', ev.event_end.strftime('%B %d, %Y - %I:%M %p') if ev.event_end else '—'],
+        ['Coordinator', f"{ev.coordinator_name or ''}  {ev.coordinator_phone or ''}"],
+    ]
+
+    info_table = Table(info_data, colWidths=[1.5 * inch, 4.5 * inch])
+    info_table.setStyle(TableStyle([
+        ('GRID', (0,0), (-1,-1), 0.25, colors.grey),
+        ('BACKGROUND', (0,0), (-1,0), colors.whitesmoke),
+        ('FONTNAME', (0,0), (0,-1), 'Helvetica-Bold'),
+        ('VALIGN', (0,0), (-1,-1), 'TOP'),
+        ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+    ]))
+    story.append(info_table)
+    story.append(Spacer(1, 10))
+
+    # --- DAILY SCHEDULE ---
     days = (
         db.query(EventDay)
           .filter(EventDay.event_id == eid)
           .order_by(EventDay.start_dt.asc())
           .all()
     )
-    assignments = (
+    if days:
+        story.append(Paragraph("Daily Schedule", styles['SectionHeader']))
+        day_data = [['Day Start', 'Setup', 'Staff Arrival', 'Judges Arrival', 'Notes']]
+        for d in days:
+            if d.setup_only:
+                row_color = colors.HexColor('#fff8e1')
+                judges_val = 'Setup Only — No Judges Required'
+            else:
+                row_color = None
+                judges_val = d.judges_arrival_dt.strftime('%B %d, %Y %I:%M %p') if d.judges_arrival_dt else ''
+            day_data.append([
+                d.start_dt.strftime('%B %d, %Y %I:%M %p') if d.start_dt else '',
+                d.setup_dt.strftime('%B %d, %Y %I:%M %p') if d.setup_dt else '',
+                d.staff_arrival_dt.strftime('%B %d, %Y %I:%M %p') if d.staff_arrival_dt else '',
+                judges_val,
+                d.notes or ''
+            ])
+        day_table = Table(day_data, repeatRows=1, colWidths=[1.5*inch,1.5*inch,1.5*inch,1.5*inch,2*inch])
+        day_table.setStyle(TableStyle([
+            ('GRID', (0,0), (-1,-1), 0.25, colors.grey),
+            ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
+            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0,0), (-1,-1), 9),
+            ('VALIGN', (0,0), (-1,-1), 'TOP'),
+        ]))
+        story.append(day_table)
+        story.append(Spacer(1, 12))
+
+    # --- ASSIGNMENTS ---
+    assigns = (
         db.query(Assignment)
-          .filter(Assignment.event_id == eid)
           .join(Person)
           .join(Position)
+          .filter(Assignment.event_id == eid)
           .order_by(Position.name.asc(), Person.name.asc())
           .all()
     )
-    hotels = db.query(Hotel).filter(Hotel.event_id == eid).all()
-
-    buffer = BytesIO()
-    doc = SimpleDocTemplate(
-        buffer,
-        pagesize=letter,
-        topMargin=0.5 * inch,
-        bottomMargin=0.5 * inch,
-        leftMargin=0.6 * inch,
-        rightMargin=0.6 * inch
-    )
-
-    styles = getSampleStyleSheet()
-    normal = styles["Normal"]
-    normal.fontSize = 10
-    bold = ParagraphStyle("bold", parent=normal, fontName="Helvetica-Bold", fontSize=10, leading=12)
-    header = ParagraphStyle("header", parent=normal, fontName="Helvetica-Bold", fontSize=16, alignment=1, spaceAfter=10)
-    subheader = ParagraphStyle("subheader", parent=normal, fontSize=10, textColor=colors.grey)
-
-    # --- Build the document content ---
-    elements = []
-
-    # Watermark background
-    logo_path = os.path.join(app.static_folder, "OSA_Logo_Silver_Gold.png")
-
-    # Logo + Title
-    try:
-        elements.append(Image(logo_path, width=2.5 * inch, height=0.9 * inch))
-    except Exception:
-        pass
-
-    elements.append(Paragraph(f"Call Sheet — {ev.city}", header))
-    if ev.event_start:
-        elements.append(Paragraph(ev.event_start.strftime("%B %d, %Y - %I:%M %p"), subheader))
-    elements.append(Spacer(1, 0.2 * inch))
-
-    # --- Event Info table ---
-    info_data = [
-        ["City", ev.city or "—"],
-        ["Main Start", ev.event_start.strftime("%B %d, %Y - %I:%M %p") if ev.event_start else "—"],
-        ["Setup", ev.setup_start.strftime("%B %d, %Y - %I:%M %p") if ev.setup_start else "—"],
-        ["End", ev.event_end.strftime("%B %d, %Y - %I:%M %p") if ev.event_end else "—"],
-        ["Venue", ev.venue or "—"],
-    ]
-    if ev.hotel:
-        info_data.append(["Hotel", ev.hotel])
-    if ev.coordinator_name:
-        coord_text = ev.coordinator_name
-        if ev.coordinator_phone:
-            coord_text += f" | {ev.coordinator_phone}"
-        info_data.append(["Coordinator", coord_text])
-    if ev.dress_code:
-        info_data.append(["Dress Code", ev.dress_code])
-
-    info_table = Table(info_data, colWidths=[1.3 * inch, 4.7 * inch])
-    info_table.setStyle(TableStyle([
-        ("BOX", (0, 0), (-1, -1), 0.25, colors.gray),
-        ("INNERGRID", (0, 0), (-1, -1), 0.25, colors.gray),
-        ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#f2f2f2")),
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-    ]))
-    elements.append(info_table)
-    elements.append(Spacer(1, 0.3 * inch))
-
-    # --- Daily Schedule ---
-    if days:
-        elements.append(Paragraph("Daily Schedule", ParagraphStyle("h2", parent=bold, fontSize=12,
-            backColor=colors.HexColor("#fbeec1"), textColor=colors.black, spaceAfter=6, leftIndent=2)))
-        day_data = [["Day Start", "Setup", "Staff Arrival", "Judges Arrival", "Notes"]]
-        for d in days:
-            staff_dt = d.staff_arrival_dt or (d.start_dt - timedelta(minutes=60) if d.start_dt else None)
-            judges_dt = None if d.setup_only else (
-                d.judges_arrival_dt or (d.start_dt - timedelta(minutes=30) if d.start_dt else None)
-            )
-            day_data.append([
-                d.start_dt.strftime("%B %d, %Y - %I:%M %p") if d.start_dt else "",
-                d.setup_dt.strftime("%B %d, %Y - %I:%M %p") if d.setup_dt else "",
-                staff_dt.strftime("%B %d, %Y - %I:%M %p") if staff_dt else "",
-                judges_dt.strftime("%B %d, %Y - %I:%M %p") if judges_dt else "—" if d.setup_only else "",
-                d.notes or ""
-            ])
-        day_table = Table(day_data, colWidths=[1.4 * inch] * 5, repeatRows=1)
-        day_table.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#fbeec1")),
-            ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
-            ("GRID", (0, 0), (-1, -1), 0.25, colors.gray),
-            ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f9f9f9")]),
-        ]))
-        elements.append(day_table)
-        elements.append(Spacer(1, 0.3 * inch))
-
-    # --- Staff Assignments ---
-    if assignments:
-        elements.append(Paragraph("Staff Assignments", ParagraphStyle("h2", parent=bold, fontSize=12,
-            backColor=colors.HexColor("#fbeec1"), textColor=colors.black, spaceAfter=6, leftIndent=2)))
-        assign_data = [["Position", "Name", "Phone", "Email", "Transport / Notes"]]
-        for a in assignments:
+    if assigns:
+        story.append(Paragraph("Staff Assignments", styles['SectionHeader']))
+        data = [['Position', 'Name', 'Phone', 'Email', 'Transport / Notes']]
+        for a in assigns:
             lines = []
             if a.transport_mode:
                 lines.append(f"Mode: {a.transport_mode}")
             if a.arrival_ts:
-                lines.append(f"Arrival: {a.arrival_ts.strftime('%Y-%m-%d %I:%M %p')}")
+                lines.append(f"Arrival: {a.arrival_ts.strftime('%B %d, %Y %I:%M %p')}")
             if a.transport_booking:
                 lines.append(f"Booking: {a.transport_booking}")
             if a.transport_notes:
                 lines.append(a.transport_notes)
-            assign_data.append([
-                a.position.name if a.position else "",
-                a.person.name if a.person else "",
-                a.person.phone if a.person and a.person.phone else "",
-                a.person.email if a.person and a.person.email else "",
-                "\n".join(lines)
+            notes = "<br/>".join(lines)
+            data.append([
+                a.position.name if a.position else '',
+                a.person.name if a.person else '',
+                a.person.phone or '',
+                a.person.email or '',
+                Paragraph(notes, styles['NormalText'])
             ])
-        assign_table = Table(assign_data, colWidths=[1.1*inch, 1.4*inch, 1.1*inch, 1.7*inch, 2.0*inch], repeatRows=1)
-        assign_table.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#fbeec1")),
-            ("GRID", (0, 0), (-1, -1), 0.25, colors.gray),
-            ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f9f9f9")]),
+        t = Table(data, repeatRows=1, colWidths=[1.2*inch,1.5*inch,1.3*inch,2*inch,2*inch])
+        t.setStyle(TableStyle([
+            ('GRID', (0,0), (-1,-1), 0.25, colors.grey),
+            ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
+            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+            ('VALIGN', (0,0), (-1,-1), 'TOP'),
+            ('FONTSIZE', (0,0), (-1,-1), 9),
         ]))
-        elements.append(assign_table)
-        elements.append(PageBreak())
+        story.append(t)
+        story.append(PageBreak())
 
-    # --- Hotel Section ---
+    # --- HOTELS ---
+    hotels = db.query(Hotel).filter(Hotel.event_id == eid).all()
     if hotels:
-        elements.append(Paragraph("Hotel & Room Assignments", ParagraphStyle("h2", parent=bold, fontSize=12,
-            backColor=colors.HexColor("#fbeec1"), textColor=colors.black, spaceAfter=6, leftIndent=2)))
+        story.append(Paragraph("Hotel & Room Assignments", styles['SectionHeader']))
         for h in hotels:
-            elements.append(Paragraph(f"<strong>{h.name}</strong>", bold))
+            story.append(Paragraph(f"<b>{h.name}</b>", styles['NormalText']))
             if h.address or h.phone:
-                elements.append(Paragraph(f"{h.address or ''} — {h.phone or ''}", subheader))
+                story.append(Paragraph(f"{h.address or ''} — {h.phone or ''}", styles['NormalText']))
             if h.notes:
-                elements.append(Paragraph(f"<i>{h.notes}</i>", normal))
-            if h.rooms:
-                room_data = [["Room", "Occupants", "Check-in", "Check-out", "Confirmation"]]
-                for r in h.rooms:
-                    names = [rm.person.name for rm in r.occupants if rm.person]
-                    room_data.append([
-                        r.room_number or "-",
-                        ", ".join(names) or "—",
-                        r.check_in.strftime("%Y-%m-%d") if r.check_in else "",
-                        r.check_out.strftime("%Y-%m-%d") if r.check_out else "",
-                        r.confirmation or ""
-                    ])
-                room_table = Table(room_data, colWidths=[0.8*inch, 2.4*inch, 1.1*inch, 1.1*inch, 1.5*inch])
-                room_table.setStyle(TableStyle([
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#fbeec1")),
-                    ("GRID", (0, 0), (-1, -1), 0.25, colors.gray),
-                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                    ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f9f9f9")]),
-                ]))
-                elements.append(room_table)
-                elements.append(Spacer(1, 0.2 * inch))
-            else:
-                elements.append(Paragraph("No rooms added yet.", subheader))
-                elements.append(Spacer(1, 0.1 * inch))
+                story.append(Paragraph(f"<em>{h.notes}</em>", styles['NormalText']))
+            room_data = [['Room', 'Occupants', 'Check-in', 'Check-out', 'Confirmation']]
+            for r in h.rooms:
+                occupants = ", ".join([rm.person.name for rm in r.occupants if rm.person])
+                room_data.append([
+                    r.room_number or '-',
+                    occupants or '—',
+                    r.check_in.strftime('%B %d, %Y') if r.check_in else '',
+                    r.check_out.strftime('%B %d, %Y') if r.check_out else '',
+                    r.confirmation or ''
+                ])
+            table = Table(room_data, repeatRows=1, colWidths=[1*inch,2.5*inch,1.3*inch,1.3*inch,1.3*inch])
+            table.setStyle(TableStyle([
+                ('GRID', (0,0), (-1,-1), 0.25, colors.grey),
+                ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
+                ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0,0), (-1,-1), 9),
+            ]))
+            story.append(table)
+            story.append(Spacer(1, 10))
 
-    # --- Notes Section ---
-    if ev.notes:
-        elements.append(PageBreak())
-        elements.append(Paragraph("Notes", ParagraphStyle("h2", parent=bold, fontSize=12,
-            backColor=colors.HexColor("#fbeec1"), textColor=colors.black, spaceAfter=6, leftIndent=2)))
-        elements.append(Paragraph(ev.notes.replace("\n", "<br/>"), normal))
+    # --- ADD WATERMARK ---
+    def draw_watermark(canvas, doc):
+        canvas.saveState()
+        canvas.setFont("Helvetica-Bold", 60)
+        canvas.setFillGray(0.9, 0.2)
+        watermark_text = "On Stage America"
+        text_width = stringWidth(watermark_text, "Helvetica-Bold", 60)
+        canvas.translate(letter[0]/2, letter[1]/2)
+        canvas.rotate(45)
+        canvas.drawCentredString(0, 0, watermark_text)
+        canvas.restoreState()
 
-    # --- Assemble PDF ---
-    def on_page(canvas, doc):
-        # Watermark behind everything
-        try:
-            from reportlab.lib.utils import ImageReader
-            wm = ImageReader(logo_path)
-            canvas.saveState()
-            canvas.setFillAlpha(0.07)
-            canvas.drawImage(wm, 1 * inch, 2.5 * inch, width=5 * inch, preserveAspectRatio=True, mask='auto')
-            canvas.restoreState()
-        except Exception:
-            pass
-
-    doc.build(elements, onFirstPage=on_page, onLaterPages=on_page)
+    doc.build(story, onFirstPage=draw_watermark, onLaterPages=draw_watermark)
 
     pdf_bytes = buffer.getvalue()
     buffer.close()
+
     response = make_response(pdf_bytes)
-    response.headers["Content-Type"] = "application/pdf"
-    response.headers["Content-Disposition"] = f"inline; filename=Call_Sheet_{ev.city}.pdf"
+    response.headers['Content-Type'] = 'application/pdf'
+    response.headers['Content-Disposition'] = f'inline; filename=callsheet_{eid}.pdf'
     return response
 
 # -----------------------------------------------------------------------------
