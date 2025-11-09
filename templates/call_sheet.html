@@ -27,6 +27,17 @@
   .assign-table tbody tr:nth-child(even) {
     background-color: #BABABA; /* dark gray */
   }
+<div class="no-print" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+  <div>
+    <a href="{{ url_for('admin_call_sheet_pdf', eid=ev.id) }}" 
+       class="btn btn-sm btn-outline-primary" 
+       target="_blank" 
+       style="background: linear-gradient(90deg, #bfa34d, #f0e3a3); color: black; font-weight:600; border:none;">
+      📄 Download PDF
+    </a>
+  </div>
+  <button class="btn btn-sm btn-outline btn-print" onclick="window.print()">🖨 Print</button>
+</div>
 
   @media print {
     .assign-table tbody tr:nth-child(even) {
