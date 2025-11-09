@@ -15,43 +15,51 @@
   .btn-print { float:right; margin: 6px 0 0 0; }
   .welcome { margin:10px 0 8px; }
   .logo { display:block; margin:0 auto 6px; height:64px; }
-
-  .setup-row {
-    background: #fff6e5; /* soft amber for setup days */
-  }
+  .setup-row { background: #fff6e5; }
 
   /* Alternating row colors for the Assignments table */
   .assign-table tbody tr:nth-child(odd) {
-    background-color: #ffffff; /* white */
+    background-color: #ffffff;
   }
   .assign-table tbody tr:nth-child(even) {
-    background-color: #BABABA; /* dark gray */
+    background-color: #f5f5f5;
   }
-<div class="no-print" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-  <div>
-    <a href="{{ url_for('admin_call_sheet_pdf', eid=ev.id) }}" 
-       class="btn btn-sm btn-outline-primary" 
-       target="_blank" 
-       style="background: linear-gradient(90deg, #bfa34d, #f0e3a3); color: black; font-weight:600; border:none;">
-      📄 Download PDF
-    </a>
-  </div>
-  <button class="btn btn-sm btn-outline btn-print" onclick="window.print()">🖨 Print</button>
-</div>
 
   @media print {
+    .no-print { display: none; }
     .assign-table tbody tr:nth-child(even) {
       background-color: #efefef !important;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
   }
+
+  /* Gold button styling */
+  .btn-outline-primary {
+    background: linear-gradient(90deg, #bfa34d, #f0e3a3);
+    color: black !important;
+    border: none;
+    font-weight: 600;
+    border-radius: 8px;
+    padding: 6px 12px;
+    transition: all 0.2s ease-in-out;
+  }
+  .btn-outline-primary:hover {
+    background: linear-gradient(90deg, #e6cb69, #fff3b0);
+    transform: scale(1.03);
+  }
 </style>
 
-
 <div class="cs-container">
-  <div class="no-print">
-    <button class="btn btn-sm btn-outline btn-print" onclick="window.print()">Print</button>
+  <div class="no-print" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+    <div>
+      <a href="{{ url_for('admin_call_sheet_pdf', eid=ev.id) }}"
+         class="btn btn-sm btn-outline-primary"
+         target="_blank">
+        📄 Download PDF
+      </a>
+    </div>
+    <button class="btn btn-sm btn-outline btn-print" onclick="window.print()">🖨 Print</button>
   </div>
 
   {% set logo = url_for('static', filename='OSA_Logo_Silver_Gold.png') %}
@@ -108,7 +116,7 @@
             <td>{{ d.start.strftime('%B %d, %Y - %I:%M %p') if d.start else '' }}</td>
             <td>{{ d.setup.strftime('%B %d, %Y - %I:%M %p') if d.setup else '' }}</td>
             <td>{{ d.staff.strftime('%B %d, %Y - %I:%M %p') if d.staff else '' }}</td>
-            <td style="background-color: #FF2E2E;"><em>Setup Only — No Judges Required</em></td>
+            <td style="background-color: #FFCCCC;"><em>Setup Only — No Judges Required</em></td>
             <td>{{ d.notes or '' }}</td>
           </tr>
         {% else %}
@@ -123,8 +131,7 @@
       {% endfor %}
     </tbody>
   </table>
-{% endif %}
-
+  {% endif %}
 
   <!-- Staff Assignments -->
   <div class="h2">Assignments</div>
