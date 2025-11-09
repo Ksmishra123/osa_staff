@@ -1880,10 +1880,9 @@ def admin_call_sheet_pdf(eid):
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import letter
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image, PageBreak
     from reportlab.lib.units import inch
     from reportlab.lib.utils import ImageReader
-    from reportlab.pdfbase.pdfmetrics import stringWidth
 
     db = SessionLocal()
     ev = db.get(Event, eid)
@@ -1901,18 +1900,28 @@ def admin_call_sheet_pdf(eid):
     )
 
     styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle(name='HeaderTitle', fontSize=18, leading=22, alignment=1, fontName='Helvetica-Bold'))
+    styles.add(ParagraphStyle(name='HeaderSub', fontSize=11, leading=14, alignment=1))
     styles.add(ParagraphStyle(name='SectionHeader', fontSize=13, leading=15, spaceAfter=8, spaceBefore=10, fontName='Helvetica-Bold'))
     styles.add(ParagraphStyle(name='NormalText', fontSize=9, leading=12))
 
     story = []
 
-    # --- HEADER ---
-    story.append(Paragraph(f"<b>On Stage America Call Sheet — {ev.city or ''}</b>", styles['SectionHeader']))
-    if ev.event_start:
-        story.append(Paragraph(f"{ev.event_start.strftime('%B %d, %Y')}", styles['NormalText']))
-    story.append(Spacer(1, 8))
+    # --- TOP HEADER: Centered Logo + Event Info ---
+    try:
+        logo_path = os.path.join(app.static_folder, "OSA_Logo_Silver_Gold.png")
+        story.append(Image(logo_path, width=2.5*inch, height=1.0*inch))
+    except Exception as e:
+        app.logger.warning(f"Logo load failed: {e}")
 
-    # --- EVENT INFO ---
+    story.append(Spacer(1, 6))
+    story.append(Paragraph(f"Call Sheet — {ev.city or ''}", styles['HeaderTitle']))
+    if ev.event_start:
+        story.append(Paragraph(f"{ev.event_start.strftime('%B %d, %Y')}", styles['HeaderSub']))
+    story.append(Spacer(1, 16))
+
+    # --- EVENT INFO TABLE (full-width or 80%) ---
+    story.append(Paragraph("Event Information", styles['SectionHeader']))
     info_data = [
         ['City', ev.city or '—'],
         ['Venue', ev.venue or '—'],
@@ -1922,15 +1931,16 @@ def admin_call_sheet_pdf(eid):
         ['Coordinator', f"{ev.coordinator_name or ''}  {ev.coordinator_phone or ''}"],
     ]
 
-    info_table = Table(info_data, colWidths=[1.3 * inch, 4.7 * inch])
+    info_table = Table(info_data, colWidths=[1.5 * inch, 5.5 * inch])
     info_table.setStyle(TableStyle([
         ('GRID', (0, 0), (-1, -1), 0.25, colors.grey),
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f5e8b8')),
         ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
     ]))
     story.append(info_table)
-    story.append(Spacer(1, 10))
+    story.append(Spacer(1, 12))
 
     # --- DAILY SCHEDULE ---
     days = (
@@ -1966,7 +1976,7 @@ def admin_call_sheet_pdf(eid):
         story.append(day_table)
         story.append(Spacer(1, 12))
 
-    # --- STAFF ASSIGNMENTS ---
+    # --- ASSIGNMENTS ---
     assigns = (
         db.query(Assignment)
         .join(Person)
