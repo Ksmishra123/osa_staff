@@ -1929,7 +1929,7 @@ def admin_call_sheet_pdf(eid):
           .filter(Assignment.event_id == eid)
           .join(Person)
           .join(Position)
-          .order_by(Position.sort_order.asc(), Person.name.asc())
+          .order_by(Position.name.asc(), Person.name.asc())
           .all()
     )
     hotels = db.query(Hotel).filter(Hotel.event_id == eid).all()
