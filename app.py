@@ -1873,41 +1873,6 @@ def admin_event_email(eid):
 # -----------------------------------------------------------------------------
 # Call Sheet (PDF)
 # -----------------------------------------------------------------------------
-from io import BytesIO
-from reportlab.lib.pagesizes import letter
-from reportlab.lib import colors
-from reportlab.lib.units import inch
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.platypus import (
-    SimpleDocTemplate, Paragraph, Table, TableStyle,
-    Spacer, Image, PageBreak, Flowable
-)
-from datetime import timedelta
-import os
-
-# --- Custom watermark class ---
-class Watermark(Flowable):
-    def __init__(self, path):
-        Flowable.__init__(self)
-        self.path = path
-
-    def draw(self):
-        try:
-            from reportlab.pdfgen import canvas
-            from reportlab.lib.utils import ImageReader
-            img = ImageReader(self.path)
-            width, height = self._doctemplate.pagesize
-            self.canv.saveState()
-            self.canv.translate(width / 2, height / 2)
-            self.canv.rotate(45)
-            self.canv.drawImage(img, -3 * inch, -3 * inch,
-                                width=6 * inch, height=6 * inch,
-                                mask='auto', preserveAspectRatio=True)
-            self.canv.restoreState()
-        except Exception as e:
-            print("⚠️ Watermark failed:", e)
-
-
 @app.route('/admin/events/<int:eid>/callsheet.pdf')
 @login_required
 def admin_call_sheet_pdf(eid):
@@ -1916,8 +1881,8 @@ def admin_call_sheet_pdf(eid):
     from reportlab.lib.pagesizes import letter
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
-    from reportlab.pdfgen import canvas
     from reportlab.lib.units import inch
+    from reportlab.lib.utils import ImageReader
     from reportlab.pdfbase.pdfmetrics import stringWidth
 
     db = SessionLocal()
@@ -1929,15 +1894,16 @@ def admin_call_sheet_pdf(eid):
     doc = SimpleDocTemplate(
         buffer,
         pagesize=letter,
-        topMargin=0.75 * inch,
-        bottomMargin=0.75 * inch,
-        leftMargin=0.75 * inch,
-        rightMargin=0.75 * inch,
+        topMargin=0.6 * inch,
+        bottomMargin=0.6 * inch,
+        leftMargin=0.6 * inch,
+        rightMargin=0.6 * inch,
     )
 
     styles = getSampleStyleSheet()
     styles.add(ParagraphStyle(name='SectionHeader', fontSize=13, leading=15, spaceAfter=8, spaceBefore=10, fontName='Helvetica-Bold'))
-    styles.add(ParagraphStyle(name='NormalText', fontSize=10, leading=13))
+    styles.add(ParagraphStyle(name='NormalText', fontSize=9, leading=12))
+
     story = []
 
     # --- HEADER ---
@@ -1946,7 +1912,7 @@ def admin_call_sheet_pdf(eid):
         story.append(Paragraph(f"{ev.event_start.strftime('%B %d, %Y')}", styles['NormalText']))
     story.append(Spacer(1, 8))
 
-    # --- EVENT INFO TABLE ---
+    # --- EVENT INFO ---
     info_data = [
         ['City', ev.city or '—'],
         ['Venue', ev.venue or '—'],
@@ -1956,13 +1922,12 @@ def admin_call_sheet_pdf(eid):
         ['Coordinator', f"{ev.coordinator_name or ''}  {ev.coordinator_phone or ''}"],
     ]
 
-    info_table = Table(info_data, colWidths=[1.5 * inch, 4.5 * inch])
+    info_table = Table(info_data, colWidths=[1.3 * inch, 4.7 * inch])
     info_table.setStyle(TableStyle([
-        ('GRID', (0,0), (-1,-1), 0.25, colors.grey),
-        ('BACKGROUND', (0,0), (-1,0), colors.whitesmoke),
-        ('FONTNAME', (0,0), (0,-1), 'Helvetica-Bold'),
-        ('VALIGN', (0,0), (-1,-1), 'TOP'),
-        ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+        ('GRID', (0, 0), (-1, -1), 0.25, colors.grey),
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f5e8b8')),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
     ]))
     story.append(info_table)
     story.append(Spacer(1, 10))
@@ -1970,46 +1935,45 @@ def admin_call_sheet_pdf(eid):
     # --- DAILY SCHEDULE ---
     days = (
         db.query(EventDay)
-          .filter(EventDay.event_id == eid)
-          .order_by(EventDay.start_dt.asc())
-          .all()
+        .filter(EventDay.event_id == eid)
+        .order_by(EventDay.start_dt.asc())
+        .all()
     )
     if days:
         story.append(Paragraph("Daily Schedule", styles['SectionHeader']))
         day_data = [['Day Start', 'Setup', 'Staff Arrival', 'Judges Arrival', 'Notes']]
         for d in days:
             if d.setup_only:
-                row_color = colors.HexColor('#fff8e1')
-                judges_val = 'Setup Only — No Judges Required'
+                judges_val = '<b><font color="red">Setup Only — No Judges Required</font></b>'
             else:
-                row_color = None
-                judges_val = d.judges_arrival_dt.strftime('%B %d, %Y %I:%M %p') if d.judges_arrival_dt else ''
+                judges_val = (
+                    d.judges_arrival_dt.strftime('%B %d, %Y %I:%M %p') if d.judges_arrival_dt else ''
+                )
             day_data.append([
-                d.start_dt.strftime('%B %d, %Y %I:%M %p') if d.start_dt else '',
-                d.setup_dt.strftime('%B %d, %Y %I:%M %p') if d.setup_dt else '',
-                d.staff_arrival_dt.strftime('%B %d, %Y %I:%M %p') if d.staff_arrival_dt else '',
-                judges_val,
-                d.notes or ''
+                Paragraph(d.start_dt.strftime('%B %d, %Y %I:%M %p') if d.start_dt else '', styles['NormalText']),
+                Paragraph(d.setup_dt.strftime('%B %d, %Y %I:%M %p') if d.setup_dt else '', styles['NormalText']),
+                Paragraph(d.staff_arrival_dt.strftime('%B %d, %Y %I:%M %p') if d.staff_arrival_dt else '', styles['NormalText']),
+                Paragraph(judges_val, styles['NormalText']),
+                Paragraph(d.notes or '', styles['NormalText']),
             ])
-        day_table = Table(day_data, repeatRows=1, colWidths=[1.5*inch,1.5*inch,1.5*inch,1.5*inch,2*inch])
+        day_table = Table(day_data, repeatRows=1, colWidths=[1.4*inch, 1.4*inch, 1.4*inch, 1.5*inch, 1.8*inch])
         day_table.setStyle(TableStyle([
-            ('GRID', (0,0), (-1,-1), 0.25, colors.grey),
-            ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
-            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0,0), (-1,-1), 9),
-            ('VALIGN', (0,0), (-1,-1), 'TOP'),
+            ('GRID', (0, 0), (-1, -1), 0.25, colors.grey),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f5e8b8')),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
         ]))
         story.append(day_table)
         story.append(Spacer(1, 12))
 
-    # --- ASSIGNMENTS ---
+    # --- STAFF ASSIGNMENTS ---
     assigns = (
         db.query(Assignment)
-          .join(Person)
-          .join(Position)
-          .filter(Assignment.event_id == eid)
-          .order_by(Position.name.asc(), Person.name.asc())
-          .all()
+        .join(Person)
+        .join(Position)
+        .filter(Assignment.event_id == eid)
+        .order_by(Position.name.asc(), Person.name.asc())
+        .all()
     )
     if assigns:
         story.append(Paragraph("Staff Assignments", styles['SectionHeader']))
@@ -2026,19 +1990,18 @@ def admin_call_sheet_pdf(eid):
                 lines.append(a.transport_notes)
             notes = "<br/>".join(lines)
             data.append([
-                a.position.name if a.position else '',
-                a.person.name if a.person else '',
-                a.person.phone or '',
-                a.person.email or '',
-                Paragraph(notes, styles['NormalText'])
+                Paragraph(a.position.name if a.position else '', styles['NormalText']),
+                Paragraph(a.person.name if a.person else '', styles['NormalText']),
+                Paragraph(a.person.phone or '', styles['NormalText']),
+                Paragraph(a.person.email or '', styles['NormalText']),
+                Paragraph(notes, styles['NormalText']),
             ])
-        t = Table(data, repeatRows=1, colWidths=[1.2*inch,1.5*inch,1.3*inch,2*inch,2*inch])
+        t = Table(data, repeatRows=1, colWidths=[1.2*inch, 1.5*inch, 1.2*inch, 2*inch, 2*inch])
         t.setStyle(TableStyle([
-            ('GRID', (0,0), (-1,-1), 0.25, colors.grey),
-            ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
-            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-            ('VALIGN', (0,0), (-1,-1), 'TOP'),
-            ('FONTSIZE', (0,0), (-1,-1), 9),
+            ('GRID', (0, 0), (-1, -1), 0.25, colors.grey),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f5e8b8')),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
         ]))
         story.append(t)
         story.append(PageBreak())
@@ -2057,33 +2020,49 @@ def admin_call_sheet_pdf(eid):
             for r in h.rooms:
                 occupants = ", ".join([rm.person.name for rm in r.occupants if rm.person])
                 room_data.append([
-                    r.room_number or '-',
-                    occupants or '—',
-                    r.check_in.strftime('%B %d, %Y') if r.check_in else '',
-                    r.check_out.strftime('%B %d, %Y') if r.check_out else '',
-                    r.confirmation or ''
+                    Paragraph(r.room_number or '-', styles['NormalText']),
+                    Paragraph(occupants or '—', styles['NormalText']),
+                    Paragraph(r.check_in.strftime('%B %d, %Y') if r.check_in else '', styles['NormalText']),
+                    Paragraph(r.check_out.strftime('%B %d, %Y') if r.check_out else '', styles['NormalText']),
+                    Paragraph(r.confirmation or '', styles['NormalText']),
                 ])
-            table = Table(room_data, repeatRows=1, colWidths=[1*inch,2.5*inch,1.3*inch,1.3*inch,1.3*inch])
+            table = Table(room_data, repeatRows=1, colWidths=[1*inch, 2.5*inch, 1.2*inch, 1.2*inch, 1.2*inch])
             table.setStyle(TableStyle([
-                ('GRID', (0,0), (-1,-1), 0.25, colors.grey),
-                ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
-                ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0,0), (-1,-1), 9),
+                ('GRID', (0, 0), (-1, -1), 0.25, colors.grey),
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f5e8b8')),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
             ]))
             story.append(table)
             story.append(Spacer(1, 10))
 
-    # --- ADD WATERMARK ---
+    # --- WATERMARK ---
     def draw_watermark(canvas, doc):
         canvas.saveState()
-        canvas.setFont("Helvetica-Bold", 60)
-        canvas.setFillGray(0.9, 0.2)
-        watermark_text = "On Stage America"
-        text_width = stringWidth(watermark_text, "Helvetica-Bold", 60)
-        canvas.translate(letter[0]/2, letter[1]/2)
-        canvas.rotate(45)
-        canvas.drawCentredString(0, 0, watermark_text)
-        canvas.restoreState()
+        try:
+            logo_path = os.path.join(app.static_folder, "OSA_Logo_Silver_Gold.png")
+            watermark = ImageReader(logo_path)
+            page_width, page_height = letter
+            logo_width, logo_height = watermark.getSize()
+
+            scale = min(page_width * 0.7 / logo_width, page_height * 0.7 / logo_height)
+            new_width = logo_width * scale
+            new_height = logo_height * scale
+            x = (page_width - new_width) / 2
+            y = (page_height - new_height) / 2
+
+            canvas.saveState()
+            canvas.setFillAlpha(0.08)
+            canvas.drawImage(
+                watermark, x, y,
+                width=new_width, height=new_height,
+                mask='auto', preserveAspectRatio=True
+            )
+            canvas.restoreState()
+        except Exception as e:
+            app.logger.error(f"Watermark error: {e}")
+        finally:
+            canvas.restoreState()
 
     doc.build(story, onFirstPage=draw_watermark, onLaterPages=draw_watermark)
 
