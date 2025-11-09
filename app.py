@@ -1821,7 +1821,7 @@ def admin_event_email(eid):
     if not ev:
         abort(404)
 
-    # Staff with assignments
+    # All staff with assignments for this event
     people = (
         db.query(Person)
         .join(Assignment, Assignment.person_id == Person.id)
@@ -1831,8 +1831,8 @@ def admin_event_email(eid):
     )
 
     if request.method == 'POST':
-        subject = request.form.get('subject', '').strip()
-        body = request.form.get('body', '').strip()
+        subject = (request.form.get('subject') or '').strip()
+        body = (request.form.get('body') or '').strip()
         send_mode = request.form.get('send_mode', 'all')
 
         if not subject or not body:
@@ -1841,13 +1841,16 @@ def admin_event_email(eid):
 
         # Determine recipient list
         if send_mode == 'test':
-            test_email = getattr(current_user, "email", None) or "admin@onstageamerica.com"
+            # Try to find admin's person email; fallback to FROM_EMAIL
+            admin_person = db.query(Person).filter_by(id=current_user.id).first()
+            test_email = getattr(admin_person, 'email', None) or os.getenv('FROM_EMAIL', 'no-reply@onstageamerica.com')
             recipient_list = [test_email]
             flash_target = f"✅ Test email sent to {test_email}."
         else:
             recipient_list = [p.email for p in people if p.email]
             flash_target = f"✅ Email sent to {len(recipient_list)} staff."
 
+        # Send emails via SendGrid async
         for email in recipient_list:
             person = (
                 current_user if send_mode == 'test'
@@ -1859,7 +1862,7 @@ def admin_event_email(eid):
                 ev=ev,
                 body=body
             )
-            send_email(subject, html_body, [email])
+            send_email_async(email, subject, html_body)
 
         flash(flash_target)
         return redirect(url_for('admin_event_email', eid=eid))
