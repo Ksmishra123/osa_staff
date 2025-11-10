@@ -880,63 +880,71 @@ def admin_assign(eid):
     people = db.query(Person).order_by(Person.name.asc()).all()
     positions = db.query(Position).order_by(Position.display_order.asc()).all()
 
-    # capture existing assignments BEFORE we overwrite, for change detection
+    # Load existing assignments for comparison
     existing = {
-        a.position_id: {
-            "person_id": a.person_id,
-            "transport_mode": a.transport_mode,
-            "transport_booking": a.transport_booking,
-            "arrival_ts": a.arrival_ts,
-            "transport_notes": a.transport_notes,
-        }
+        a.position_id: a
         for a in db.query(Assignment)
-                   .filter(Assignment.event_id == eid)
-                   .all()
+                  .filter(Assignment.event_id == eid)
+                  .all()
     }
 
     if request.method == 'POST':
-        # Checkbox controls whether emails go out this save
         send_emails = (request.form.get('send_emails') == 'yes')
-
-        # Build the new set from the form
-        new_assignments = {}
-        changed_people = []  # tuples of (person_id, position_name)
+        changed_people = []
 
         for pos in positions:
-            pid = request.form.get(f'pos_{pos.id}')
-            if not pid:
+            pid_raw = request.form.get(f'pos_{pos.id}')
+            if not pid_raw:
+                # if nothing selected, skip
                 continue
-            pid_int = int(pid)
-            data = {
-                "person_id": pid_int,
-                "transport_mode": request.form.get(f'pos_{pos.id}_mode') or None,
-                "transport_booking": request.form.get(f'pos_{pos.id}_booking') or None,
-                "arrival_ts": parse_dt(request.form.get(f'pos_{pos.id}_arrival') or ""),
-                "transport_notes": request.form.get(f'pos_{pos.id}_notes') or None,
-            }
-            new_assignments[pos.id] = data
 
-        # Replace all assignments for this event
-        db.query(Assignment).filter(Assignment.event_id == eid).delete()
+            pid = int(pid_raw)
+            mode = request.form.get(f'pos_{pos.id}_mode') or None
+            booking = request.form.get(f'pos_{pos.id}_booking') or None
+            arrival = parse_dt(request.form.get(f'pos_{pos.id}_arrival') or "")
+            notes = request.form.get(f'pos_{pos.id}_notes') or None
 
-        # Insert new rows and detect changes
-        for pos in positions:
-            if pos.id not in new_assignments:
-                continue
-            data = new_assignments[pos.id]
-            db.add(Assignment(
-                event_id=eid,
-                position_id=pos.id,
-                **data
-            ))
+            current = existing.get(pos.id)
 
-            old = existing.get(pos.id)
-            if not old or old != data:
-                changed_people.append((data["person_id"], pos.name))
+            if current:
+                # update only if something changed
+                has_change = (
+                    current.person_id != pid or
+                    current.transport_mode != mode or
+                    current.transport_booking != booking or
+                    current.arrival_ts != arrival or
+                    (current.transport_notes or '') != (notes or '')
+                )
+                if has_change:
+                    current.person_id = pid
+                    current.transport_mode = mode
+                    current.transport_booking = booking
+                    current.arrival_ts = arrival
+                    current.transport_notes = notes
+                    changed_people.append((pid, pos.name))
+            else:
+                # new assignment
+                new_a = Assignment(
+                    event_id=eid,
+                    position_id=pos.id,
+                    person_id=pid,
+                    transport_mode=mode,
+                    transport_booking=booking,
+                    arrival_ts=arrival,
+                    transport_notes=notes,
+                )
+                db.add(new_a)
+                changed_people.append((pid, pos.name))
+
+        # Check if any assignments were removed (someone unassigned)
+        form_pos_ids = {int(k.split('_')[1]) for k in request.form.keys() if k.startswith('pos_') and not k.endswith(('_mode', '_booking', '_arrival', '_notes'))}
+        removed = [pid for pid in existing.keys() if pid not in form_pos_ids]
+        if removed:
+            db.query(Assignment).filter(Assignment.event_id == eid, Assignment.position_id.in_(removed)).delete(synchronize_session=False)
 
         db.commit()
 
-        # Send emails (optional)
+        # Send emails to only changed staff
         notified = 0
         if send_emails and changed_people:
             for pid, pos_name in changed_people:
@@ -958,7 +966,7 @@ def admin_assign(eid):
             else:
                 flash("Assignments saved. No changes detected; no emails queued.")
 
-        # Google Sheet sync (safe)
+        # Google Sheet sync
         try:
             from sheets_sync import sync_assignments_sheet
             rows_for_event = (
@@ -973,14 +981,10 @@ def admin_assign(eid):
 
         return redirect(url_for('admin_events'))
 
-    # GET branch: prefill current data
-    currents = {
-        a.position_id: a
-        for a in db.query(Assignment)
-                  .filter(Assignment.event_id == eid)
-                  .all()
-    }
+    # GET branch
+    currents = existing
     return render_template('assign.html', ev=ev, people=people, positions=positions, current=currents)
+
 # -----------------------------------------------------------------------------
 # Admin: test route for email to see if it is working
 # -----------------------------------------------------------------------------
