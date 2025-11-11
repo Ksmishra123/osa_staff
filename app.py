@@ -1634,21 +1634,33 @@ def call_sheet(eid):
         if not ev:
             abort(404)
 
-        # viewer rules: admin OR assigned to event OR viewer role
-        is_viewer = bool(getattr(current_user.person, "is_viewer", False))
-        assigned_count = db.query(Assignment).filter(
-            Assignment.event_id == eid,
-            Assignment.person_id == int(current_user.id)
-        ).count()
+        # Determine roles
+        is_admin_user = is_admin()
+        user_person = getattr(current_user, "person", None)
+        is_viewer = getattr(current_user, "role", "") == "viewer" or getattr(user_person, "is_viewer", False)
 
-        allowed = is_admin() or assigned_count > 0 or is_viewer
+        # Determine if the user is assigned to this event
+        assigned_count = 0
+        if user_person and hasattr(user_person, "id"):
+            assigned_count = db.query(Assignment).filter(
+                Assignment.event_id == eid,
+                Assignment.person_id == user_person.id
+            ).count()
+
+        # Allow rules:
+        # - Admin: always
+        # - Viewer: always
+        # - Assigned staff: yes, but only if published
+        allowed = False
+        if is_admin_user or is_viewer:
+            allowed = True
+        elif assigned_count > 0 and ev.call_sheet_published:
+            allowed = True
+
         if not allowed:
             abort(403)
 
-        # if not published, only admin or viewer can see (assigned staff must wait)
-        if not ev.call_sheet_published and not (is_admin() or is_viewer):
-            abort(403)
-
+        # Load positions and assignments
         Pos = aliased(Position)
         rows = (
             db.query(Assignment)
@@ -1657,6 +1669,100 @@ def call_sheet(eid):
                   joinedload(Assignment.person),
                   joinedload(Assignment.position)
               )
+              .filter(Assignment.event_id == eid)
+              .order_by(Pos.display_order.asc())
+              .all()
+        )
+
+        # Hotels with rooms + occupants
+        hotels = (
+            db.query(Hotel)
+              .options(
+                  joinedload(Hotel.rooms)
+                  .joinedload(Room.occupants)
+                  .joinedload(Roommate.person)
+              )
+              .filter(Hotel.event_id == eid)
+              .all()
+        )
+
+        # Multi-day schedule
+        days = (
+            db.query(EventDay)
+              .filter(EventDay.event_id == eid)
+              .order_by(EventDay.start_dt.asc())
+              .all()
+        )
+        day_rows = []
+        for d in days:
+            staff_dt = d.staff_arrival_dt or (
+                d.start_dt - timedelta(minutes=60) if d.start_dt else None
+            )
+            judges_dt = None if d.setup_only else (
+                d.judges_arrival_dt or (d.start_dt - timedelta(minutes=30) if d.start_dt else None)
+            )
+            day_rows.append({
+                "start": d.start_dt,
+                "setup": d.setup_dt,
+                "staff": staff_dt,
+                "judges": judges_dt,
+                "notes": d.notes or '',
+                "setup_only": d.setup_only or False
+            })
+
+        # Record that the assigned staff viewed the call sheet
+        if assigned_count > 0 and not is_admin_user and hasattr(Assignment, "callsheet_seen_at"):
+            rec = (
+                db.query(Assignment)
+                  .filter(Assignment.event_id == eid,
+                          Assignment.person_id == user_person.id)
+                  .first()
+            )
+            if rec and rec.callsheet_seen_at is None:
+                rec.callsheet_seen_at = datetime.utcnow()
+                db.commit()
+
+        # Render with unpublished warning for viewer/admin
+        show_unpublished_banner = not ev.call_sheet_published and (is_admin_user or is_viewer)
+
+        return render_template(
+            'call_sheet.html',
+            ev=ev,
+            rows=rows,
+            hotels=hotels,
+            day_rows=day_rows,
+            show_unpublished_banner=show_unpublished_banner
+        )
+    finally:
+        db.close()
+
+
+@app.route('/events')
+@login_required
+def events_list():
+    db = SessionLocal()
+    now = datetime.utcnow()
+    evs = (
+        db.query(Event)
+          .filter((Event.date == None) | (Event.date >= now))
+          .order_by(Event.date.asc())
+          .all()
+    )
+    return render_template('events_public.html', events=evs)
+
+@app.route('/callsheet/<int:eid>')
+def public_call_sheet(eid):
+    db = SessionLocal()
+    try:
+        ev = db.get(Event, eid)
+        if not ev or not ev.call_sheet_published:
+            abort(403)
+
+        Pos = aliased(Position)
+        rows = (
+            db.query(Assignment)
+              .join(Pos, Assignment.position_id == Pos.id)
+              .options(joinedload(Assignment.person), joinedload(Assignment.position))
               .filter(Assignment.event_id == eid)
               .order_by(Pos.display_order.asc())
               .all()
@@ -1673,7 +1779,6 @@ def call_sheet(eid):
               .all()
         )
 
-        # Multi-day schedule (optional)
         days = (
             db.query(EventDay)
               .filter(EventDay.event_id == eid)
@@ -1685,8 +1790,8 @@ def call_sheet(eid):
             staff_dt = d.staff_arrival_dt or (
                 d.start_dt - timedelta(minutes=60) if d.start_dt else None
             )
-            judges_dt = d.judges_arrival_dt or (
-                d.start_dt - timedelta(minutes=30) if d.start_dt else None
+            judges_dt = None if d.setup_only else (
+                d.judges_arrival_dt or (d.start_dt - timedelta(minutes=30) if d.start_dt else None)
             )
             day_rows.append({
                 "start": d.start_dt,
@@ -1697,35 +1802,9 @@ def call_sheet(eid):
                 "setup_only": d.setup_only or False
             })
 
-        # (Optional) mark “seen” for assigned staff; guard the attribute
-        if not is_admin() and assigned_count > 0 and hasattr(Assignment, "callsheet_seen_at"):
-            rec = (
-                db.query(Assignment)
-                  .filter(Assignment.event_id == eid,
-                          Assignment.person_id == int(current_user.id))
-                  .first()
-            )
-            if rec and rec.callsheet_seen_at is None:
-                rec.callsheet_seen_at = datetime.utcnow()
-                db.commit()
-
-        return render_template('call_sheet.html',
-                               ev=ev, rows=rows, hotels=hotels, day_rows=day_rows)
+        return render_template('call_sheet.html', ev=ev, rows=rows, hotels=hotels, day_rows=day_rows)
     finally:
         db.close()
-
-@app.route('/events')
-@login_required
-def events_list():
-    db = SessionLocal()
-    now = datetime.utcnow()
-    evs = (
-        db.query(Event)
-          .filter((Event.date == None) | (Event.date >= now))
-          .order_by(Event.date.asc())
-          .all()
-    )
-    return render_template('events_public.html', events=evs)
 
 # -----------------------------------------------------------------------------
 # Who has seen and acknowledged
