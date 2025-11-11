@@ -1634,23 +1634,32 @@ def call_sheet(eid):
         if not ev:
             abort(404)
 
-        # Determine roles
+        # -------------------------------------------------------------
+        # Role determination logic
+        # -------------------------------------------------------------
         is_admin_user = is_admin()
-        user_person = getattr(current_user, "person", None)
-        is_viewer = getattr(current_user, "role", "") == "viewer" or getattr(user_person, "is_viewer", False)
+
+        # Support viewer via role or via linked person flag
+        is_viewer = (
+            getattr(current_user, "role", "") == "viewer" or
+            getattr(getattr(current_user, "person", None), "is_viewer", False)
+        )
 
         # Determine if the user is assigned to this event
         assigned_count = 0
-        if user_person and hasattr(user_person, "id"):
+        if hasattr(current_user, "person") and getattr(current_user.person, "id", None):
             assigned_count = db.query(Assignment).filter(
                 Assignment.event_id == eid,
-                Assignment.person_id == user_person.id
+                Assignment.person_id == current_user.person.id
             ).count()
 
-        # Allow rules:
-        # - Admin: always
-        # - Viewer: always
-        # - Assigned staff: yes, but only if published
+        # -------------------------------------------------------------
+        # Access Rules
+        # -------------------------------------------------------------
+        # Admin → always allowed
+        # Viewer → always allowed
+        # Assigned staff → only if published
+        # Everyone else → forbidden
         allowed = False
         if is_admin_user or is_viewer:
             allowed = True
@@ -1660,7 +1669,9 @@ def call_sheet(eid):
         if not allowed:
             abort(403)
 
-        # Load positions and assignments
+        # -------------------------------------------------------------
+        # Load Data
+        # -------------------------------------------------------------
         Pos = aliased(Position)
         rows = (
             db.query(Assignment)
@@ -1674,7 +1685,6 @@ def call_sheet(eid):
               .all()
         )
 
-        # Hotels with rooms + occupants
         hotels = (
             db.query(Hotel)
               .options(
@@ -1686,7 +1696,6 @@ def call_sheet(eid):
               .all()
         )
 
-        # Multi-day schedule
         days = (
             db.query(EventDay)
               .filter(EventDay.event_id == eid)
@@ -1695,9 +1704,7 @@ def call_sheet(eid):
         )
         day_rows = []
         for d in days:
-            staff_dt = d.staff_arrival_dt or (
-                d.start_dt - timedelta(minutes=60) if d.start_dt else None
-            )
+            staff_dt = d.staff_arrival_dt or (d.start_dt - timedelta(minutes=60) if d.start_dt else None)
             judges_dt = None if d.setup_only else (
                 d.judges_arrival_dt or (d.start_dt - timedelta(minutes=30) if d.start_dt else None)
             )
@@ -1710,19 +1717,23 @@ def call_sheet(eid):
                 "setup_only": d.setup_only or False
             })
 
-        # Record that the assigned staff viewed the call sheet
+        # -------------------------------------------------------------
+        # Mark call sheet seen for assigned staff
+        # -------------------------------------------------------------
         if assigned_count > 0 and not is_admin_user and hasattr(Assignment, "callsheet_seen_at"):
             rec = (
                 db.query(Assignment)
                   .filter(Assignment.event_id == eid,
-                          Assignment.person_id == user_person.id)
+                          Assignment.person_id == current_user.person.id)
                   .first()
             )
             if rec and rec.callsheet_seen_at is None:
                 rec.callsheet_seen_at = datetime.utcnow()
                 db.commit()
 
-        # Render with unpublished warning for viewer/admin
+        # -------------------------------------------------------------
+        # Add unpublished banner for viewers/admins
+        # -------------------------------------------------------------
         show_unpublished_banner = not ev.call_sheet_published and (is_admin_user or is_viewer)
 
         return render_template(
@@ -1733,6 +1744,7 @@ def call_sheet(eid):
             day_rows=day_rows,
             show_unpublished_banner=show_unpublished_banner
         )
+
     finally:
         db.close()
 
