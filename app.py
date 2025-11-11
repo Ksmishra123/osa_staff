@@ -1634,55 +1634,41 @@ def call_sheet(eid):
         if not ev:
             abort(404)
 
-        # -------------------------------------------------------------
-        # Identify roles robustly
-        # -------------------------------------------------------------
-        role_raw = str(getattr(current_user, "role", "") or "").strip().lower()
-        person_obj = getattr(current_user, "person", None)
+        # Determine if current_user is admin, viewer, or assigned staff
+        person = getattr(current_user, "person", None)
+        role = getattr(person, "role", None)
 
         is_admin_user = is_admin()
-        is_viewer = (
-            "view" in role_raw  # matches "viewer", "View", etc.
-            or getattr(current_user, "is_viewer", False)
-            or getattr(person_obj, "is_viewer", False)
-        )
+        is_viewer_user = (role == "viewer")
 
-        # -------------------------------------------------------------
-        # See if user is assigned to this event
-        # -------------------------------------------------------------
         assigned_count = 0
-        if person_obj and getattr(person_obj, "id", None):
+        if person:
             assigned_count = db.query(Assignment).filter(
                 Assignment.event_id == eid,
-                Assignment.person_id == person_obj.id
+                Assignment.person_id == person.id
             ).count()
 
-        # -------------------------------------------------------------
-        # Permission logic
-        # -------------------------------------------------------------
-        if not (is_admin_user or is_viewer or (assigned_count > 0 and ev.call_sheet_published)):
-            app.logger.warning(
-                f"403 Forbidden for user={getattr(current_user, 'username', '?')} "
-                f"(role={role_raw}, viewer={is_viewer}, admin={is_admin_user}, assigned={assigned_count}, published={ev.call_sheet_published})"
-            )
+        # Access rules
+        allowed = is_admin_user or is_viewer_user or assigned_count > 0
+        if not allowed:
             abort(403)
 
-        # -------------------------------------------------------------
-        # Load data
-        # -------------------------------------------------------------
+        # If not published: allow only admin and viewer roles
+        if not ev.call_sheet_published and not (is_admin_user or is_viewer_user):
+            abort(403)
+
+        # Load assignments
         Pos = aliased(Position)
         rows = (
             db.query(Assignment)
               .join(Pos, Assignment.position_id == Pos.id)
-              .options(
-                  joinedload(Assignment.person),
-                  joinedload(Assignment.position)
-              )
+              .options(joinedload(Assignment.person), joinedload(Assignment.position))
               .filter(Assignment.event_id == eid)
               .order_by(Pos.display_order.asc())
               .all()
         )
 
+        # Load hotels
         hotels = (
             db.query(Hotel)
               .options(
@@ -1694,21 +1680,20 @@ def call_sheet(eid):
               .all()
         )
 
-        # -------------------------------------------------------------
-        # Days
-        # -------------------------------------------------------------
+        # Load day schedule
         days = (
             db.query(EventDay)
               .filter(EventDay.event_id == eid)
               .order_by(EventDay.start_dt.asc())
               .all()
         )
-
         day_rows = []
         for d in days:
-            staff_dt = d.staff_arrival_dt or (d.start_dt - timedelta(minutes=60) if d.start_dt else None)
-            judges_dt = None if d.setup_only else (
-                d.judges_arrival_dt or (d.start_dt - timedelta(minutes=30) if d.start_dt else None)
+            staff_dt = d.staff_arrival_dt or (
+                d.start_dt - timedelta(minutes=60) if d.start_dt else None
+            )
+            judges_dt = d.judges_arrival_dt or (
+                d.start_dt - timedelta(minutes=30) if d.start_dt else None
             )
             day_rows.append({
                 "start": d.start_dt,
@@ -1719,24 +1704,20 @@ def call_sheet(eid):
                 "setup_only": d.setup_only or False
             })
 
-        # -------------------------------------------------------------
-        # Mark "seen" if staff
-        # -------------------------------------------------------------
-        if assigned_count > 0 and not is_admin_user and hasattr(Assignment, "callsheet_seen_at"):
+        # Mark call sheet seen (staff only)
+        if not is_admin_user and assigned_count > 0 and hasattr(Assignment, "callsheet_seen_at"):
             rec = (
                 db.query(Assignment)
                   .filter(Assignment.event_id == eid,
-                          Assignment.person_id == person_obj.id)
+                          Assignment.person_id == person.id)
                   .first()
             )
             if rec and rec.callsheet_seen_at is None:
                 rec.callsheet_seen_at = datetime.utcnow()
                 db.commit()
 
-        # -------------------------------------------------------------
-        # Show unpublished banner for admins/viewers
-        # -------------------------------------------------------------
-        show_unpublished_banner = not ev.call_sheet_published and (is_admin_user or is_viewer)
+        # Show unpublished banner only for admin/viewer
+        show_unpublished_banner = not ev.call_sheet_published and (is_admin_user or is_viewer_user)
 
         return render_template(
             'call_sheet.html',
@@ -1748,7 +1729,6 @@ def call_sheet(eid):
         )
     finally:
         db.close()
-
 
 @app.route('/events')
 @login_required
