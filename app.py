@@ -1635,20 +1635,20 @@ def call_sheet(eid):
             abort(404)
 
         # -------------------------------------------------------------
-        # Role determination (safe and case-insensitive)
+        # Identify roles robustly
         # -------------------------------------------------------------
-        role_val = (getattr(current_user, "role", "") or "").lower()
+        role_raw = str(getattr(current_user, "role", "") or "").strip().lower()
         person_obj = getattr(current_user, "person", None)
 
         is_admin_user = is_admin()
         is_viewer = (
-            role_val == "viewer"
-            or getattr(person_obj, "is_viewer", False)
+            "view" in role_raw  # matches "viewer", "View", etc.
             or getattr(current_user, "is_viewer", False)
+            or getattr(person_obj, "is_viewer", False)
         )
 
         # -------------------------------------------------------------
-        # Assigned count (only if user has person.id)
+        # See if user is assigned to this event
         # -------------------------------------------------------------
         assigned_count = 0
         if person_obj and getattr(person_obj, "id", None):
@@ -1658,26 +1658,17 @@ def call_sheet(eid):
             ).count()
 
         # -------------------------------------------------------------
-        # Permission rules
+        # Permission logic
         # -------------------------------------------------------------
-        allowed = False
-        if is_admin_user or is_viewer:
-            allowed = True
-        elif assigned_count > 0 and ev.call_sheet_published:
-            allowed = True
-
-        # Debug log (optional — safe to remove later)
-        app.logger.info(
-            f"CallSheet access check: user={getattr(current_user,'username','?')}, "
-            f"role={role_val}, viewer={is_viewer}, admin={is_admin_user}, "
-            f"assigned={assigned_count}, published={ev.call_sheet_published}"
-        )
-
-        if not allowed:
+        if not (is_admin_user or is_viewer or (assigned_count > 0 and ev.call_sheet_published)):
+            app.logger.warning(
+                f"403 Forbidden for user={getattr(current_user, 'username', '?')} "
+                f"(role={role_raw}, viewer={is_viewer}, admin={is_admin_user}, assigned={assigned_count}, published={ev.call_sheet_published})"
+            )
             abort(403)
 
         # -------------------------------------------------------------
-        # Load Data
+        # Load data
         # -------------------------------------------------------------
         Pos = aliased(Position)
         rows = (
@@ -1703,12 +1694,16 @@ def call_sheet(eid):
               .all()
         )
 
+        # -------------------------------------------------------------
+        # Days
+        # -------------------------------------------------------------
         days = (
             db.query(EventDay)
               .filter(EventDay.event_id == eid)
               .order_by(EventDay.start_dt.asc())
               .all()
         )
+
         day_rows = []
         for d in days:
             staff_dt = d.staff_arrival_dt or (d.start_dt - timedelta(minutes=60) if d.start_dt else None)
@@ -1725,7 +1720,7 @@ def call_sheet(eid):
             })
 
         # -------------------------------------------------------------
-        # Mark seen for staff
+        # Mark "seen" if staff
         # -------------------------------------------------------------
         if assigned_count > 0 and not is_admin_user and hasattr(Assignment, "callsheet_seen_at"):
             rec = (
@@ -1739,7 +1734,7 @@ def call_sheet(eid):
                 db.commit()
 
         # -------------------------------------------------------------
-        # Unpublished banner
+        # Show unpublished banner for admins/viewers
         # -------------------------------------------------------------
         show_unpublished_banner = not ev.call_sheet_published and (is_admin_user or is_viewer)
 
@@ -1753,6 +1748,7 @@ def call_sheet(eid):
         )
     finally:
         db.close()
+
 
 @app.route('/events')
 @login_required
