@@ -1635,36 +1635,43 @@ def call_sheet(eid):
             abort(404)
 
         # -------------------------------------------------------------
-        # Role determination logic
+        # Role determination (safe and case-insensitive)
         # -------------------------------------------------------------
-        is_admin_user = is_admin()
+        role_val = (getattr(current_user, "role", "") or "").lower()
+        person_obj = getattr(current_user, "person", None)
 
-        # Support viewer via role or via linked person flag
+        is_admin_user = is_admin()
         is_viewer = (
-            getattr(current_user, "role", "") == "viewer" or
-            getattr(getattr(current_user, "person", None), "is_viewer", False)
+            role_val == "viewer"
+            or getattr(person_obj, "is_viewer", False)
+            or getattr(current_user, "is_viewer", False)
         )
 
-        # Determine if the user is assigned to this event
+        # -------------------------------------------------------------
+        # Assigned count (only if user has person.id)
+        # -------------------------------------------------------------
         assigned_count = 0
-        if hasattr(current_user, "person") and getattr(current_user.person, "id", None):
+        if person_obj and getattr(person_obj, "id", None):
             assigned_count = db.query(Assignment).filter(
                 Assignment.event_id == eid,
-                Assignment.person_id == current_user.person.id
+                Assignment.person_id == person_obj.id
             ).count()
 
         # -------------------------------------------------------------
-        # Access Rules
+        # Permission rules
         # -------------------------------------------------------------
-        # Admin → always allowed
-        # Viewer → always allowed
-        # Assigned staff → only if published
-        # Everyone else → forbidden
         allowed = False
         if is_admin_user or is_viewer:
             allowed = True
         elif assigned_count > 0 and ev.call_sheet_published:
             allowed = True
+
+        # Debug log (optional — safe to remove later)
+        app.logger.info(
+            f"CallSheet access check: user={getattr(current_user,'username','?')}, "
+            f"role={role_val}, viewer={is_viewer}, admin={is_admin_user}, "
+            f"assigned={assigned_count}, published={ev.call_sheet_published}"
+        )
 
         if not allowed:
             abort(403)
@@ -1718,13 +1725,13 @@ def call_sheet(eid):
             })
 
         # -------------------------------------------------------------
-        # Mark call sheet seen for assigned staff
+        # Mark seen for staff
         # -------------------------------------------------------------
         if assigned_count > 0 and not is_admin_user and hasattr(Assignment, "callsheet_seen_at"):
             rec = (
                 db.query(Assignment)
                   .filter(Assignment.event_id == eid,
-                          Assignment.person_id == current_user.person.id)
+                          Assignment.person_id == person_obj.id)
                   .first()
             )
             if rec and rec.callsheet_seen_at is None:
@@ -1732,7 +1739,7 @@ def call_sheet(eid):
                 db.commit()
 
         # -------------------------------------------------------------
-        # Add unpublished banner for viewers/admins
+        # Unpublished banner
         # -------------------------------------------------------------
         show_unpublished_banner = not ev.call_sheet_published and (is_admin_user or is_viewer)
 
@@ -1744,10 +1751,8 @@ def call_sheet(eid):
             day_rows=day_rows,
             show_unpublished_banner=show_unpublished_banner
         )
-
     finally:
         db.close()
-
 
 @app.route('/events')
 @login_required
