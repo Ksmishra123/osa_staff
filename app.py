@@ -2123,32 +2123,29 @@ def admin_call_sheet_pdf(eid):
             story.append(Spacer(1, 10))
 
     # --- WATERMARK ---
-    def draw_watermark(canvas, doc):
-        canvas.saveState()
-        try:
-            logo_path = os.path.join(app.static_folder, "OSA_Logo_Silver_Gold.png")
-            watermark = ImageReader(logo_path)
-            page_width, page_height = letter
-            logo_width, logo_height = watermark.getSize()
+def draw_watermark(canvas, doc):
+    from reportlab.lib.colors import Color
+    from reportlab.pdfbase.pdfmetrics import stringWidth
 
-            scale = min(page_width * 0.7 / logo_width, page_height * 0.7 / logo_height)
-            new_width = logo_width * scale
-            new_height = logo_height * scale
-            x = (page_width - new_width) / 2
-            y = (page_height - new_height) / 2
+    canvas.saveState()
 
-            canvas.saveState()
-            canvas.setFillAlpha(0.08)
-            canvas.drawImage(
-                watermark, x, y,
-                width=new_width, height=new_height,
-                mask='auto', preserveAspectRatio=True
-            )
-            canvas.restoreState()
-        except Exception as e:
-            app.logger.error(f"Watermark error: {e}")
-        finally:
-            canvas.restoreState()
+    watermark_text = "DRAFT"
+    gold = Color(0.75, 0.65, 0.25, alpha=0.15)
+    canvas.setFont("Helvetica-Bold", 120)
+    text_width = stringWidth(watermark_text, "Helvetica-Bold", 120)
+
+    page_width, page_height = doc.pagesize
+    x = (page_width - text_width) / 2
+    y = page_height / 2
+
+    canvas.translate(x, y)
+    canvas.rotate(45)
+    canvas.setFillColor(gold)
+    canvas.drawString(0, 0, watermark_text)
+
+    canvas.restoreState()
+    # no return statement here ✅
+
 
     doc.build(story, onFirstPage=draw_watermark, onLaterPages=draw_watermark)
 
