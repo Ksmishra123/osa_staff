@@ -24,7 +24,11 @@
   .assign-table tbody tr:nth-child(even) {
     background-color: #f5f5f5;
   }
-
+{% if show_unpublished_banner %}
+<div style="background:#fff3cd; color:#856404; border:1px solid #ffeeba; padding:10px; margin-bottom:10px; border-radius:6px;">
+  ⚠️ This call sheet is a draft and has not yet been officially published.
+</div>
+{% endif %}
   @media print {
     .no-print { display: none; }
     .assign-table tbody tr:nth-child(even) {
