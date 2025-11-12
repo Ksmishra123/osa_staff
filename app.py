@@ -1970,30 +1970,24 @@ def admin_call_sheet_pdf(eid):
         abort(404)
 
     # -------------------------------------------------------------------
-    # Access Control (viewer/admin/assigned)
+    # Access control (identical to working HTML route)
     # -------------------------------------------------------------------
     person = getattr(current_user, "person", None)
-    is_viewer = (
-        getattr(current_user, "role", "") == "viewer"
-        or getattr(current_user, "is_viewer", False)
-        or getattr(person, "is_viewer", False)
-    )
-
+    is_viewer = bool(getattr(person, "is_viewer", False))
     assigned_count = db.query(Assignment).filter(
         Assignment.event_id == eid,
-        Assignment.person_id == int(getattr(current_user, "id", 0))
+        Assignment.person_id == int(current_user.id)
     ).count()
 
     allowed = is_admin() or assigned_count > 0 or is_viewer
     if not allowed:
         abort(403)
 
-    # if not published, only admin or viewer can see (assigned staff must wait)
     if not ev.call_sheet_published and not (is_admin() or is_viewer):
         abort(403)
 
     # -------------------------------------------------------------------
-    # Data loading
+    # Data
     # -------------------------------------------------------------------
     Pos = aliased(Position)
     rows = (
@@ -2043,21 +2037,26 @@ def admin_call_sheet_pdf(eid):
     story = []
 
     # -------------------------------------------------------------------
-    # Header
+    # Header (centered logo + centered date)
     # -------------------------------------------------------------------
     logo_path = os.path.join("static", "OSA_Logo_Silver_Gold.png")
     if os.path.exists(logo_path):
-        story.append(Image(logo_path, width=1.8 * inch, height=1.0 * inch))
-        story.append(Spacer(1, 6))
+        img = Image(logo_path, width=2.0 * inch, height=1.0 * inch)
+        img.hAlign = "CENTER"
+        story.append(img)
+        story.append(Spacer(1, 8))
 
-    story.append(Paragraph(f"<b>Call Sheet — {ev.city or ''}</b>", styles["Heading1Center"]))
+    story.append(Paragraph(f"<b>CALL SHEET — {ev.city or ''}</b>", styles["Heading1Center"]))
     if ev.date:
-        story.append(Paragraph(ev.date.strftime("%B %d, %Y - %I:%M %p"), styles["BodyText"]))
-    story.append(Spacer(1, 12))
+        story.append(Paragraph(ev.date.strftime("%B %d, %Y"), styles["Heading1Center"]))
+    story.append(Spacer(1, 18))
 
     # -------------------------------------------------------------------
-    # Event Info Table
+    # Event Information
     # -------------------------------------------------------------------
+    story.append(Paragraph("<b>Event Information</b>", styles["Heading2"]))
+    story.append(Spacer(1, 4))
+
     event_data = [
         ["City", ev.city or "—"],
         ["Main Start", ev.event_start.strftime("%B %d, %Y - %I:%M %p") if ev.event_start else "—"],
@@ -2072,9 +2071,9 @@ def admin_call_sheet_pdf(eid):
     if ev.dress_code:
         event_data.append(["Dress Code", ev.dress_code])
 
-    event_table = Table(event_data, colWidths=[1.6 * inch, 4.8 * inch], repeatRows=1)
+    event_table = Table(event_data, colWidths=[1.6 * inch, 5.4 * inch], hAlign="CENTER")
     event_table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f2f2f2")),
         ("BOX", (0, 0), (-1, -1), 0.5, colors.grey),
         ("INNERGRID", (0, 0), (-1, -1), 0.25, colors.grey),
         ("FONTSIZE", (0, 0), (-1, -1), 10),
@@ -2082,10 +2081,10 @@ def admin_call_sheet_pdf(eid):
         ("WORDWRAP", (0, 0), (-1, -1), True),
     ]))
     story.append(event_table)
-    story.append(Spacer(1, 16))
+    story.append(Spacer(1, 20))
 
     # -------------------------------------------------------------------
-    # Daily Schedule
+    # Daily Schedule (split across pages safely)
     # -------------------------------------------------------------------
     if days:
         story.append(Paragraph("<b>Daily Schedule</b>", styles["Heading2"]))
@@ -2101,11 +2100,14 @@ def admin_call_sheet_pdf(eid):
                 ),
                 d.notes or "",
             ])
-        sched_table = Table(sched_data, repeatRows=1,
-                            colWidths=[1.4 * inch, 1.4 * inch, 1.4 * inch, 1.4 * inch, 2.0 * inch],
-                            splitByRow=1)
+        sched_table = Table(
+            sched_data,
+            repeatRows=1,
+            colWidths=[1.4 * inch, 1.4 * inch, 1.4 * inch, 1.4 * inch, 2.0 * inch],
+            hAlign="CENTER"
+        )
         sched_table.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f2f2f2")),
             ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
             ("FONTSIZE", (0, 0), (-1, -1), 9),
             ("WORDWRAP", (0, 0), (-1, -1), True),
@@ -2135,11 +2137,15 @@ def admin_call_sheet_pdf(eid):
             a.person.email if a.person and a.person.email else "",
             "<br/>".join(lines),
         ])
-    assign_table = Table(assign_data, repeatRows=1,
-                         colWidths=[1.2 * inch, 1.5 * inch, 1.2 * inch, 1.6 * inch, 2.0 * inch],
-                         splitByRow=1)
+
+    assign_table = Table(
+        assign_data,
+        repeatRows=1,
+        colWidths=[1.3 * inch, 1.6 * inch, 1.2 * inch, 1.7 * inch, 2.0 * inch],
+        hAlign="CENTER"
+    )
     assign_table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f2f2f2")),
         ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
         ("FONTSIZE", (0, 0), (-1, -1), 9),
         ("WORDWRAP", (0, 0), (-1, -1), True),
@@ -2155,32 +2161,31 @@ def admin_call_sheet_pdf(eid):
     story.append(Paragraph(ev.notes or "—", styles["BodyText"]))
 
     # -------------------------------------------------------------------
-    # Watermark (On Stage logo + DRAFT if unpublished)
+    # Watermark (logo + DRAFT)
     # -------------------------------------------------------------------
     def draw_watermark(canvas, doc):
         width, height = letter
         logo_file = os.path.join("static", "OSA_Logo_Silver_Gold.png")
-
         if os.path.exists(logo_file):
             img = ImageReader(logo_file)
             canvas.saveState()
             canvas.translate(width / 2.0, height / 2.0)
             canvas.rotate(45)
-            canvas.setFillGray(0.98, 0.1)  # lighter, near-invisible watermark
+            canvas.setFillGray(0.99, 0.05)
             canvas.drawImage(img, -250, -250, 500, 500, mask='auto', preserveAspectRatio=True)
             canvas.restoreState()
 
         if not ev.call_sheet_published:
             canvas.saveState()
-            canvas.setFont("Helvetica-Bold", 70)
-            canvas.setFillGray(0.90, 0.2)
+            canvas.setFont("Helvetica-Bold", 72)
+            canvas.setFillGray(0.92, 0.1)
             canvas.translate(width / 2.0, height / 2.0)
             canvas.rotate(315)
             canvas.drawCentredString(0, 0, "DRAFT")
             canvas.restoreState()
 
     # -------------------------------------------------------------------
-    # Build PDF
+    # Build
     # -------------------------------------------------------------------
     doc.build(story, onFirstPage=draw_watermark, onLaterPages=draw_watermark)
     pdf_bytes = buffer.getvalue()
