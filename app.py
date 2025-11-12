@@ -2082,7 +2082,7 @@ def admin_call_sheet_pdf(eid):
     story.append(et)
     story.append(Spacer(1, 16))
 
-        # -------------------------------------------------------------------
+    # -------------------------------------------------------------------
     # Daily Schedule
     # -------------------------------------------------------------------
     if days:
@@ -2277,7 +2277,22 @@ def admin_call_sheet_pdf(eid):
             canvas.restoreState()
 
         canvas.restoreState()
+    from reportlab.pdfgen import canvas as canvas_module
 
+    def add_page_number(canvas, doc):
+        """
+        Draw page number in the footer area.
+        """
+        page_num = canvas.getPageNumber()
+        text = f"Page {page_num} of {doc.page}"
+        canvas.saveState()
+        canvas.setFont("Helvetica", 9)
+        canvas.setFillGray(0.4)
+        # Centered at bottom:
+        canvas.drawCentredString(letter[0] / 2.0, 0.5 * inch, text)
+        canvas.restoreState()
+
+    
     # -------------------------------------------------------------------
     # Build and return PDF
     # -------------------------------------------------------------------
