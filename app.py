@@ -1970,13 +1970,24 @@ def admin_call_sheet_pdf(eid):
         abort(404)
 
     # -------------------------------------------------------------------
-    # Access control (identical to working HTML route)
+    # Access control (robust viewer detection)
     # -------------------------------------------------------------------
     person = getattr(current_user, "person", None)
-    is_viewer = bool(getattr(person, "is_viewer", False))
+    role = getattr(current_user, "role", "")
+    is_viewer = (
+        str(role).lower() == "viewer"
+        or getattr(current_user, "is_viewer", False)
+        or getattr(person, "is_viewer", False)
+    )
+
+    # For debugging - this will print to Render logs
+    print(f"[DEBUG] PDF Access Check → role={role}, "
+          f"user.is_viewer={getattr(current_user, 'is_viewer', None)}, "
+          f"person.is_viewer={getattr(person, 'is_viewer', None)}")
+
     assigned_count = db.query(Assignment).filter(
         Assignment.event_id == eid,
-        Assignment.person_id == int(current_user.id)
+        Assignment.person_id == int(getattr(current_user, "id", 0))
     ).count()
 
     allowed = is_admin() or assigned_count > 0 or is_viewer
