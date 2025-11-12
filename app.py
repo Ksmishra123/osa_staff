@@ -2082,27 +2082,56 @@ def admin_call_sheet_pdf(eid):
     story.append(et)
     story.append(Spacer(1, 16))
 
-    # -------------------------------------------------------------------
+        # -------------------------------------------------------------------
     # Daily Schedule
     # -------------------------------------------------------------------
     if days:
         story.append(Paragraph("Daily Schedule", styles["SectionHeader"]))
-        sched_data = [["Day Start", "Setup", "Staff Arrival", "Judges Arrival", "Notes"]]
+
+        def P(txt):
+            return Paragraph(txt or "", ParagraphStyle(
+                name="SchedCell", fontSize=9, leading=11,
+                wordWrap="CJK",  # robust wrapping
+                splitLongWords=True,
+            ))
+
+        # Build rows as Paragraphs to ensure wrapping
+        sched_header = ["Day Start", "Setup", "Staff Arrival", "Judges Arrival", "Notes"]
+        sched_rows = [sched_header]
         for d in days:
-            sched_data.append([
-                d.start_dt.strftime("%b %d, %Y - %I:%M %p") if d.start_dt else "",
-                d.setup_dt.strftime("%I:%M %p") if d.setup_dt else "",
-                d.staff_arrival_dt.strftime("%I:%M %p") if d.staff_arrival_dt else "",
-                "Setup Only" if d.setup_only else (d.judges_arrival_dt.strftime("%I:%M %p") if d.judges_arrival_dt else ""),
-                d.notes or ""
-            ])
-        st = Table(sched_data, repeatRows=1,
-                   colWidths=[1.4*inch, 1.1*inch, 1.1*inch, 1.2*inch, 2.0*inch])
+            day_start = d.start_dt.strftime("%b %d, %Y - %I:%M %p") if d.start_dt else ""
+            setup     = d.setup_dt.strftime("%I:%M %p") if d.setup_dt else ""
+            staff     = d.staff_arrival_dt.strftime("%I:%M %p") if d.staff_arrival_dt else ""
+            judges    = "Setup Only" if getattr(d, "setup_only", False) else (
+                        d.judges_arrival_dt.strftime("%I:%M %p") if d.judges_arrival_dt else "")
+            notes     = d.notes or ""
+
+            sched_rows.append([P(day_start), P(setup), P(staff), P(judges), P(notes)])
+
+        # Make this table 90% of the content width
+        total = doc.width * 0.90
+        colWidths = [
+            total * 0.28,  # Day Start
+            total * 0.15,  # Setup
+            total * 0.17,  # Staff
+            total * 0.17,  # Judges
+            total * 0.23,  # Notes
+        ]
+
+        st = Table(sched_rows, repeatRows=1, colWidths=colWidths, hAlign="LEFT")
         st.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), colors.whitesmoke),
-            ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
-            ("FONTSIZE", (0, 0), (-1, -1), 9),
-            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            # Header
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#d9d9d9")),
+            ("FONTNAME",   (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("TEXTCOLOR",  (0, 0), (-1, 0), colors.black),
+
+            # Grid & sizing
+            ("GRID",       (0, 0), (-1, -1), 0.25, colors.grey),
+            ("VALIGN",     (0, 0), (-1, -1), "TOP"),
+            ("FONTSIZE",   (0, 0), (-1, -1), 9),
+
+            # Alternating row backgrounds (body only)
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.white]),
         ]))
         story.append(st)
         story.append(Spacer(1, 18))
@@ -2154,35 +2183,66 @@ def admin_call_sheet_pdf(eid):
     # -------------------------------------------------------------------
     if hotels:
         story.append(Paragraph("Hotel & Room Assignments", styles["SectionHeader"]))
+
+        def PH(txt, italic=False):
+            return Paragraph(
+                f"<i>{txt}</i>" if italic else (txt or ""),
+                ParagraphStyle(
+                    name="HotelCell", fontSize=9, leading=11,
+                    wordWrap="CJK", splitLongWords=True,
+                )
+            )
+
         for h in hotels:
             story.append(Paragraph(f"<b>{h.name}</b>", styles["BodyText"]))
             if h.address or h.phone:
-                story.append(Paragraph(f"{h.address or ''} — {h.phone or ''}", styles["BodyText"]))
+                story.append(Paragraph(f"{h.address or ''}{' — ' if h.address and h.phone else ''}{h.phone or ''}",
+                                       styles["BodyText"]))
             if h.notes:
                 story.append(Paragraph(f"<i>{h.notes}</i>", styles["BodyText"]))
+            story.append(Spacer(1, 6))
 
             if h.rooms:
-                room_data = [["Room", "Occupants", "Check-in", "Check-out", "Confirmation"]]
+                # Table 90% width, wrapped cells, alternating rows
+                total = doc.width * 0.90
+                colWidths = [
+                    total * 0.14,  # Room
+                    total * 0.36,  # Occupants
+                    total * 0.16,  # Check-in
+                    total * 0.16,  # Check-out
+                    total * 0.18,  # Confirmation
+                ]
+
+                room_rows = [["Room", "Occupants", "Check-in", "Check-out", "Confirmation"]]
                 for r in h.rooms:
-                    names = [rm.person.name for rm in r.occupants if rm.person]
-                    room_data.append([
-                        r.room_number or "-",
-                        ", ".join(names) or "—",
-                        r.check_in.strftime("%b %d") if r.check_in else "",
-                        r.check_out.strftime("%b %d") if r.check_out else "",
-                        r.confirmation or ""
+                    names = ", ".join([rm.person.name for rm in r.occupants if rm.person]) or "—"
+                    room_rows.append([
+                        PH(r.room_number or "-"),
+                        PH(names),
+                        PH(r.check_in.strftime("%b %d, %Y") if r.check_in else ""),
+                        PH(r.check_out.strftime("%b %d, %Y") if r.check_out else ""),
+                        PH(r.confirmation or ""),
                     ])
-                rt = Table(room_data, repeatRows=1,
-                           colWidths=[1*inch, 2.2*inch, 1.1*inch, 1.1*inch, 1.5*inch])
+
+                rt = Table(room_rows, repeatRows=1, colWidths=colWidths, hAlign="LEFT")
                 rt.setStyle(TableStyle([
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.whitesmoke),
-                    ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
-                    ("FONTSIZE", (0, 0), (-1, -1), 9),
+                    # Header
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#d9d9d9")),
+                    ("FONTNAME",   (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("TEXTCOLOR",  (0, 0), (-1, 0), colors.black),
+
+                    # Grid & sizing
+                    ("GRID",       (0, 0), (-1, -1), 0.25, colors.grey),
+                    ("VALIGN",     (0, 0), (-1, -1), "TOP"),
+                    ("FONTSIZE",   (0, 0), (-1, -1), 9),
+
+                    # Alternating row backgrounds (body only)
+                    ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.white]),
                 ]))
                 story.append(rt)
-                story.append(Spacer(1, 10))
-        story.append(Spacer(1, 18))
+                story.append(Spacer(1, 12))
 
+        story.append(Spacer(1, 18))
     # -------------------------------------------------------------------
     # Notes
     # -------------------------------------------------------------------
