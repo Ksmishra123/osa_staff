@@ -2102,7 +2102,7 @@ def admin_call_sheet_pdf(eid):
             day_start = d.start_dt.strftime("%b %d, %Y - %I:%M %p") if d.start_dt else ""
             setup     = d.setup_dt.strftime("%I:%M %p") if d.setup_dt else ""
             staff     = d.staff_arrival_dt.strftime("%I:%M %p") if d.staff_arrival_dt else ""
-            judges    = "Setup Only" if getattr(d, "setup_only", False) else (
+            judges    = "Setup Only - Judges Are Not Needed" if getattr(d, "setup_only", False) else (
                         d.judges_arrival_dt.strftime("%I:%M %p") if d.judges_arrival_dt else "")
             notes     = d.notes or ""
 
