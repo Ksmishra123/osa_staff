@@ -2230,7 +2230,7 @@ def draw_watermark(canvas, doc):
 
         canvas.saveState()
         canvas.translate(width / 2.0, height / 2.0)
-        canvas.rotate(45)
+        canvas.rotate(-45)
 
         # Apply soft transparency using a gray fill overlay
         canvas.setFillAlpha(0.08)  # super light overlay (~8% opacity)
