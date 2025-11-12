@@ -1970,7 +1970,7 @@ def admin_call_sheet_pdf(eid):
         abort(404)
 
     # -------------------------------------------------------------------
-    # Access control (robust viewer detection)
+    # Access control (robust viewer fallback + authenticated override)
     # -------------------------------------------------------------------
     person = getattr(current_user, "person", None)
     role = getattr(current_user, "role", "")
@@ -1978,12 +1978,17 @@ def admin_call_sheet_pdf(eid):
         str(role).lower() == "viewer"
         or getattr(current_user, "is_viewer", False)
         or getattr(person, "is_viewer", False)
+        or (not is_admin() and not role)
     )
 
-    # For debugging - this will print to Render logs
+    # If nothing above triggered and the user is logged in but not admin, treat as viewer
+    if not is_viewer and getattr(current_user, "is_authenticated", False) and not is_admin():
+        is_viewer = True
+
     print(f"[DEBUG] PDF Access Check → role={role}, "
           f"user.is_viewer={getattr(current_user, 'is_viewer', None)}, "
-          f"person.is_viewer={getattr(person, 'is_viewer', None)}")
+          f"person.is_viewer={getattr(person, 'is_viewer', None)}, "
+          f"is_viewer={is_viewer}")
 
     assigned_count = db.query(Assignment).filter(
         Assignment.event_id == eid,
@@ -1994,8 +1999,10 @@ def admin_call_sheet_pdf(eid):
     if not allowed:
         abort(403)
 
+    # Only admins or viewers can see unpublished sheets
     if not ev.call_sheet_published and not (is_admin() or is_viewer):
         abort(403)
+
 
     # -------------------------------------------------------------------
     # Data
