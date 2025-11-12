@@ -2085,6 +2085,10 @@ def admin_call_sheet_pdf(eid):
         ("BOX", (0, 0), (-1, -1), 0.5, colors.grey),
         ("INNERGRID", (0, 0), (-1, -1), 0.25, colors.grey),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("WORDWRAP", (0, 0), (-1, -1), True),
+        ("LEFTPADDING", (0, 0), (-1, -1), 4),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+
     ]))
     story.append(event_table)
     story.append(Spacer(1, 16))
@@ -2116,6 +2120,10 @@ def admin_call_sheet_pdf(eid):
             ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
             ("FONTSIZE", (0, 0), (-1, -1), 9),
             ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("WORDWRAP", (0, 0), (-1, -1), True),
+            ("LEFTPADDING", (0, 0), (-1, -1), 4),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+
         ]))
         story.append(sched_table)
         story.append(Spacer(1, 16))
@@ -2150,6 +2158,10 @@ def admin_call_sheet_pdf(eid):
         ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
         ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("WORDWRAP", (0, 0), (-1, -1), True),
+        ("LEFTPADDING", (0, 0), (-1, -1), 4),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+
     ]))
     story.append(assign_table)
     story.append(PageBreak())
@@ -2186,6 +2198,10 @@ def admin_call_sheet_pdf(eid):
                     ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
                     ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
                     ("FONTSIZE", (0, 0), (-1, -1), 9),
+                    ("WORDWRAP", (0, 0), (-1, -1), True),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 4),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+
                 ]))
                 story.append(rt)
                 story.append(Spacer(1, 12))
@@ -2200,27 +2216,37 @@ def admin_call_sheet_pdf(eid):
     # -------------------------------------------------------------------
     # Watermark handler (logo + DRAFT)
     # -------------------------------------------------------------------
-    def draw_watermark(canvas, doc):
-        # logo watermark
-        logo_file = os.path.join("static", "OSA_Logo_Silver_Gold.png")
-        if os.path.exists(logo_file):
-            canvas.saveState()
-            width, height = letter
-            canvas.translate(width / 2.0, height / 2.0)
-            canvas.rotate(45)
-            canvas.drawImage(logo_file, -250, -250, 500, 500,
-                             mask="auto", preserveAspectRatio=True)
-            canvas.restoreState()
+# -------------------------------------------------------------------
+# Watermark handler (soft logo + DRAFT)
+# -------------------------------------------------------------------
+def draw_watermark(canvas, doc):
+    width, height = letter
 
-        # DRAFT watermark for unpublished
-        if not ev.call_sheet_published:
-            canvas.saveState()
-            canvas.setFont("Helvetica-Bold", 72)
-            canvas.setFillGray(0.85, 0.5)
-            canvas.translate(letter[0] / 2, letter[1] / 2)
-            canvas.rotate(315)
-            canvas.drawCentredString(0, 0, "DRAFT")
-            canvas.restoreState()
+    # --- Soft transparent logo watermark ---
+    logo_file = os.path.join("static", "OSA_Logo_Silver_Gold.png")
+    if os.path.exists(logo_file):
+        from reportlab.lib.utils import ImageReader
+        img = ImageReader(logo_file)
+
+        canvas.saveState()
+        canvas.translate(width / 2.0, height / 2.0)
+        canvas.rotate(45)
+
+        # Apply soft transparency using a gray fill overlay
+        canvas.setFillAlpha(0.08)  # super light overlay (~8% opacity)
+        canvas.drawImage(img, -250, -250, 500, 500, mask='auto', preserveAspectRatio=True)
+        canvas.restoreState()
+
+    # --- Diagonal DRAFT watermark for unpublished ---
+    if not ev.call_sheet_published:
+        canvas.saveState()
+        canvas.setFont("Helvetica-Bold", 72)
+        canvas.setFillGray(0.75, 0.25)  # soft, semi-transparent gray
+        canvas.translate(width / 2.0, height / 2.0)
+        canvas.rotate(315)
+        canvas.drawCentredString(0, 0, "DRAFT")
+        canvas.restoreState()
+
 
     # -------------------------------------------------------------------
     # Build PDF
