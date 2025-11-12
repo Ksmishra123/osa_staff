@@ -2044,7 +2044,7 @@ def admin_call_sheet_pdf(eid):
     # -------------------------------------------------------------------
     logo_path = os.path.join("static", "OSA_Logo_Silver_Gold.png")
     if os.path.exists(logo_path):
-        img = Image(logo_path, width=2.0 * inch, height=1.1 * inch)
+        img = Image(logo_path, width=2.0 * inch, height=1.6 * inch)
         img.hAlign = "CENTER"
         story.append(img)
     story.append(Spacer(1, 4))
@@ -2108,14 +2108,14 @@ def admin_call_sheet_pdf(eid):
 
             sched_rows.append([P(day_start), P(setup), P(staff), P(judges), P(notes)])
 
-        # Make this table 90% of the content width
-        total = doc.width * 0.90
+        # Make this table 99% of the content width
+        total = doc.width * 0.99
         colWidths = [
-            total * 0.28,  # Day Start
+            total * 0.20,  # Day Start
             total * 0.15,  # Setup
-            total * 0.17,  # Staff
-            total * 0.17,  # Judges
-            total * 0.23,  # Notes
+            total * 0.15,  # Staff
+            total * 0.20,  # Judges
+            total * 0.29,  # Notes
         ]
 
         st = Table(sched_rows, repeatRows=1, colWidths=colWidths, hAlign="LEFT")
