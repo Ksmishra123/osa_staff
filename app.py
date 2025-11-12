@@ -1970,12 +1970,18 @@ def admin_call_sheet_pdf(eid):
         abort(404)
 
     # -------------------------------------------------------------------
-    # Access control (EXACT COPY of working HTML route)
+    # Access Control (viewer/admin/assigned)
     # -------------------------------------------------------------------
-    is_viewer = bool(getattr(current_user.person, "is_viewer", False))
+    person = getattr(current_user, "person", None)
+    is_viewer = (
+        getattr(current_user, "role", "") == "viewer"
+        or getattr(current_user, "is_viewer", False)
+        or getattr(person, "is_viewer", False)
+    )
+
     assigned_count = db.query(Assignment).filter(
         Assignment.event_id == eid,
-        Assignment.person_id == int(current_user.id)
+        Assignment.person_id == int(getattr(current_user, "id", 0))
     ).count()
 
     allowed = is_admin() or assigned_count > 0 or is_viewer
@@ -2066,7 +2072,7 @@ def admin_call_sheet_pdf(eid):
     if ev.dress_code:
         event_data.append(["Dress Code", ev.dress_code])
 
-    event_table = Table(event_data, colWidths=[1.6 * inch, 4.8 * inch])
+    event_table = Table(event_data, colWidths=[1.6 * inch, 4.8 * inch], repeatRows=1)
     event_table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
         ("BOX", (0, 0), (-1, -1), 0.5, colors.grey),
@@ -2079,7 +2085,77 @@ def admin_call_sheet_pdf(eid):
     story.append(Spacer(1, 16))
 
     # -------------------------------------------------------------------
-    # Watermark (OSA + DRAFT)
+    # Daily Schedule
+    # -------------------------------------------------------------------
+    if days:
+        story.append(Paragraph("<b>Daily Schedule</b>", styles["Heading2"]))
+        sched_data = [["Day Start", "Setup", "Staff Arrival", "Judges Arrival", "Notes"]]
+        for d in days:
+            setup_note = "Setup Only — No Judges Required" if d.setup_only else ""
+            sched_data.append([
+                d.start_dt.strftime("%B %d, %Y - %I:%M %p") if d.start_dt else "",
+                d.setup_dt.strftime("%B %d, %Y - %I:%M %p") if d.setup_dt else "",
+                d.staff_arrival_dt.strftime("%B %d, %Y - %I:%M %p") if d.staff_arrival_dt else "",
+                setup_note if d.setup_only else (
+                    d.judges_arrival_dt.strftime("%B %d, %Y - %I:%M %p") if d.judges_arrival_dt else ""
+                ),
+                d.notes or "",
+            ])
+        sched_table = Table(sched_data, repeatRows=1,
+                            colWidths=[1.4 * inch, 1.4 * inch, 1.4 * inch, 1.4 * inch, 2.0 * inch],
+                            splitByRow=1)
+        sched_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+            ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
+            ("FONTSIZE", (0, 0), (-1, -1), 9),
+            ("WORDWRAP", (0, 0), (-1, -1), True),
+        ]))
+        story.append(sched_table)
+        story.append(PageBreak())
+
+    # -------------------------------------------------------------------
+    # Staff Assignments
+    # -------------------------------------------------------------------
+    story.append(Paragraph("<b>Assignments</b>", styles["Heading2"]))
+    assign_data = [["Position", "Name", "Phone", "Email", "Transport / Notes"]]
+    for a in rows:
+        lines = []
+        if a.transport_mode:
+            lines.append(f"Mode: {a.transport_mode}")
+        if a.arrival_ts:
+            lines.append(f"Arrival: {a.arrival_ts.strftime('%B %d, %Y %I:%M %p')}")
+        if a.transport_booking:
+            lines.append(f"Booking: {a.transport_booking}")
+        if a.transport_notes:
+            lines.append(a.transport_notes)
+        assign_data.append([
+            a.position.name if a.position else "",
+            a.person.name if a.person else "",
+            a.person.phone if a.person and a.person.phone else "",
+            a.person.email if a.person and a.person.email else "",
+            "<br/>".join(lines),
+        ])
+    assign_table = Table(assign_data, repeatRows=1,
+                         colWidths=[1.2 * inch, 1.5 * inch, 1.2 * inch, 1.6 * inch, 2.0 * inch],
+                         splitByRow=1)
+    assign_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+        ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
+        ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("WORDWRAP", (0, 0), (-1, -1), True),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]))
+    story.append(assign_table)
+    story.append(PageBreak())
+
+    # -------------------------------------------------------------------
+    # Notes
+    # -------------------------------------------------------------------
+    story.append(Paragraph("<b>Notes</b>", styles["Heading2"]))
+    story.append(Paragraph(ev.notes or "—", styles["BodyText"]))
+
+    # -------------------------------------------------------------------
+    # Watermark (On Stage logo + DRAFT if unpublished)
     # -------------------------------------------------------------------
     def draw_watermark(canvas, doc):
         width, height = letter
@@ -2090,14 +2166,14 @@ def admin_call_sheet_pdf(eid):
             canvas.saveState()
             canvas.translate(width / 2.0, height / 2.0)
             canvas.rotate(45)
-            canvas.setFillGray(0.97)
+            canvas.setFillGray(0.98, 0.1)  # lighter, near-invisible watermark
             canvas.drawImage(img, -250, -250, 500, 500, mask='auto', preserveAspectRatio=True)
             canvas.restoreState()
 
         if not ev.call_sheet_published:
             canvas.saveState()
-            canvas.setFont("Helvetica-Bold", 72)
-            canvas.setFillGray(0.85, 0.3)
+            canvas.setFont("Helvetica-Bold", 70)
+            canvas.setFillGray(0.90, 0.2)
             canvas.translate(width / 2.0, height / 2.0)
             canvas.rotate(315)
             canvas.drawCentredString(0, 0, "DRAFT")
