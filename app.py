@@ -2134,7 +2134,7 @@ def admin_call_sheet_pdf(eid):
             ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.white]),
         ]))
         story.append(st)
-        story.append(Spacer(1, 18))
+        story.append(PageBreak())
 
     # -------------------------------------------------------------------
     # Assignments (wrapped)
