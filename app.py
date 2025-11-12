@@ -2114,19 +2114,34 @@ def admin_call_sheet_pdf(eid):
     assign_data = [["Position", "Name", "Phone", "Email", "Transport / Notes"]]
     for a in rows:
         lines = []
-        if a.transport_mode: lines.append(f"Mode: {a.transport_mode}")
-        if a.arrival_ts: lines.append(f"Arrival: {a.arrival_ts.strftime('%b %d %I:%M %p')}")
-        if a.transport_booking: lines.append(f"Booking: {a.transport_booking}")
-        if a.transport_notes: lines.append(a.transport_notes)
+        if a.transport_mode:
+            lines.append(f"Mode: {a.transport_mode}")
+        if a.arrival_ts:
+            lines.append(f"Arrival: {a.arrival_ts.strftime('%b %d %I:%M %p')}")
+        if a.transport_booking:
+            lines.append(f"Booking: {a.transport_booking}")
+        if a.transport_notes:
+            lines.append(a.transport_notes)
+
+        # Use Paragraph for proper wrapping
+        notes_paragraph = Paragraph("<br/>".join(lines), ParagraphStyle(
+            name="NotesCell",
+            fontSize=9,
+            leading=11,
+            wordWrap="CJK",  # handle long words gracefully
+        ))
+
         assign_data.append([
-            a.position.name if a.position else "",
-            a.person.name if a.person else "",
-            a.person.phone if a.person and a.person.phone else "",
-            a.person.email if a.person and a.person.email else "",
-            "<br/>".join(lines)
+            Paragraph(a.position.name or "", styles["BodyText"]),
+            Paragraph(a.person.name or "", styles["BodyText"]),
+            Paragraph(a.person.phone or "", styles["BodyText"]),
+            Paragraph(a.person.email or "", styles["BodyText"]),
+            notes_paragraph
         ])
+
     at = Table(assign_data, repeatRows=1,
-               colWidths=[1.2*inch, 1.5*inch, 1.2*inch, 1.6*inch, 2.0*inch])
+               colWidths=[1.1*inch, 1.5*inch, 1.2*inch, 1.5*inch, 2.2*inch])
+
     at.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.whitesmoke),
         ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
