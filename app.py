@@ -2040,7 +2040,7 @@ def admin_call_sheet_pdf(eid):
     story = []
 
     # -------------------------------------------------------------------
-    # Header
+    # Header (Logo + Event Title)
     # -------------------------------------------------------------------
     logo_path = os.path.join("static", "OSA_Logo_Silver_Gold.png")
     if os.path.exists(logo_path):
@@ -2051,10 +2051,10 @@ def admin_call_sheet_pdf(eid):
     story.append(Paragraph(f"<b>Call Sheet — {ev.city or ''}</b>", styles["CenterTitle"]))
     if ev.date:
         story.append(Paragraph(ev.date.strftime("%B %d, %Y - %I:%M %p"), styles["CenterSub"]))
-    story.append(Spacer(1, 12))
+    story.append(Spacer(1, 14))
 
     # -------------------------------------------------------------------
-    # Event Information (full width)
+    # Event Information
     # -------------------------------------------------------------------
     story.append(Paragraph("Event Information", styles["SectionHeader"]))
     event_data = [
@@ -2071,7 +2071,7 @@ def admin_call_sheet_pdf(eid):
     if ev.dress_code:
         event_data.append(["Dress Code", ev.dress_code])
 
-    et = Table(event_data, colWidths=[1.8*inch, 5.8*inch])
+    et = Table(event_data, colWidths=[1.8 * inch, 5.8 * inch])
     et.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.whitesmoke),
         ("BOX", (0, 0), (-1, -1), 0.5, colors.grey),
@@ -2079,8 +2079,8 @@ def admin_call_sheet_pdf(eid):
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
         ("FONTSIZE", (0, 0), (-1, -1), 10),
     ]))
-    story.append(KeepTogether([et]))
-    story.append(Spacer(1, 10))
+    story.append(et)
+    story.append(Spacer(1, 16))
 
     # -------------------------------------------------------------------
     # Daily Schedule
@@ -2104,11 +2104,11 @@ def admin_call_sheet_pdf(eid):
             ("FONTSIZE", (0, 0), (-1, -1), 9),
             ("VALIGN", (0, 0), (-1, -1), "TOP"),
         ]))
-        story.append(KeepTogether([st]))
-        story.append(Spacer(1, 10))
+        story.append(st)
+        story.append(Spacer(1, 18))
 
     # -------------------------------------------------------------------
-    # Assignments
+    # Assignments (wrapped)
     # -------------------------------------------------------------------
     story.append(Paragraph("Assignments", styles["SectionHeader"]))
     assign_data = [["Position", "Name", "Phone", "Email", "Transport / Notes"]]
@@ -2123,12 +2123,11 @@ def admin_call_sheet_pdf(eid):
         if a.transport_notes:
             lines.append(a.transport_notes)
 
-        # Use Paragraph for proper wrapping
         notes_paragraph = Paragraph("<br/>".join(lines), ParagraphStyle(
             name="NotesCell",
             fontSize=9,
             leading=11,
-            wordWrap="CJK",  # handle long words gracefully
+            wordWrap="CJK",
         ))
 
         assign_data.append([
@@ -2141,14 +2140,13 @@ def admin_call_sheet_pdf(eid):
 
     at = Table(assign_data, repeatRows=1,
                colWidths=[1.1*inch, 1.5*inch, 1.2*inch, 1.5*inch, 2.2*inch])
-
     at.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.whitesmoke),
         ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
         ("FONTSIZE", (0, 0), (-1, -1), 9),
     ]))
-    story.append(KeepTogether([at]))
+    story.append(at)
     story.append(PageBreak())
 
     # -------------------------------------------------------------------
@@ -2162,6 +2160,7 @@ def admin_call_sheet_pdf(eid):
                 story.append(Paragraph(f"{h.address or ''} — {h.phone or ''}", styles["BodyText"]))
             if h.notes:
                 story.append(Paragraph(f"<i>{h.notes}</i>", styles["BodyText"]))
+
             if h.rooms:
                 room_data = [["Room", "Occupants", "Check-in", "Check-out", "Confirmation"]]
                 for r in h.rooms:
@@ -2180,8 +2179,9 @@ def admin_call_sheet_pdf(eid):
                     ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
                     ("FONTSIZE", (0, 0), (-1, -1), 9),
                 ]))
-                story.append(KeepTogether([rt]))
+                story.append(rt)
                 story.append(Spacer(1, 10))
+        story.append(Spacer(1, 18))
 
     # -------------------------------------------------------------------
     # Notes
