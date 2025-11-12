@@ -2030,11 +2030,16 @@ def admin_call_sheet_pdf(eid):
                             topMargin=72, bottomMargin=36)
 
     styles = getSampleStyleSheet()
-    styles.add(ParagraphStyle(name="Heading1Center",
-                              parent=styles["Heading1"],
-                              alignment=1))
+    # Custom centered header, and tweak BodyText safely
+    if "Heading1Center" not in styles:
+        styles.add(ParagraphStyle(name="Heading1Center",
+                                  parent=styles["Heading1"],
+                                  alignment=1))
+
+    # Just modify existing BodyText
     styles["BodyText"].fontSize = 10
     styles["BodyText"].leading = 13
+
 
     story = []
 
