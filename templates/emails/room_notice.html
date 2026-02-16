@@ -1,5 +1,5 @@
 <p>Hi {{ person.name }},</p>
-<p>Your lodging for <strong>{{ ev.city }}</strong>{% if ev.date %} on {{ ev.date.strftime('%B %d, %Y') }}{% endif %}:</p>
+<p>Your lodging details for <strong>{{ ev.city }}</strong> are below. Please review your call sheet for full details</p>
 <p><strong>{{ hotel.name }}</strong><br>
 {{ hotel.address or '' }}{% if hotel.phone %}<br>Phone: {{ hotel.phone }}{% endif %}</p>
 <p>Room: <strong>{{ room.room_number or '-' }}</strong>
