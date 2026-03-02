@@ -2,6 +2,28 @@
 {% block content %}
 <h1>Assign Staff — {{ ev.city }} ({{ ev.date.strftime('%Y-%m-%d') if ev.date else '' }})</h1>
 
+<!-- NEW: Remove a staff member from this event (clears all their assignments for this event) -->
+<div class="card" style="padding:12px; margin:12px 0;">
+  <h3 style="margin:0 0 8px 0;">Remove staff member from this event</h3>
+  <form method="post" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+    <input type="hidden" name="action" value="remove_person">
+    <select name="person_id" required>
+      <option value="">— Select person —</option>
+      {% for person in people %}
+        <option value="{{ person.id }}">{{ person.name }}{% if person.email %} ({{ person.email }}){% endif %}</option>
+      {% endfor %}
+    </select>
+    <button type="submit"
+            class="btn btn-danger btn-sm"
+            onclick="return confirm('Remove this person from ALL positions for this event?');">
+      Remove from Event
+    </button>
+    <div style="color:#6b7280; font-size:0.9em;">
+      This will clear any assignments for this person in this event. It won’t affect other staff.
+    </div>
+  </form>
+</div>
+
 <form method="post" class="card">
   <table class="table">
     <thead>
@@ -47,12 +69,13 @@
       {% endfor %}
     </tbody>
   </table>
-<div style="margin:12px 0; display:flex; gap:8px; align-items:center;">
-  <label style="display:flex; gap:6px; align-items:center;">
-    <input type="checkbox" name="send_emails" value="yes">
-    <span>Send notification emails to affected staff</span>
-  </label>
-</div>
+
+  <div style="margin:12px 0; display:flex; gap:8px; align-items:center;">
+    <label style="display:flex; gap:6px; align-items:center;">
+      <input type="checkbox" name="send_emails" value="yes">
+      <span>Send notification emails to affected staff</span>
+    </label>
+  </div>
 
   <button type="submit">Save Assignments</button>
 </form>
