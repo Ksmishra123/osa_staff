@@ -62,7 +62,9 @@ def _get_client_and_sheet():
 def _ensure_headers(ws, headers):
     existing = ws.row_values(1)
     if existing != headers:
-        ws.resize(rows=max(200, ws.row_count), cols=len(headers))
+        if ws.col_count < len(headers):
+            ws.add_cols(len(headers) - ws.col_count)
+        ws.resize(rows=max(200, ws.row_count), cols=max(ws.col_count, len(headers)))
         ws.update('A1', [headers])
 
 def _format_date_range(ev, days):
