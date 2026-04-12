@@ -1260,6 +1260,115 @@ def admin_edit_person(pid):
 
     if request.method == 'POST':
         form = request.form
+        action = (form.get('action') or '').strip()
+
+        if action in {'add_assignment', 'update_assignment', 'remove_assignment'}:
+            changed_event_ids = set()
+
+            if action == 'add_assignment':
+                event_id_raw = (form.get('event_id') or '').strip()
+                position_id_raw = (form.get('position_id') or '').strip()
+                if not event_id_raw or not position_id_raw:
+                    flash("Select both a city/event and an available position.")
+                    return redirect(url_for('admin_edit_person', pid=p.id))
+
+                event_id = int(event_id_raw)
+                position_id = int(position_id_raw)
+                event = db.get(Event, event_id)
+                position = db.get(Position, position_id)
+                if not event or not position:
+                    flash("Invalid event or position.")
+                    return redirect(url_for('admin_edit_person', pid=p.id))
+
+                conflict = (
+                    db.query(Assignment)
+                      .filter(
+                          Assignment.event_id == event_id,
+                          Assignment.position_id == position_id,
+                          Assignment.person_id != p.id
+                      )
+                      .first()
+                )
+                if conflict:
+                    flash("That position is already assigned for this city/event.")
+                    return redirect(url_for('admin_edit_person', pid=p.id))
+
+                existing = (
+                    db.query(Assignment)
+                      .filter(
+                          Assignment.event_id == event_id,
+                          Assignment.position_id == position_id,
+                          Assignment.person_id == p.id
+                      )
+                      .first()
+                )
+                if existing:
+                    flash("This person already has that assignment.")
+                    return redirect(url_for('admin_edit_person', pid=p.id))
+
+                db.add(Assignment(event_id=event_id, position_id=position_id, person_id=p.id))
+                changed_event_ids.add(event_id)
+                db.commit()
+                for eid in changed_event_ids:
+                    _sync_event_assignments_to_sheet(db, eid)
+                flash("Assignment added.")
+                return redirect(url_for('admin_edit_person', pid=p.id))
+
+            assignment_id_raw = (form.get('assignment_id') or '').strip()
+            if not assignment_id_raw:
+                flash("Assignment not found.")
+                return redirect(url_for('admin_edit_person', pid=p.id))
+
+            assignment = db.get(Assignment, int(assignment_id_raw))
+            if not assignment or assignment.person_id != p.id:
+                flash("Assignment not found for this person.")
+                return redirect(url_for('admin_edit_person', pid=p.id))
+
+            if action == 'remove_assignment':
+                changed_event_ids.add(assignment.event_id)
+                db.delete(assignment)
+                db.commit()
+                for eid in changed_event_ids:
+                    _sync_event_assignments_to_sheet(db, eid)
+                flash("Assignment removed.")
+                return redirect(url_for('admin_edit_person', pid=p.id))
+
+            # update_assignment
+            new_position_id_raw = (form.get('position_id') or '').strip()
+            if not new_position_id_raw:
+                changed_event_ids.add(assignment.event_id)
+                db.delete(assignment)
+                db.commit()
+                for eid in changed_event_ids:
+                    _sync_event_assignments_to_sheet(db, eid)
+                flash("Assignment cleared.")
+                return redirect(url_for('admin_edit_person', pid=p.id))
+
+            new_position_id = int(new_position_id_raw)
+            if new_position_id == assignment.position_id:
+                flash("No assignment changes detected.")
+                return redirect(url_for('admin_edit_person', pid=p.id))
+
+            conflict = (
+                db.query(Assignment)
+                  .filter(
+                      Assignment.event_id == assignment.event_id,
+                      Assignment.position_id == new_position_id,
+                      Assignment.person_id != p.id
+                  )
+                  .first()
+            )
+            if conflict:
+                flash("That position is already assigned for this city/event.")
+                return redirect(url_for('admin_edit_person', pid=p.id))
+
+            assignment.position_id = new_position_id
+            changed_event_ids.add(assignment.event_id)
+            db.commit()
+            for eid in changed_event_ids:
+                _sync_event_assignments_to_sheet(db, eid)
+            flash("Assignment updated.")
+            return redirect(url_for('admin_edit_person', pid=p.id))
 
         # Basic fields
         new_name = (form.get('name') or '').strip()
@@ -1335,8 +1444,37 @@ def admin_edit_person(pid):
         flash("Person updated.")
         return redirect(url_for('admin_edit_person', pid=p.id))
 
+    person_assignments = (
+        db.query(Assignment)
+          .join(Event, Assignment.event_id == Event.id)
+          .join(Position, Assignment.position_id == Position.id)
+          .options(joinedload(Assignment.event), joinedload(Assignment.position))
+          .filter(Assignment.person_id == p.id)
+          .order_by(Event.date.is_(None), Event.date.desc(), Event.city.asc(), Position.display_order.asc())
+          .all()
+    )
+    positions = db.query(Position).order_by(Position.display_order.asc(), Position.name.asc()).all()
+    events = db.query(Event).order_by(Event.date.is_(None), Event.date.desc(), Event.city.asc()).all()
+
+    taken_by_others = {}
+    for row in db.query(Assignment).filter(Assignment.person_id != p.id).all():
+        taken_by_others.setdefault(row.event_id, set()).add(row.position_id)
+
+    available_positions_by_event = {}
+    for ev in events:
+        blocked = taken_by_others.get(ev.id, set())
+        available_positions_by_event[ev.id] = [pos for pos in positions if pos.id not in blocked]
+
     # GET
-    return render_template('edit_person.html', person=p)
+    return render_template(
+        'edit_person.html',
+        person=p,
+        person_assignments=person_assignments,
+        positions=positions,
+        events=events,
+        taken_by_others=taken_by_others,
+        available_positions_by_event=available_positions_by_event
+    )
 
 
 # ---------- deletion helpers & routes ----------

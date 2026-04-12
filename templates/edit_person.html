@@ -90,4 +90,98 @@
   </form>
 </form>
 
+<div class="card" style="max-width:900px; margin-top:16px;">
+  <h2 style="margin-top:0;">City Assignments</h2>
+  <p style="color:#6b7280; margin-top:4px;">
+    View every location this person is assigned to and update assignments based on open positions in each city/event.
+  </p>
+
+  {% if person_assignments %}
+  <table class="table">
+    <thead>
+      <tr>
+        <th>City</th>
+        <th>Date</th>
+        <th>Position</th>
+        <th style="width:280px;">Update</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for a in person_assignments %}
+      <tr>
+        <td>{{ a.event.city if a.event else '—' }}</td>
+        <td>{{ a.event.date.strftime('%Y-%m-%d %I:%M %p') if a.event and a.event.date else '—' }}</td>
+        <td>{{ a.position.name if a.position else '—' }}</td>
+        <td>
+          <form method="post" style="display:flex; gap:8px; align-items:center;">
+            <input type="hidden" name="action" value="update_assignment">
+            <input type="hidden" name="assignment_id" value="{{ a.id }}">
+            <select name="position_id">
+              <option value="">— Unassign —</option>
+              {% for pos in positions %}
+                {% set blocked = taken_by_others.get(a.event_id, []) %}
+                {% if pos.id == a.position_id or pos.id not in blocked %}
+                  <option value="{{ pos.id }}" {% if pos.id == a.position_id %}selected{% endif %}>{{ pos.name }}</option>
+                {% endif %}
+              {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-sm">Save</button>
+          </form>
+          <form method="post" style="margin-top:6px;">
+            <input type="hidden" name="action" value="remove_assignment">
+            <input type="hidden" name="assignment_id" value="{{ a.id }}">
+            <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    <p>This person has no city assignments yet.</p>
+  {% endif %}
+
+  <hr style="margin:16px 0;">
+  <h3 style="margin-top:0;">Add Assignment</h3>
+  <form method="post" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+    <input type="hidden" name="action" value="add_assignment">
+    <select name="event_id" id="event_id_select" required>
+      <option value="">Select city/event</option>
+      {% for ev in events %}
+        <option value="{{ ev.id }}">
+          {{ ev.city }}{% if ev.date %} — {{ ev.date.strftime('%Y-%m-%d %I:%M %p') }}{% endif %}
+        </option>
+      {% endfor %}
+    </select>
+    <select name="position_id" id="position_id_select" required>
+      <option value="">Select available position</option>
+      {% for ev in events %}
+        {% for pos in available_positions_by_event.get(ev.id, []) %}
+          <option value="{{ pos.id }}" data-event-id="{{ ev.id }}" style="display:none;">{{ pos.name }}</option>
+        {% endfor %}
+      {% endfor %}
+    </select>
+    <button type="submit" class="btn btn-primary btn-sm">Add Assignment</button>
+  </form>
+</div>
+
+<script>
+  (function() {
+    const eventSelect = document.getElementById('event_id_select');
+    const positionSelect = document.getElementById('position_id_select');
+    if (!eventSelect || !positionSelect) return;
+
+    const allOptions = Array.from(positionSelect.querySelectorAll('option[data-event-id]'));
+    function filterPositions() {
+      const eid = eventSelect.value;
+      positionSelect.value = '';
+      allOptions.forEach(opt => {
+        opt.style.display = (opt.dataset.eventId === eid) ? '' : 'none';
+      });
+    }
+    eventSelect.addEventListener('change', filterPositions);
+    filterPositions();
+  })();
+</script>
+
 {% endblock %}
