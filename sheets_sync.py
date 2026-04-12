@@ -115,11 +115,12 @@ def sync_assignments_sheet(db, only_event_id=None, rows_for_event=None, event=No
     for a in rows_for_event:
         if not a.person or not a.position:
             continue
-        header = _find_header_for_position(a.position.name)
-        if not header:
-            continue
+        mapped_header = _find_header_for_position(a.position.name)
+        header = mapped_header or "Extra Person"
         current = payload.get(header, "")
         add = (a.person.name or "").strip()
+        if add and header == "Extra Person" and not mapped_header:
+            add = f"{add} ({a.position.name})"
         if add:
             payload[header] = f"{current}, {add}".strip(", ")
 
