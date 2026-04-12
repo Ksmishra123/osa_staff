@@ -1418,7 +1418,7 @@ def admin_event_lodging(eid):
     # -----------------------------
     if request.method == 'POST' and request.form.get('action') == 'add_room':
         hotel_id = int(request.form.get('hotel_id') or 0)
-        room_number = (request.form.get('room_number') or '').strip()
+        room_numbers_raw = (request.form.get('room_numbers') or request.form.get('room_number') or '').strip()
         check_in = (request.form.get('check_in') or '').strip()
         check_out = (request.form.get('check_out') or '').strip()
         confirmation = (request.form.get('confirmation') or '').strip()
@@ -1426,11 +1426,22 @@ def admin_event_lodging(eid):
         co = datetime.strptime(check_out, "%Y-%m-%d").date() if check_out else None
         if not hotel_id:
             flash("Choose a hotel.")
+        elif not room_numbers_raw:
+            flash("Enter at least one room number.")
         else:
-            r = Room(hotel_id=hotel_id, room_number=room_number, check_in=ci, check_out=co, confirmation=confirmation)
-            db.add(r)
+            room_numbers = [rn.strip() for rn in re.split(r"[\n,]+", room_numbers_raw) if rn.strip()]
+            for room_number in room_numbers:
+                db.add(
+                    Room(
+                        hotel_id=hotel_id,
+                        room_number=room_number,
+                        check_in=ci,
+                        check_out=co,
+                        confirmation=confirmation
+                    )
+                )
             db.commit()
-            flash("Room added.")
+            flash(f"{len(room_numbers)} room(s) added.")
         return redirect(url_for('admin_event_lodging', eid=eid))
 
     # -----------------------------
