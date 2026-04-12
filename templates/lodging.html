@@ -54,14 +54,22 @@
     <h4 style="margin-top:10px;">Rooms</h4>
     {% if h.rooms and h.rooms|length %}
       <table class="table table-sm">
-        <thead><tr><th>Room</th><th>Check-in</th><th>Check-out</th><th>Conf #</th><th>Occupants</th></tr></thead>
+        <thead><tr><th>Room</th><th>Check-in</th><th>Check-out</th><th>Conf #</th><th>Occupants</th><th>Actions</th></tr></thead>
         <tbody>
           {% for r in h.rooms %}
             <tr>
-                <td>{{ r.room_number or '-' }}</td>
-                <td>{{ r.check_in or '' }}</td>
-                <td>{{ r.check_out or '' }}</td>
-                <td>{{ r.confirmation or '' }}</td>
+                <td>
+                  <input form="room-edit-{{ r.id }}" name="room_number" value="{{ r.room_number or '' }}" placeholder="Room #">
+                </td>
+                <td>
+                  <input form="room-edit-{{ r.id }}" type="date" name="check_in" value="{{ r.check_in.isoformat() if r.check_in else '' }}">
+                </td>
+                <td>
+                  <input form="room-edit-{{ r.id }}" type="date" name="check_out" value="{{ r.check_out.isoformat() if r.check_out else '' }}">
+                </td>
+                <td>
+                  <input form="room-edit-{{ r.id }}" name="confirmation" value="{{ r.confirmation or '' }}" placeholder="Conf #">
+                </td>
                 <td>
                   {% set names = [] %}
                   {% if r.occupants %}
@@ -74,6 +82,11 @@
                   {{ names|join(', ') if names else '—' }}
                 </td>
                 <td style="text-align:right;">
+                  <form id="room-edit-{{ r.id }}" method="post" style="display:inline;">
+                    <input type="hidden" name="action" value="update_room">
+                    <input type="hidden" name="room_id" value="{{ r.id }}">
+                    <button class="btn btn-sm btn-outline-primary">Save</button>
+                  </form>
                   <form method="post" 
                       action="{{ url_for('admin_delete_room', rid=r.id) }}" 
                       onsubmit="return confirm('Delete room {{ r.room_number or r.id }} and its occupants?');"
