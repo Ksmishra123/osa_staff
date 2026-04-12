@@ -119,7 +119,7 @@
             <select name="position_id">
               <option value="">— Unassign —</option>
               {% for pos in positions %}
-                {% set blocked = taken_by_others.get(a.event_id, set()) %}
+                {% set blocked = taken_by_others.get(a.event_id, []) %}
                 {% if pos.id == a.position_id or pos.id not in blocked %}
                   <option value="{{ pos.id }}" {% if pos.id == a.position_id %}selected{% endif %}>{{ pos.name }}</option>
                 {% endif %}

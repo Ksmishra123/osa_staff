@@ -1450,11 +1450,11 @@ def admin_edit_person(pid):
           .join(Position, Assignment.position_id == Position.id)
           .options(joinedload(Assignment.event), joinedload(Assignment.position))
           .filter(Assignment.person_id == p.id)
-          .order_by(Event.date.desc().nullslast(), Event.city.asc(), Position.display_order.asc())
+          .order_by(Event.date.is_(None), Event.date.desc(), Event.city.asc(), Position.display_order.asc())
           .all()
     )
     positions = db.query(Position).order_by(Position.display_order.asc(), Position.name.asc()).all()
-    events = db.query(Event).order_by(Event.date.desc().nullslast(), Event.city.asc()).all()
+    events = db.query(Event).order_by(Event.date.is_(None), Event.date.desc(), Event.city.asc()).all()
 
     taken_by_others = {}
     for row in db.query(Assignment).filter(Assignment.person_id != p.id).all():
