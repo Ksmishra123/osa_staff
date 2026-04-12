@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 HEADERS = [
     "Locations", "Dates", "OSA Rep", "Announcer", "Extra Person",
     "Backstage Manager", "Trophies", "Judge 1", "Judge 2", "Judge 3",
-    "Sales", "Photo", "Video", "Hotel"
+    "Sales", "Photo", "Video", "Hotel", "Event ID"
 ]
 
 POSITION_TO_HEADER = {
@@ -119,6 +119,9 @@ def sync_assignments_sheet(db, only_event_id=None, rows_for_event=None, event=No
     # build existing key map
     existing_keys = {}
     for idx, row in enumerate(data, start=2):
+        row_event_id = row[col_idx["Event ID"]] if len(row) > col_idx["Event ID"] else ""
+        if row_event_id:
+            existing_keys[f"id:{row_event_id.strip()}"] = idx
         loc = row[col_idx["Locations"]] if len(row) > col_idx["Locations"] else ""
         dat = row[col_idx["Dates"]] if len(row) > col_idx["Dates"] else ""
         existing_keys[_normalize_key(loc + dat)] = idx
@@ -130,6 +133,7 @@ def sync_assignments_sheet(db, only_event_id=None, rows_for_event=None, event=No
     payload["Locations"] = event.city or ""
     payload["Dates"] = date_label
     payload["Hotel"] = event.hotel or ""
+    payload["Event ID"] = str(event.id)
 
     for a in rows_for_event:
         if not a.person or not a.position:
@@ -143,7 +147,7 @@ def sync_assignments_sheet(db, only_event_id=None, rows_for_event=None, event=No
 
     # decide insert/update
     key = _normalize_key(payload["Locations"] + payload["Dates"])
-    row_idx = existing_keys.get(key)
+    row_idx = existing_keys.get(f"id:{event.id}") or existing_keys.get(key)
     ordered = [payload.get(h, "") for h in effective_headers]
 
     if row_idx:
