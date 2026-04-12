@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 # Column headers you want in the sheet (left to right)
 HEADERS = [
     "Locations", "Dates", "OSA Rep", "Announcer", "Extra Person",
-    "Backstage Manager", "Trophies", "Judge 1", "Judge 2", "Judge 3",
+    "Backstage Manager", "Tabulator", "Trophies", "Judge 1", "Judge 2", "Judge 3",
     "Sales", "Photo", "Video", "Hotel", "Event ID"
 ]
 
@@ -22,6 +22,7 @@ POSITION_TO_HEADER = {
     "extra": "Extra Person",
     "gopher": "Extra Person",
     "backstage": "Backstage Manager",
+    "tabulator": "Tabulator",
     "troph": "Trophies",
     "judge 1": "Judge 1",
     "judge 2": "Judge 2",
@@ -44,11 +45,14 @@ def _find_header_for_position(pos_name: str) -> str | None:
     return None
 
 def _get_client_and_sheet():
-    sid = os.getenv("GOOGLE_SHEETS_SPREADSHEET_ID")
+    sid = os.getenv("GOOGLE_SHEETS_SPREADSHEET_ID") or os.getenv("ASSIGN_SHEET_ID")
     tab = os.getenv("GOOGLE_SHEETS_TAB_NAME", "Assignments")
-    creds_json = os.getenv("GOOGLE_SHEETS_CREDS_JSON")
+    creds_json = os.getenv("GOOGLE_SHEETS_CREDS_JSON") or os.getenv("GOOGLE_SA_JSON")
     if not sid or not creds_json:
-        raise RuntimeError("Missing GOOGLE_SHEETS_SPREADSHEET_ID or GOOGLE_SHEETS_CREDS_JSON")
+        raise RuntimeError(
+            "Missing sheet config. Set GOOGLE_SHEETS_SPREADSHEET_ID/GOOGLE_SHEETS_CREDS_JSON "
+            "or legacy ASSIGN_SHEET_ID/GOOGLE_SA_JSON."
+        )
     info = json.loads(creds_json)
     creds = Credentials.from_service_account_info(info, scopes=["https://www.googleapis.com/auth/spreadsheets"])
     gc = gspread.authorize(creds)
@@ -78,7 +82,7 @@ def _format_date_range(ev, days):
     return dt.strftime("%b %-d, %Y") if dt else ""
 
 def sync_assignments_sheet(db, only_event_id=None, rows_for_event=None, event=None) -> int:
-    from models import Assignment, EventDay
+    from models import Assignment, EventDay, Position
     from sqlalchemy.orm import joinedload
     ws = _get_client_and_sheet()
 
@@ -100,13 +104,14 @@ def sync_assignments_sheet(db, only_event_id=None, rows_for_event=None, event=No
     existing_header_row = all_vals[0] if all_vals else []
     dynamic_headers = [h for h in existing_header_row if h and h not in HEADERS]
     seen = set(HEADERS + dynamic_headers)
-    for a in rows_for_event:
-        if not a.position:
-            continue
-        mapped = _find_header_for_position(a.position.name)
+    # Include all configured unmapped positions so new columns appear
+    # even before an assignment exists in the current event.
+    all_positions = db.query(Position).order_by(Position.display_order.asc()).all()
+    for p in all_positions:
+        mapped = _find_header_for_position(p.name)
         if mapped:
             continue
-        pos_header = (a.position.name or "").strip()
+        pos_header = (p.name or "").strip()
         if pos_header and pos_header not in seen:
             dynamic_headers.append(pos_header)
             seen.add(pos_header)
