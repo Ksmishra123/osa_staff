@@ -1418,7 +1418,7 @@ def admin_event_lodging(eid):
     # -----------------------------
     if request.method == 'POST' and request.form.get('action') == 'add_room':
         hotel_id = int(request.form.get('hotel_id') or 0)
-        room_number = (request.form.get('room_number') or '').strip()
+        room_numbers_raw = (request.form.get('room_numbers') or request.form.get('room_number') or '').strip()
         check_in = (request.form.get('check_in') or '').strip()
         check_out = (request.form.get('check_out') or '').strip()
         confirmation = (request.form.get('confirmation') or '').strip()
@@ -1426,11 +1426,50 @@ def admin_event_lodging(eid):
         co = datetime.strptime(check_out, "%Y-%m-%d").date() if check_out else None
         if not hotel_id:
             flash("Choose a hotel.")
+        elif not room_numbers_raw:
+            flash("Enter at least one room number.")
         else:
-            r = Room(hotel_id=hotel_id, room_number=room_number, check_in=ci, check_out=co, confirmation=confirmation)
-            db.add(r)
+            room_numbers = [rn.strip() for rn in re.split(r"[\n,]+", room_numbers_raw) if rn.strip()]
+            for room_number in room_numbers:
+                db.add(
+                    Room(
+                        hotel_id=hotel_id,
+                        room_number=room_number,
+                        check_in=ci,
+                        check_out=co,
+                        confirmation=confirmation
+                    )
+                )
             db.commit()
-            flash("Room added.")
+            flash(f"{len(room_numbers)} room(s) added.")
+        return redirect(url_for('admin_event_lodging', eid=eid))
+
+    # -----------------------------
+    # POST: update room details
+    # -----------------------------
+    if request.method == 'POST' and request.form.get('action') == 'update_room':
+        room_id = int(request.form.get('room_id') or 0)
+        room = db.get(Room, room_id) if room_id else None
+        if not room or not room.hotel or room.hotel.event_id != eid:
+            flash("Room not found for this event.")
+            return redirect(url_for('admin_event_lodging', eid=eid))
+
+        room_number = (request.form.get('room_number') or '').strip()
+        check_in = (request.form.get('check_in') or '').strip()
+        check_out = (request.form.get('check_out') or '').strip()
+        confirmation = (request.form.get('confirmation') or '').strip()
+
+        try:
+            room.check_in = datetime.strptime(check_in, "%Y-%m-%d").date() if check_in else None
+            room.check_out = datetime.strptime(check_out, "%Y-%m-%d").date() if check_out else None
+        except ValueError:
+            flash("Invalid date format for room update.")
+            return redirect(url_for('admin_event_lodging', eid=eid))
+
+        room.room_number = room_number or None
+        room.confirmation = confirmation or None
+        db.commit()
+        flash(f"Room {room.room_number or room.id} updated.")
         return redirect(url_for('admin_event_lodging', eid=eid))
 
     # -----------------------------
