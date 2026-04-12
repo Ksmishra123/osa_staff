@@ -340,6 +340,25 @@ def init():
     init_db()
     return "DB initialized. Run: python seed.py", 200
 
+
+def _sync_event_assignments_to_sheet(db, eid: int, ev: Event | None = None) -> None:
+    """Best-effort sync of one event row in the Assignments Google Sheet."""
+    try:
+        from sheets_sync import sync_assignments_sheet
+        if ev is None:
+            ev = db.get(Event, eid)
+        if not ev:
+            return
+        rows_for_event = (
+            db.query(Assignment)
+              .filter(Assignment.event_id == eid)
+              .options(joinedload(Assignment.person), joinedload(Assignment.position))
+              .all()
+        )
+        sync_assignments_sheet(db, only_event_id=eid, rows_for_event=rows_for_event, event=ev)
+    except Exception:
+        app.logger.exception("Sheets sync failed for event %s", eid)
+
 # -----------------------------------------------------------------------------
 # Auth routes
 # -----------------------------------------------------------------------------
@@ -422,6 +441,7 @@ def admin_event_days(eid):
                 )
                 db.add(d)
                 db.commit()
+                _sync_event_assignments_to_sheet(db, eid, ev)
                 flash("Day added.")
 
         # --- Edit existing day ---
@@ -437,6 +457,7 @@ def admin_event_days(eid):
                 d.notes = (request.form.get('notes') or '').strip()
                 d.setup_only = bool(request.form.get('setup_only'))
                 db.commit()
+                _sync_event_assignments_to_sheet(db, eid, ev)
                 flash("Day updated.")
             else:
                 flash("Invalid day selected for edit.")
@@ -450,6 +471,7 @@ def admin_event_days(eid):
                     EventDay.event_id == eid
                 ).delete()
                 db.commit()
+                _sync_event_assignments_to_sheet(db, eid, ev)
                 flash("Day removed.")
 
         return redirect(url_for('admin_event_days', eid=eid))
@@ -830,6 +852,7 @@ def admin_edit_event(eid):
         for day in ev.days:
             day.setup_only = (f"setup_only_{day.id}" in request.form)
         db.commit()
+        _sync_event_assignments_to_sheet(db, eid, ev)
 
         flash('Event updated.')
         return redirect(url_for('admin_events'))
@@ -967,17 +990,7 @@ def admin_assign(eid):
                 flash("Assignments saved. No changes detected; no emails queued.")
 
         # Google Sheet sync
-        try:
-            from sheets_sync import sync_assignments_sheet
-            rows_for_event = (
-                db.query(Assignment)
-                  .filter(Assignment.event_id == eid)
-                  .options(joinedload(Assignment.person), joinedload(Assignment.position))
-                  .all()
-            )
-            sync_assignments_sheet(db, only_event_id=eid, rows_for_event=rows_for_event, event=ev)
-        except Exception:
-            app.logger.exception("Sheets sync failed for event %s", eid)
+        _sync_event_assignments_to_sheet(db, eid, ev)
 
         return redirect(url_for('admin_events'))
 

@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 HEADERS = [
     "Locations", "Dates", "OSA Rep", "Announcer", "Extra Person",
     "Backstage Manager", "Trophies", "Judge 1", "Judge 2", "Judge 3",
-    "Sales", "Photo", "Video", "Hotel"
+    "Sales", "Photo", "Video", "Hotel", "Event ID"
 ]
 
 POSITION_TO_HEADER = {
@@ -59,11 +59,13 @@ def _get_client_and_sheet():
         ws = sh.add_worksheet(title=tab, rows=200, cols=len(HEADERS))
     return ws
 
-def _ensure_headers(ws):
+def _ensure_headers(ws, headers):
     existing = ws.row_values(1)
-    if existing != HEADERS:
-        ws.resize(rows=max(200, ws.row_count), cols=len(HEADERS))
-        ws.update('A1', [HEADERS])
+    if existing != headers:
+        if ws.col_count < len(headers):
+            ws.add_cols(len(headers) - ws.col_count)
+        ws.resize(rows=max(200, ws.row_count), cols=max(ws.col_count, len(headers)))
+        ws.update('A1', [headers])
 
 def _format_date_range(ev, days):
     if days:
@@ -79,20 +81,6 @@ def sync_assignments_sheet(db, only_event_id=None, rows_for_event=None, event=No
     from models import Assignment, EventDay
     from sqlalchemy.orm import joinedload
     ws = _get_client_and_sheet()
-    _ensure_headers(ws)
-
-    # --- get current sheet values ---
-    all_vals = ws.get_all_values()
-    header = all_vals[0] if all_vals else []
-    data = all_vals[1:] if len(all_vals) > 1 else []
-    col_idx = {h: i for i, h in enumerate(HEADERS)}
-
-    # build existing key map
-    existing_keys = {}
-    for idx, row in enumerate(data, start=2):
-        loc = row[col_idx["Locations"]] if len(row) > col_idx["Locations"] else ""
-        dat = row[col_idx["Dates"]] if len(row) > col_idx["Dates"] else ""
-        existing_keys[_normalize_key(loc + dat)] = idx
 
     # get event + days if not passed
     if not (event and rows_for_event):
@@ -103,21 +91,57 @@ def sync_assignments_sheet(db, only_event_id=None, rows_for_event=None, event=No
               .options(joinedload(Assignment.person), joinedload(Assignment.position))
               .all()
         )
+    if not event:
+        return 0
+
+    # Start from base headers, keep any previously-created dynamic headers,
+    # then add new headers from unmapped positions in this event.
+    all_vals = ws.get_all_values()
+    existing_header_row = all_vals[0] if all_vals else []
+    dynamic_headers = [h for h in existing_header_row if h and h not in HEADERS]
+    seen = set(HEADERS + dynamic_headers)
+    for a in rows_for_event:
+        if not a.position:
+            continue
+        mapped = _find_header_for_position(a.position.name)
+        if mapped:
+            continue
+        pos_header = (a.position.name or "").strip()
+        if pos_header and pos_header not in seen:
+            dynamic_headers.append(pos_header)
+            seen.add(pos_header)
+    effective_headers = HEADERS + dynamic_headers
+    _ensure_headers(ws, effective_headers)
+
+    # --- get current sheet values ---
+    all_vals = ws.get_all_values()
+    data = all_vals[1:] if len(all_vals) > 1 else []
+    col_idx = {h: i for i, h in enumerate(effective_headers)}
+
+    # build existing key map
+    existing_keys = {}
+    for idx, row in enumerate(data, start=2):
+        row_event_id = row[col_idx["Event ID"]] if len(row) > col_idx["Event ID"] else ""
+        if row_event_id:
+            existing_keys[f"id:{row_event_id.strip()}"] = idx
+        loc = row[col_idx["Locations"]] if len(row) > col_idx["Locations"] else ""
+        dat = row[col_idx["Dates"]] if len(row) > col_idx["Dates"] else ""
+        existing_keys[_normalize_key(loc + dat)] = idx
     days = db.query(EventDay).filter(EventDay.event_id == event.id).all()
     date_label = _format_date_range(event, days)
 
     # build row payload
-    payload = {h: "" for h in HEADERS}
+    payload = {h: "" for h in effective_headers}
     payload["Locations"] = event.city or ""
     payload["Dates"] = date_label
     payload["Hotel"] = event.hotel or ""
+    payload["Event ID"] = str(event.id)
 
     for a in rows_for_event:
         if not a.person or not a.position:
             continue
-        header = _find_header_for_position(a.position.name)
-        if not header:
-            continue
+        mapped_header = _find_header_for_position(a.position.name)
+        header = mapped_header or (a.position.name or "").strip() or "Extra Person"
         current = payload.get(header, "")
         add = (a.person.name or "").strip()
         if add:
@@ -125,8 +149,8 @@ def sync_assignments_sheet(db, only_event_id=None, rows_for_event=None, event=No
 
     # decide insert/update
     key = _normalize_key(payload["Locations"] + payload["Dates"])
-    row_idx = existing_keys.get(key)
-    ordered = [payload.get(h, "") for h in HEADERS]
+    row_idx = existing_keys.get(f"id:{event.id}") or existing_keys.get(key)
+    ordered = [payload.get(h, "") for h in effective_headers]
 
     if row_idx:
         ws.update(f"A{row_idx}", [ordered])
@@ -164,7 +188,7 @@ def sync_assignments_sheet(db, only_event_id=None, rows_for_event=None, event=No
                 except Exception:
                     return datetime.max
 
-            col_idx = {h: i for i, h in enumerate(HEADERS)}
+            col_idx = {h: i for i, h in enumerate(effective_headers)}
             rows.sort(key=lambda r: _parse_date_label(r[col_idx["Dates"]]))
             ws.update('A2', rows)
             logger.info("SHEETS: re-sorted by date successfully")
