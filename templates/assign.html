@@ -2,9 +2,9 @@
 {% block content %}
 <h1>Assign Staff — {{ ev.city }} ({{ ev.date.strftime('%Y-%m-%d') if ev.date else '' }})</h1>
 
-<!-- NEW: Remove a staff member from this event (clears all their assignments for this event) -->
+<!-- Unassign one staff member from this event (clears only their assignments for this event) -->
 <div class="card" style="padding:12px; margin:12px 0;">
-  <h3 style="margin:0 0 8px 0;">Remove staff member from this event</h3>
+  <h3 style="margin:0 0 8px 0;">Unassign staff member from this event</h3>
   <form method="post" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
     <input type="hidden" name="action" value="remove_person">
     <select name="person_id" required>
@@ -15,8 +15,8 @@
     </select>
     <button type="submit"
             class="btn btn-danger btn-sm"
-            onclick="return confirm('Remove this person from ALL positions for this event?');">
-      Remove from Event
+            onclick="return confirm('Unassign this person from all positions for this event?');">
+      Unassign from Event
     </button>
     <div style="color:#6b7280; font-size:0.9em;">
       This will clear any assignments for this person in this event. It won’t affect other staff.

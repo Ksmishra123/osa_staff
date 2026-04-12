@@ -912,13 +912,42 @@ def admin_assign(eid):
     }
 
     if request.method == 'POST':
+        action = request.form.get('action')
+
+        # Remove only the selected person's assignments for this event.
+        # This is intentionally separate from the bulk assignment form.
+        if action == 'remove_person':
+            person_id_raw = request.form.get('person_id')
+            if not person_id_raw:
+                flash("Please select a staff member to unassign.")
+                return redirect(url_for('admin_assign', eid=eid))
+
+            person_id = int(person_id_raw)
+            removed_count = (
+                db.query(Assignment)
+                  .filter(Assignment.event_id == eid, Assignment.person_id == person_id)
+                  .delete(synchronize_session=False)
+            )
+            db.commit()
+            _sync_event_assignments_to_sheet(db, eid, ev)
+
+            if removed_count:
+                flash("Staff member unassigned from this event.")
+            else:
+                flash("No assignments found for that staff member in this event.")
+            return redirect(url_for('admin_assign', eid=eid))
+
         send_emails = (request.form.get('send_emails') == 'yes')
         changed_people = []
 
         for pos in positions:
             pid_raw = request.form.get(f'pos_{pos.id}')
+            current = existing.get(pos.id)
+
             if not pid_raw:
-                # if nothing selected, skip
+                # Explicitly clear assignment when set to Unassigned.
+                if current:
+                    db.delete(current)
                 continue
 
             pid = int(pid_raw)
@@ -926,8 +955,6 @@ def admin_assign(eid):
             booking = request.form.get(f'pos_{pos.id}_booking') or None
             arrival = parse_dt(request.form.get(f'pos_{pos.id}_arrival') or "")
             notes = request.form.get(f'pos_{pos.id}_notes') or None
-
-            current = existing.get(pos.id)
 
             if current:
                 # update only if something changed
@@ -958,12 +985,6 @@ def admin_assign(eid):
                 )
                 db.add(new_a)
                 changed_people.append((pid, pos.name))
-
-        # Check if any assignments were removed (someone unassigned)
-        form_pos_ids = {int(k.split('_')[1]) for k in request.form.keys() if k.startswith('pos_') and not k.endswith(('_mode', '_booking', '_arrival', '_notes'))}
-        removed = [pid for pid in existing.keys() if pid not in form_pos_ids]
-        if removed:
-            db.query(Assignment).filter(Assignment.event_id == eid, Assignment.position_id.in_(removed)).delete(synchronize_session=False)
 
         db.commit()
 
