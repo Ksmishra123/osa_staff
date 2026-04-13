@@ -115,9 +115,13 @@ class EventDay(Base):
     day_date = Column(Date)                 # optional (useful for sorting/label)
     start_dt = Column(DateTime, nullable=False)
     setup_dt = Column(DateTime)             # optional; if not set, show '—' or same-day earlier
+    setup_end_dt = Column(DateTime)         # optional setup end (for first day setup window)
     staff_arrival_dt = Column(DateTime)     # optional; default = start_dt - 60 mins
     judges_arrival_dt = Column(DateTime)    # optional; default = start_dt - 30 mins
     notes = Column(Text)
+    day_link = Column(Text)                 # optional URL(s) for the day
+    lunch_details = Column(Text)            # optional lunch details
+    dinner_details = Column(Text)           # optional dinner details
     setup_only = Column(Boolean, default=False)
     event = relationship("Event", back_populates="days")
 
@@ -232,4 +236,3 @@ class Attachment(Base):
     uploaded_by = Column(Integer, ForeignKey('people.id'))
 
     event = relationship('Event', backref='attachments')
-

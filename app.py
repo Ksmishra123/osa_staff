@@ -20,7 +20,7 @@ from dotenv import load_dotenv
 from sqlalchemy.orm import joinedload, aliased
 from sqlalchemy.exc import SQLAlchemyError
 from models import (
-    init_db, SessionLocal,
+    init_db, SessionLocal, engine,
     Person, Event, Position, Assignment,
     Hotel, Room, Roommate, EventDay, Attachment
 )
@@ -46,6 +46,31 @@ app.secret_key = os.getenv('SECRET_KEY', 'dev-secret')
 
 # Bind DB and create tables at startup (important under gunicorn)
 init_db()
+
+def ensure_event_days_columns():
+    """
+    Lightweight compatibility migration for older databases.
+    Safe to run on startup; adds missing EventDay columns used by the days UI.
+    """
+    try:
+        with engine.begin() as conn:
+            rows = conn.exec_driver_sql("PRAGMA table_info(event_days)").fetchall()
+            existing = {r[1] for r in rows}
+            alters = []
+            if "setup_end_dt" not in existing:
+                alters.append("ALTER TABLE event_days ADD COLUMN setup_end_dt DATETIME")
+            if "day_link" not in existing:
+                alters.append("ALTER TABLE event_days ADD COLUMN day_link TEXT")
+            if "lunch_details" not in existing:
+                alters.append("ALTER TABLE event_days ADD COLUMN lunch_details TEXT")
+            if "dinner_details" not in existing:
+                alters.append("ALTER TABLE event_days ADD COLUMN dinner_details TEXT")
+            for stmt in alters:
+                conn.exec_driver_sql(stmt)
+    except Exception:
+        app.logger.exception("Could not auto-migrate event_days columns.")
+
+ensure_event_days_columns()
 
 # -----------------------------------------------------------------------------
 # Uploads config (headshots)
@@ -413,18 +438,43 @@ def admin_event_days(eid):
             return datetime.fromisoformat(s) if s else None
         except Exception:
             return None
+    def combine_date_time(day_s, time_s):
+        if not day_s or not time_s:
+            return None
+        try:
+            return datetime.fromisoformat(f"{day_s}T{time_s}")
+        except Exception:
+            return None
 
     if request.method == 'POST':
         action = request.form.get('action')
 
         # --- Add new day ---
         if action == 'add_day':
-            start_dt = parse_iso(request.form.get('start_dt'))
-            setup_dt = parse_iso(request.form.get('setup_dt'))
-            staff_arrival_dt = parse_iso(request.form.get('staff_arrival_dt'))
-            judges_arrival_dt = parse_iso(request.form.get('judges_arrival_dt'))
-            day_date = start_dt.date() if start_dt else None
-            setup_only = bool(request.form.get('setup_only'))
+            day_mode = (request.form.get('day_mode') or 'subsequent').strip()
+            is_first_day = day_mode == 'first'
+
+            if is_first_day:
+                day_date_raw = (request.form.get('day_date') or '').strip()
+                setup_start_time = (request.form.get('setup_start_time') or '').strip()
+                setup_end_time = (request.form.get('setup_end_time') or '').strip()
+                comp_type = (request.form.get('first_day_type') or 'setup_only').strip()
+                setup_dt = combine_date_time(day_date_raw, setup_start_time)
+                setup_end_dt = combine_date_time(day_date_raw, setup_end_time)
+                judges_arrival_dt = combine_date_time(day_date_raw, request.form.get('judges_arrival_time'))
+                start_dt = setup_end_dt or setup_dt
+                staff_arrival_dt = setup_dt
+                day_date = start_dt.date() if start_dt else None
+                setup_only = comp_type == 'setup_only'
+            else:
+                day_date_raw = (request.form.get('day_date') or '').strip()
+                start_dt = combine_date_time(day_date_raw, request.form.get('start_time'))
+                setup_dt = None
+                setup_end_dt = None
+                staff_arrival_dt = combine_date_time(day_date_raw, request.form.get('staff_arrival_time'))
+                judges_arrival_dt = combine_date_time(day_date_raw, request.form.get('judges_arrival_time'))
+                day_date = start_dt.date() if start_dt else None
+                setup_only = False
 
             if not start_dt:
                 flash("Start date/time is required for a day.")
@@ -434,10 +484,14 @@ def admin_event_days(eid):
                     day_date=day_date,
                     start_dt=start_dt,
                     setup_dt=setup_dt,
+                    setup_end_dt=setup_end_dt,
                     staff_arrival_dt=staff_arrival_dt,
                     judges_arrival_dt=judges_arrival_dt,
                     setup_only=setup_only,
-                    notes=(request.form.get('notes') or '').strip()
+                    notes=(request.form.get('notes') or '').strip(),
+                    day_link=(request.form.get('day_link') or '').strip(),
+                    lunch_details=(request.form.get('lunch_details') or '').strip(),
+                    dinner_details=(request.form.get('dinner_details') or '').strip(),
                 )
                 db.add(d)
                 db.commit()
@@ -451,10 +505,14 @@ def admin_event_days(eid):
             if d and d.event_id == eid:
                 d.start_dt = parse_iso(request.form.get('start_dt'))
                 d.setup_dt = parse_iso(request.form.get('setup_dt'))
+                d.setup_end_dt = parse_iso(request.form.get('setup_end_dt'))
                 d.staff_arrival_dt = parse_iso(request.form.get('staff_arrival_dt'))
                 d.judges_arrival_dt = parse_iso(request.form.get('judges_arrival_dt'))
                 d.day_date = d.start_dt.date() if d.start_dt else d.day_date
                 d.notes = (request.form.get('notes') or '').strip()
+                d.day_link = (request.form.get('day_link') or '').strip()
+                d.lunch_details = (request.form.get('lunch_details') or '').strip()
+                d.dinner_details = (request.form.get('dinner_details') or '').strip()
                 d.setup_only = bool(request.form.get('setup_only'))
                 db.commit()
                 _sync_event_assignments_to_sheet(db, eid, ev)
@@ -1909,9 +1967,13 @@ def call_sheet(eid):
             day_rows.append({
                 "start": d.start_dt,
                 "setup": d.setup_dt,
+                "setup_end": d.setup_end_dt,
                 "staff": staff_dt,
                 "judges": judges_dt,
                 "notes": d.notes or '',
+                "day_link": d.day_link or '',
+                "lunch_details": d.lunch_details or '',
+                "dinner_details": d.dinner_details or '',
                 "setup_only": d.setup_only or False
             })
 
@@ -2000,9 +2062,13 @@ def public_call_sheet(eid):
             day_rows.append({
                 "start": d.start_dt,
                 "setup": d.setup_dt,
+                "setup_end": d.setup_end_dt,
                 "staff": staff_dt,
                 "judges": judges_dt,
                 "notes": d.notes or '',
+                "day_link": d.day_link or '',
+                "lunch_details": d.lunch_details or '',
+                "dinner_details": d.dinner_details or '',
                 "setup_only": d.setup_only or False
             })
 
