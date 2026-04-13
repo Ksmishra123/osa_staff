@@ -7,32 +7,64 @@
 <h4>Add New Day</h4>
 <form method="post" style="margin-bottom:20px;">
   <input type="hidden" name="action" value="add_day">
+  <input type="hidden" name="day_mode" id="day_mode" value="{{ 'first' if not days else 'subsequent' }}">
   <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center;">
     <div>
-      <label>Start</label><br>
-      <input type="datetime-local" name="start_dt" required>
+      <label>Date</label><br>
+      <input type="date" name="day_date" required>
     </div>
-    <div>
-      <label>Setup</label><br>
-      <input type="datetime-local" name="setup_dt">
+
+    <div id="first-day-fields" style="{% if days %}display:none;{% endif %}">
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <div>
+          <label>Setup Start Time</label><br>
+          <input type="time" name="setup_start_time">
+        </div>
+        <div>
+          <label>Setup End Time</label><br>
+          <input type="time" name="setup_end_time">
+        </div>
+        <div style="display:flex; align-items:flex-end; gap:10px; margin-bottom:2px;">
+          <label><input type="radio" name="first_day_type" value="setup_only" checked> Setup Only</label>
+          <label><input type="radio" name="first_day_type" value="setup_and_comp"> Setup + Comp</label>
+        </div>
+      </div>
+      <small style="display:block; margin-top:4px; color:#666;">Setup block is staff-only.</small>
     </div>
-    <div>
-      <label>Staff Arrival</label><br>
-      <input type="datetime-local" name="staff_arrival_dt">
+
+    <div id="subsequent-day-fields" style="{% if not days %}display:none;{% endif %}">
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <div>
+          <label>Start Time</label><br>
+          <input type="time" name="start_time">
+        </div>
+        <div>
+          <label>Staff Arrival</label><br>
+          <input type="time" name="staff_arrival_time">
+        </div>
+      </div>
     </div>
-    <div>
+
+    <div id="judges-block">
       <label>Judges Arrival</label><br>
-      <input type="datetime-local" name="judges_arrival_dt">
+      <input type="time" name="judges_arrival_time">
     </div>
-    <div style="align-self:flex-end;">
-      <label>
-        <input type="checkbox" name="setup_only" value="1">
-        Setup Only
-      </label>
-    </div>
+
     <div style="flex:1;">
       <label>Notes</label><br>
       <input type="text" name="notes" style="width:100%;" placeholder="Optional notes">
+    </div>
+    <div style="flex:1; min-width:220px;">
+      <label>Day Link(s)</label><br>
+      <input type="text" name="day_link" style="width:100%;" placeholder="https://...">
+    </div>
+    <div style="flex:1; min-width:220px;">
+      <label>Lunch Details</label><br>
+      <input type="text" name="lunch_details" style="width:100%;" placeholder="Optional lunch plan">
+    </div>
+    <div style="flex:1; min-width:220px;">
+      <label>Dinner Details</label><br>
+      <input type="text" name="dinner_details" style="width:100%;" placeholder="Optional dinner plan">
     </div>
     <div style="align-self:flex-end;">
       <button class="btn btn-primary btn-sm">Add</button>
@@ -49,10 +81,12 @@
       <tr>
         <th>Date</th>
         <th>Setup</th>
+        <th>Setup End</th>
         <th>Staff</th>
         <th>Judges</th>
         <th>Setup Only?</th>
         <th>Notes</th>
+        <th>Links / Meals</th>
         <th style="width:200px;">Actions</th>
       </tr>
     </thead>
@@ -61,10 +95,16 @@
       <tr>
         <td>{{ d.start_dt.strftime('%B %d, %Y %I:%M %p') if d.start_dt else '' }}</td>
         <td>{{ d.setup_dt.strftime('%B %d, %Y %I:%M %p') if d.setup_dt else '' }}</td>
+        <td>{{ d.setup_end_dt.strftime('%B %d, %Y %I:%M %p') if d.setup_end_dt else '' }}</td>
         <td>{{ d.staff_arrival_dt.strftime('%B %d, %Y %I:%M %p') if d.staff_arrival_dt else '' }}</td>
         <td>{{ d.judges_arrival_dt.strftime('%B %d, %Y %I:%M %p') if d.judges_arrival_dt else '' }}</td>
         <td>{% if d.setup_only %}✅{% else %}—{% endif %}</td>
         <td>{{ d.notes or '' }}</td>
+        <td>
+          {% if d.day_link %}<div><a href="{{ d.day_link }}" target="_blank" rel="noopener">Open Link</a></div>{% endif %}
+          {% if d.lunch_details %}<div><strong>Lunch:</strong> {{ d.lunch_details }}</div>{% endif %}
+          {% if d.dinner_details %}<div><strong>Dinner:</strong> {{ d.dinner_details }}</div>{% endif %}
+        </td>
         <td>
           <!-- Edit form toggle -->
           <details>
@@ -75,10 +115,14 @@
               <div style="display:flex; flex-wrap:wrap; gap:6px;">
                 <input type="datetime-local" name="start_dt" value="{{ d.start_dt|datetime_local }}">
                 <input type="datetime-local" name="setup_dt" value="{{ d.setup_dt|datetime_local }}">
+                <input type="datetime-local" name="setup_end_dt" value="{{ d.setup_end_dt|datetime_local }}">
                 <input type="datetime-local" name="staff_arrival_dt" value="{{ d.staff_arrival_dt|datetime_local }}">
                 <input type="datetime-local" name="judges_arrival_dt" value="{{ d.judges_arrival_dt|datetime_local }}">
                 <label><input type="checkbox" name="setup_only" value="1" {% if d.setup_only %}checked{% endif %}> Setup Only</label>
                 <input type="text" name="notes" value="{{ d.notes or '' }}" placeholder="Notes" style="flex:1;">
+                <input type="text" name="day_link" value="{{ d.day_link or '' }}" placeholder="Day link" style="flex:1;">
+                <input type="text" name="lunch_details" value="{{ d.lunch_details or '' }}" placeholder="Lunch details" style="flex:1;">
+                <input type="text" name="dinner_details" value="{{ d.dinner_details or '' }}" placeholder="Dinner details" style="flex:1;">
                 <button class="btn btn-outline-primary btn-sm">Save</button>
               </div>
             </form>
@@ -98,4 +142,31 @@
 {% else %}
   <p><em>No days added yet.</em></p>
 {% endif %}
+
+<script>
+  (function() {
+    const dayMode = document.getElementById('day_mode');
+    const firstDayFields = document.getElementById('first-day-fields');
+    const subsequentDayFields = document.getElementById('subsequent-day-fields');
+    const judgesBlock = document.getElementById('judges-block');
+    const firstDayTypeRadios = document.querySelectorAll('input[name="first_day_type"]');
+
+    function updateVisibility() {
+      const isFirst = dayMode && dayMode.value === 'first';
+      if (firstDayFields) firstDayFields.style.display = isFirst ? '' : 'none';
+      if (subsequentDayFields) subsequentDayFields.style.display = isFirst ? 'none' : '';
+
+      if (isFirst) {
+        const selected = document.querySelector('input[name="first_day_type"]:checked');
+        const showJudges = selected && selected.value === 'setup_and_comp';
+        if (judgesBlock) judgesBlock.style.display = showJudges ? '' : 'none';
+      } else if (judgesBlock) {
+        judgesBlock.style.display = '';
+      }
+    }
+
+    firstDayTypeRadios.forEach(r => r.addEventListener('change', updateVisibility));
+    updateVisibility();
+  })();
+</script>
 {% endblock %}

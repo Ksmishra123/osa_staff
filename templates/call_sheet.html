@@ -159,7 +159,12 @@
             <td>{{ d.setup.strftime('%B %d, %Y - %I:%M %p') if d.setup else '' }}</td>
             <td>{{ d.staff.strftime('%B %d, %Y - %I:%M %p') if d.staff else '' }}</td>
             <td style="background-color: #FFCCCC;"><em>Setup Only — No Judges Required</em></td>
-            <td>{{ d.notes or '' }}</td>
+            <td>
+              {{ d.notes or '' }}
+              {% if d.day_link %}<div><a href="{{ d.day_link }}" target="_blank" rel="noopener">{{ d.day_link }}</a></div>{% endif %}
+              {% if d.lunch_details %}<div><strong>Lunch:</strong> {{ d.lunch_details }}</div>{% endif %}
+              {% if d.dinner_details %}<div><strong>Dinner:</strong> {{ d.dinner_details }}</div>{% endif %}
+            </td>
           </tr>
         {% else %}
           <tr>
@@ -167,7 +172,12 @@
             <td>{{ d.setup.strftime('%B %d, %Y - %I:%M %p') if d.setup else '' }}</td>
             <td>{{ d.staff.strftime('%B %d, %Y - %I:%M %p') if d.staff else '' }}</td>
             <td>{{ d.judges.strftime('%B %d, %Y - %I:%M %p') if d.judges else '' }}</td>
-            <td>{{ d.notes or '' }}</td>
+            <td>
+              {{ d.notes or '' }}
+              {% if d.day_link %}<div><a href="{{ d.day_link }}" target="_blank" rel="noopener">{{ d.day_link }}</a></div>{% endif %}
+              {% if d.lunch_details %}<div><strong>Lunch:</strong> {{ d.lunch_details }}</div>{% endif %}
+              {% if d.dinner_details %}<div><strong>Dinner:</strong> {{ d.dinner_details }}</div>{% endif %}
+            </td>
           </tr>
         {% endif %}
       {% endfor %}
