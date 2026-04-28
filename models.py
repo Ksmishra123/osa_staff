@@ -159,6 +159,9 @@ class Assignment(Base):
     transport_booking = Column(Text)      # PNR / booking ref
     arrival_ts = Column(DateTime)         # arrival timestamp
     transport_notes = Column(Text)
+    itinerary_link = Column(Text)         # direct link (e.g., Orbitz trip URL)
+    itinerary_file_path = Column(Text)    # uploaded itinerary file path
+    itinerary_filename = Column(String)   # original uploaded filename
 
     # Relationships
     event = relationship("Event", back_populates="assignments")

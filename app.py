@@ -2,6 +2,9 @@ import os
 import re
 import threading
 import bcrypt
+import imaplib
+from email import message_from_bytes
+from email.utils import getaddresses
 from flask import make_response
 
 from datetime import datetime, date, timedelta
@@ -72,11 +75,33 @@ def ensure_event_days_columns():
 
 ensure_event_days_columns()
 
+def ensure_assignment_itinerary_columns():
+    """Compatibility migration for per-assignment itinerary metadata."""
+    try:
+        with engine.begin() as conn:
+            rows = conn.exec_driver_sql("PRAGMA table_info(assignments)").fetchall()
+            existing = {r[1] for r in rows}
+            alters = []
+            if "itinerary_link" not in existing:
+                alters.append("ALTER TABLE assignments ADD COLUMN itinerary_link TEXT")
+            if "itinerary_file_path" not in existing:
+                alters.append("ALTER TABLE assignments ADD COLUMN itinerary_file_path TEXT")
+            if "itinerary_filename" not in existing:
+                alters.append("ALTER TABLE assignments ADD COLUMN itinerary_filename VARCHAR")
+            for stmt in alters:
+                conn.exec_driver_sql(stmt)
+    except Exception:
+        app.logger.exception("Could not auto-migrate assignment itinerary columns.")
+
+ensure_assignment_itinerary_columns()
+
 # -----------------------------------------------------------------------------
 # Uploads config (headshots)
 # -----------------------------------------------------------------------------
 UPLOAD_ATTACHMENTS_DIR = os.path.join(os.getcwd(), 'uploads', 'attachments')
 os.makedirs(UPLOAD_ATTACHMENTS_DIR, exist_ok=True)
+UPLOAD_ITINERARIES_DIR = os.path.join(os.getcwd(), 'uploads', 'itineraries')
+os.makedirs(UPLOAD_ITINERARIES_DIR, exist_ok=True)
 
 UPLOAD_DIR = os.getenv("UPLOAD_DIR", "/data/uploads")
 ALLOWED_HEADSHOT_EXTS = {"png", "jpg", "jpeg", "gif"}
@@ -140,6 +165,154 @@ def parse_dt(v: str):
         return datetime.strptime(v, "%Y-%m-%d %H:%M")
     except Exception:
         return None
+
+URL_RE = re.compile(r'https?://[^\s<>"\']+')
+
+def extract_links_from_text(text: str) -> list[str]:
+    if not text:
+        return []
+    links = []
+    for raw in URL_RE.findall(text):
+        candidate = raw.strip().rstrip(').,;')
+        if candidate not in links:
+            links.append(candidate)
+    return links
+
+def pick_itinerary_link(links: list[str]) -> str | None:
+    if not links:
+        return None
+    preferred_tokens = (
+        "orbitz", "expedia", "trip", "itinerary", "booking", "reservation", "travelocity"
+    )
+    for link in links:
+        lo = link.lower()
+        if any(tok in lo for tok in preferred_tokens):
+            return link
+    return links[0]
+
+def parse_email_message_for_itinerary(msg):
+    text_chunks = []
+    attachment = None
+
+    for part in msg.walk():
+        ctype = part.get_content_type()
+        disp = (part.get("Content-Disposition") or "").lower()
+        payload = part.get_payload(decode=True) or b""
+
+        if "attachment" in disp and part.get_filename():
+            filename = secure_filename(part.get_filename())
+            if filename and filename.lower().endswith((".pdf", ".png", ".jpg", ".jpeg", ".txt", ".ics")):
+                attachment = (filename, payload)
+                continue
+
+        if ctype in ("text/plain", "text/html") and payload:
+            charset = part.get_content_charset() or "utf-8"
+            try:
+                decoded = payload.decode(charset, errors="ignore")
+            except Exception:
+                decoded = payload.decode("utf-8", errors="ignore")
+            text_chunks.append(decoded)
+
+    body_text = "\n".join(text_chunks)
+    links = extract_links_from_text(body_text)
+    return pick_itinerary_link(links), attachment, body_text
+
+def sync_event_itineraries_from_inbox(db, ev: Event, max_messages: int = 100):
+    host = (os.getenv("IMAP_HOST") or "").strip()
+    user = (os.getenv("IMAP_USER") or "").strip()
+    password = (os.getenv("IMAP_PASSWORD") or "").strip()
+    folder = (os.getenv("IMAP_FOLDER") or "INBOX").strip()
+    search_filter = (os.getenv("IMAP_SEARCH", "ALL") or "ALL").strip().upper()
+    port = int(os.getenv("IMAP_PORT", "993"))
+
+    if not (host and user and password):
+        return {"ok": False, "error": "Missing IMAP_HOST/IMAP_USER/IMAP_PASSWORD environment variables."}
+
+    assignments = (
+        db.query(Assignment)
+          .options(joinedload(Assignment.person))
+          .filter(Assignment.event_id == ev.id)
+          .all()
+    )
+    email_to_assignment = {
+        (a.person.email or "").strip().lower(): a
+        for a in assignments if a.person and a.person.email
+    }
+    if not email_to_assignment:
+        return {"ok": False, "error": "No assigned staff with email addresses for this event."}
+
+    updated = 0
+    scanned = 0
+    matched = 0
+
+    with imaplib.IMAP4_SSL(host, port) as imap:
+        imap.login(user, password)
+        imap.select(folder)
+        status, data = imap.search(None, search_filter)
+        if status != "OK":
+            return {"ok": False, "error": "Unable to search inbox."}
+
+        msg_ids = data[0].split()[-max_messages:]
+        for mid in reversed(msg_ids):
+            status, payload = imap.fetch(mid, "(RFC822)")
+            if status != "OK" or not payload or not payload[0]:
+                continue
+            scanned += 1
+
+            raw = payload[0][1]
+            msg = message_from_bytes(raw)
+
+            hdrs = []
+            for h in ("from", "to", "cc", "bcc"):
+                hdrs.append(msg.get(h, ""))
+            addresses = [addr.lower() for _, addr in getaddresses(hdrs) if addr]
+
+            assignment = None
+            for addr in addresses:
+                assignment = email_to_assignment.get(addr)
+                if assignment:
+                    matched += 1
+                    break
+
+            link, attachment, body_text = parse_email_message_for_itinerary(msg)
+            if not assignment and body_text:
+                lowered = body_text.lower()
+                for person_email, maybe_assignment in email_to_assignment.items():
+                    if person_email and person_email in lowered:
+                        assignment = maybe_assignment
+                        matched += 1
+                        break
+            if not assignment:
+                continue
+
+            changed = False
+
+            if link and assignment.itinerary_link != link:
+                assignment.itinerary_link = link
+                changed = True
+
+            if attachment:
+                filename, bytes_payload = attachment
+                unique_name = f"{int(datetime.utcnow().timestamp())}_{assignment.id}_{filename}"
+                save_path = os.path.join(UPLOAD_ITINERARIES_DIR, unique_name)
+                with open(save_path, "wb") as f:
+                    f.write(bytes_payload)
+                if assignment.itinerary_file_path and os.path.exists(assignment.itinerary_file_path):
+                    try:
+                        os.remove(assignment.itinerary_file_path)
+                    except Exception:
+                        app.logger.warning("Could not remove old itinerary file for assignment %s", assignment.id)
+                assignment.itinerary_file_path = save_path
+                assignment.itinerary_filename = filename
+                changed = True
+
+            if changed:
+                updated += 1
+
+    if updated:
+        db.commit()
+
+    return {"ok": True, "updated": updated, "scanned": scanned, "matched": matched}
 
 def is_admin() -> bool:
     try:
@@ -1013,6 +1186,16 @@ def admin_assign(eid):
             booking = request.form.get(f'pos_{pos.id}_booking') or None
             arrival = parse_dt(request.form.get(f'pos_{pos.id}_arrival') or "")
             notes = request.form.get(f'pos_{pos.id}_notes') or None
+            itinerary_link = (request.form.get(f'pos_{pos.id}_itinerary_link') or "").strip() or None
+            itinerary_file = request.files.get(f'pos_{pos.id}_itinerary_file')
+            itinerary_filename = None
+            itinerary_path = None
+            if itinerary_file and itinerary_file.filename:
+                safe_name = secure_filename(itinerary_file.filename)
+                itinerary_filename = safe_name
+                unique_name = f"{int(datetime.utcnow().timestamp())}_{pos.id}_{safe_name}"
+                itinerary_path = os.path.join(UPLOAD_ITINERARIES_DIR, unique_name)
+                itinerary_file.save(itinerary_path)
 
             if current:
                 # update only if something changed
@@ -1021,7 +1204,9 @@ def admin_assign(eid):
                     current.transport_mode != mode or
                     current.transport_booking != booking or
                     current.arrival_ts != arrival or
-                    (current.transport_notes or '') != (notes or '')
+                    (current.transport_notes or '') != (notes or '') or
+                    (current.itinerary_link or '') != (itinerary_link or '') or
+                    bool(itinerary_path)
                 )
                 if has_change:
                     current.person_id = pid
@@ -1029,6 +1214,15 @@ def admin_assign(eid):
                     current.transport_booking = booking
                     current.arrival_ts = arrival
                     current.transport_notes = notes
+                    current.itinerary_link = itinerary_link
+                    if itinerary_path:
+                        if current.itinerary_file_path and os.path.exists(current.itinerary_file_path):
+                            try:
+                                os.remove(current.itinerary_file_path)
+                            except Exception:
+                                app.logger.warning("Could not remove old itinerary file for assignment %s", current.id)
+                        current.itinerary_file_path = itinerary_path
+                        current.itinerary_filename = itinerary_filename
                     changed_people.append((pid, pos.name))
             else:
                 # new assignment
@@ -1040,6 +1234,9 @@ def admin_assign(eid):
                     transport_booking=booking,
                     arrival_ts=arrival,
                     transport_notes=notes,
+                    itinerary_link=itinerary_link,
+                    itinerary_file_path=itinerary_path,
+                    itinerary_filename=itinerary_filename,
                 )
                 db.add(new_a)
                 changed_people.append((pid, pos.name))
@@ -1076,6 +1273,27 @@ def admin_assign(eid):
     # GET branch
     currents = existing
     return render_template('assign.html', ev=ev, people=people, positions=positions, current=currents)
+
+@app.route('/admin/events/<int:eid>/assign/sync-itineraries', methods=['POST'])
+@login_required
+def admin_sync_itineraries(eid):
+    if not is_admin():
+        abort(403)
+
+    db = SessionLocal()
+    ev = db.get(Event, eid)
+    if not ev:
+        abort(404)
+
+    result = sync_event_itineraries_from_inbox(db, ev, max_messages=150)
+    if not result.get("ok"):
+        flash(f"Inbox sync failed: {result.get('error')}")
+        return redirect(url_for('admin_assign', eid=eid))
+
+    flash(
+        f"Inbox sync complete. Scanned {result['scanned']} email(s), matched {result['matched']}, updated {result['updated']} assignment(s)."
+    )
+    return redirect(url_for('admin_assign', eid=eid))
 
 # -----------------------------------------------------------------------------
 # Admin: test route for email to see if it is working
@@ -2613,6 +2831,26 @@ def download_attachment(aid):
         abort(403)
 
     return send_file(att.file_path, as_attachment=True, download_name=att.filename)
+
+@app.route('/assignments/<int:aid>/itinerary')
+@login_required
+def download_assignment_itinerary(aid):
+    db = SessionLocal()
+    assignment = db.get(Assignment, aid)
+    if not assignment:
+        abort(404)
+
+    if not is_admin() and assignment.person_id != int(current_user.id):
+        abort(403)
+
+    if not assignment.itinerary_file_path or not os.path.exists(assignment.itinerary_file_path):
+        abort(404)
+
+    return send_file(
+        assignment.itinerary_file_path,
+        as_attachment=True,
+        download_name=assignment.itinerary_filename or os.path.basename(assignment.itinerary_file_path)
+    )
 
 # -----------------------------------------------------------------------------
 # Dev entrypoint

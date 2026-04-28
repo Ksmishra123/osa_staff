@@ -13,6 +13,7 @@
         <th style="padding:8px;">Setup</th>
         <th style="padding:8px;">Start</th>
         <th style="padding:8px;">End</th>
+        <th style="padding:8px;">Travel</th>
         <th style="padding:8px; text-align:center;">Acknowledged</th>
         <th style="padding:8px; text-align:center;">Call Sheet</th>
       </tr>
@@ -26,6 +27,15 @@
         <td style="padding:8px;">{{ a.event.setup_start.strftime('%Y-%m-%d %H:%M') if a.event and a.event.setup_start else '' }}</td>
         <td style="padding:8px;">{{ a.event.event_start.strftime('%Y-%m-%d %H:%M') if a.event and a.event.event_start else '' }}</td>
         <td style="padding:8px;">{{ a.event.event_end.strftime('%Y-%m-%d %H:%M') if a.event and a.event.event_end else '' }}</td>
+        <td style="padding:8px;">
+          {% if a.itinerary_link %}
+            <a href="{{ a.itinerary_link }}" target="_blank" rel="noopener">Link</a>
+          {% endif %}
+          {% if a.itinerary_file_path %}
+            {% if a.itinerary_link %}&nbsp;|&nbsp;{% endif %}
+            <a href="{{ url_for('download_assignment_itinerary', aid=a.id) }}" target="_blank">File</a>
+          {% endif %}
+        </td>
 
         <td style="padding:8px; text-align:center;">
           {% if a.ack %}
