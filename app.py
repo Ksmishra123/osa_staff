@@ -750,6 +750,8 @@ def me():
     lodging_by_event = {}
     for room, hotel, ev in user_lodging:
         lodging_by_event.setdefault(ev.id, []).append({"hotel": hotel, "room": room})
+    for ev_id, entries in lodging_by_event.items():
+        entries.sort(key=lambda e: ((e["hotel"].name or "").lower(), _room_sort_key(e["room"])))
 
     return render_template('me.html', rows=rows, lodging_by_event=lodging_by_event)
     
