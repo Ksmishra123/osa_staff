@@ -44,6 +44,8 @@
               {% if a.arrival_ts %} | Arr: {{ a.arrival_ts.strftime('%Y-%m-%d %H:%M') }}{% endif %}
               {% if a.transport_booking %} | {{ a.transport_booking }}{% endif %}
               {% if a.transport_notes %} | {{ a.transport_notes }}{% endif %}
+              {% if a.itinerary_link %} | Link: {{ a.itinerary_link }}{% endif %}
+              {% if a.itinerary_file_path %} | File: available in app{% endif %}
             </td>
           </tr>
         {% endfor %}

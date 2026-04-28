@@ -217,6 +217,8 @@
             {%- if a.arrival_ts -%}{%- set _ = lines.append('Arrival: ' ~ a.arrival_ts.strftime('%B %d, %Y %I:%M %p')) -%}{%- endif -%}
             {%- if a.transport_booking -%}{%- set _ = lines.append('Booking: ' ~ a.transport_booking) -%}{%- endif -%}
             {%- if a.transport_notes -%}{%- set _ = lines.append(a.transport_notes) -%}{%- endif -%}
+            {%- if a.itinerary_link -%}{%- set _ = lines.append('Itinerary link: ' ~ a.itinerary_link) -%}{%- endif -%}
+            {%- if a.itinerary_file_path -%}{%- set _ = lines.append('Itinerary file: available in app') -%}{%- endif -%}
             {{- lines|join('<br>')|safe -}}
           </td>
         </tr>
