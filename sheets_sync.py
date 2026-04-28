@@ -13,6 +13,25 @@ HEADERS = [
     "Sales", "Photo", "Video", "Hotel", "Event ID"
 ]
 
+def _merge_headers_preserving_existing(existing_headers, desired_headers):
+    """Keep existing column order stable, appending only truly new headers."""
+    merged = []
+    seen = set()
+
+    for h in existing_headers or []:
+        header = (h or "").strip()
+        if header and header not in seen:
+            merged.append(header)
+            seen.add(header)
+
+    for h in desired_headers or []:
+        header = (h or "").strip()
+        if header and header not in seen:
+            merged.append(header)
+            seen.add(header)
+
+    return merged
+
 POSITION_TO_HEADER = {
     "osa rep": "OSA Rep",
     "director": "OSA Rep",
@@ -98,12 +117,19 @@ def sync_assignments_sheet(db, only_event_id=None, rows_for_event=None, event=No
     if not event:
         return 0
 
-    # Start from base headers, keep any previously-created dynamic headers,
-    # then add new headers from unmapped positions in this event.
+    # Keep existing column order stable, then append any new headers.
     all_vals = ws.get_all_values()
     existing_header_row = all_vals[0] if all_vals else []
-    dynamic_headers = [h for h in existing_header_row if h and h not in HEADERS]
-    seen = set(HEADERS + dynamic_headers)
+    desired_headers = list(HEADERS)
+    seen = set(desired_headers)
+
+    # Preserve previously-created dynamic headers.
+    for h in existing_header_row:
+        header = (h or "").strip()
+        if header and header not in seen:
+            desired_headers.append(header)
+            seen.add(header)
+
     # Include all configured unmapped positions so new columns appear
     # even before an assignment exists in the current event.
     all_positions = db.query(Position).order_by(Position.display_order.asc()).all()
@@ -113,9 +139,10 @@ def sync_assignments_sheet(db, only_event_id=None, rows_for_event=None, event=No
             continue
         pos_header = (p.name or "").strip()
         if pos_header and pos_header not in seen:
-            dynamic_headers.append(pos_header)
+            desired_headers.append(pos_header)
             seen.add(pos_header)
-    effective_headers = HEADERS + dynamic_headers
+
+    effective_headers = _merge_headers_preserving_existing(existing_header_row, desired_headers)
     _ensure_headers(ws, effective_headers)
 
     # --- get current sheet values ---

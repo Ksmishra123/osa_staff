@@ -359,6 +359,28 @@ def _sync_event_assignments_to_sheet(db, eid: int, ev: Event | None = None) -> N
     except Exception:
         app.logger.exception("Sheets sync failed for event %s", eid)
 
+
+def _room_sort_key(room: Room):
+    """Natural sort for room numbers (1, 2, 10 instead of 1, 10, 2)."""
+    raw = (getattr(room, "room_number", None) or "").strip()
+    if not raw:
+        return (2, "", float("inf"), "")
+
+    m = re.match(r"^\s*(\d+)\s*([A-Za-z].*)?$", raw)
+    if m:
+        base = int(m.group(1))
+        suffix = (m.group(2) or "").strip().lower()
+        return (0, "", base, suffix)
+
+    parts = re.split(r"(\d+)", raw.lower())
+    natural = [int(p) if p.isdigit() else p for p in parts if p != ""]
+    return (1, natural, float("inf"), "")
+
+
+def _sort_hotel_rooms_in_place(hotels: list[Hotel]) -> None:
+    for h in hotels:
+        h.rooms.sort(key=_room_sort_key)
+
 # -----------------------------------------------------------------------------
 # Auth routes
 # -----------------------------------------------------------------------------
@@ -1555,6 +1577,7 @@ def admin_event_lodging(eid):
           .filter(Hotel.event_id == eid)
           .all()
     )
+    _sort_hotel_rooms_in_place(hotels)
 
     assigned_people = (
         db.query(Person)
@@ -1731,6 +1754,7 @@ def call_sheet(eid):
               .filter(Hotel.event_id == eid)
               .all()
         )
+        _sort_hotel_rooms_in_place(hotels)
 
         # Load day schedule
         days = (
@@ -1823,6 +1847,7 @@ def public_call_sheet(eid):
               .filter(Hotel.event_id == eid)
               .all()
         )
+        _sort_hotel_rooms_in_place(hotels)
 
         days = (
             db.query(EventDay)
@@ -2066,6 +2091,7 @@ def admin_call_sheet_pdf(eid):
         .filter(Hotel.event_id == eid)
         .all()
     )
+    _sort_hotel_rooms_in_place(hotels)
     days = (
         db.query(EventDay)
         .filter(EventDay.event_id == eid)
