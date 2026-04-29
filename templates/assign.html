@@ -1,6 +1,12 @@
 {% extends 'base.html' %}
 {% block content %}
-<h1>Assign Staff — {{ ev.city }} ({{ ev.date.strftime('%Y-%m-%d') if ev.date else '' }})</h1>
+<h1>
+  Assign Staff — {{ ev.city }}
+  {% if ev.date %}
+    <br>
+    <small style="font-weight:500;">{{ ev.date.strftime('%B %-d, %Y') }}<br>{{ ev.date.strftime('%-I:%M %p') }}</small>
+  {% endif %}
+</h1>
 
 <!-- NEW: Remove a staff member from this event (clears all their assignments for this event) -->
 <div class="card" style="padding:12px; margin:12px 0;">
@@ -32,7 +38,7 @@
         <th style="width:240px;">Person</th>
         <th style="width:140px;">Transport Mode</th>
         <th style="width:160px;">Flight / Booking</th>
-        <th style="width:200px;">Arrival (local)</th>
+        <th style="width:200px;">Arrival ({{ config.DISPLAY_TIMEZONE or 'local' }})</th>
         <th>Notes</th>
       </tr>
     </thead>
@@ -59,7 +65,7 @@
         </td>
         <td>
           <input type="datetime-local" name="pos_{{ p.id }}_arrival"
-                 value="{% if cur and cur.arrival_ts %}{{ cur.arrival_ts.strftime('%Y-%m-%dT%H:%M') }}{% endif %}">
+                 value="{% if cur and cur.arrival_ts %}{{ cur.arrival_ts|datetime_local_display_tz }}{% endif %}">
         </td>
         <td>
           <input name="pos_{{ p.id }}_notes" placeholder="Pickup at 2pm / baggage / etc."
