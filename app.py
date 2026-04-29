@@ -4,7 +4,8 @@ import threading
 import bcrypt
 from flask import make_response
 
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from flask import (
     Flask, render_template, redirect, url_for, request, flash, abort,
@@ -43,6 +44,13 @@ from sendgrid.helpers.mail import Mail
 load_dotenv()
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'dev-secret')
+DISPLAY_TIMEZONE = os.getenv("DISPLAY_TIMEZONE", "America/Chicago")
+try:
+    DISPLAY_TZ = ZoneInfo(DISPLAY_TIMEZONE)
+except Exception:
+    DISPLAY_TIMEZONE = "UTC"
+    DISPLAY_TZ = ZoneInfo(DISPLAY_TIMEZONE)
+app.config["DISPLAY_TIMEZONE"] = DISPLAY_TIMEZONE
 
 # Bind DB and create tables at startup (important under gunicorn)
 init_db()
@@ -116,6 +124,20 @@ def parse_dt(v: str):
     except Exception:
         return None
 
+
+def utc_naive_to_display_local(v: datetime | None) -> datetime | None:
+    """Interpret naive DB datetimes as UTC and convert to display timezone."""
+    if not v:
+        return None
+    return v.replace(tzinfo=timezone.utc).astimezone(DISPLAY_TZ).replace(tzinfo=None)
+
+
+def display_local_to_utc_naive(v: datetime | None) -> datetime | None:
+    """Interpret local display timezone input and convert back to naive UTC."""
+    if not v:
+        return None
+    return v.replace(tzinfo=DISPLAY_TZ).astimezone(timezone.utc).replace(tzinfo=None)
+
 def is_admin() -> bool:
     try:
         if not current_user.is_authenticated or not getattr(current_user, "person", None):
@@ -168,6 +190,12 @@ def datetime_local(v):
     if not v:
         return ''
     return v.strftime('%Y-%m-%dT%H:%M')
+
+
+@app.template_filter('datetime_local_display_tz')
+def datetime_local_display_tz(v):
+    local_v = utc_naive_to_display_local(v)
+    return local_v.strftime('%Y-%m-%dT%H:%M') if local_v else ''
     
 @app.context_processor
 def inject_helpers():
@@ -358,6 +386,28 @@ def _sync_event_assignments_to_sheet(db, eid: int, ev: Event | None = None) -> N
         sync_assignments_sheet(db, only_event_id=eid, rows_for_event=rows_for_event, event=ev)
     except Exception:
         app.logger.exception("Sheets sync failed for event %s", eid)
+
+
+def _room_sort_key(room: Room):
+    """Natural sort for room numbers (1, 2, 10 instead of 1, 10, 2)."""
+    raw = (getattr(room, "room_number", None) or "").strip()
+    if not raw:
+        return (2, "", float("inf"), "")
+
+    m = re.match(r"^\s*(\d+)\s*([A-Za-z].*)?$", raw)
+    if m:
+        base = int(m.group(1))
+        suffix = (m.group(2) or "").strip().lower()
+        return (0, "", base, suffix)
+
+    parts = re.split(r"(\d+)", raw.lower())
+    natural = [int(p) if p.isdigit() else p for p in parts if p != ""]
+    return (1, natural, float("inf"), "")
+
+
+def _sort_hotel_rooms_in_place(hotels: list[Hotel]) -> None:
+    for h in hotels:
+        h.rooms.sort(key=_room_sort_key)
 
 # -----------------------------------------------------------------------------
 # Auth routes
@@ -728,6 +778,8 @@ def me():
     lodging_by_event = {}
     for room, hotel, ev in user_lodging:
         lodging_by_event.setdefault(ev.id, []).append({"hotel": hotel, "room": room})
+    for ev_id, entries in lodging_by_event.items():
+        entries.sort(key=lambda e: ((e["hotel"].name or "").lower(), _room_sort_key(e["room"])))
 
     return render_template('me.html', rows=rows, lodging_by_event=lodging_by_event)
     
@@ -925,6 +977,7 @@ def admin_assign(eid):
             mode = request.form.get(f'pos_{pos.id}_mode') or None
             booking = request.form.get(f'pos_{pos.id}_booking') or None
             arrival = parse_dt(request.form.get(f'pos_{pos.id}_arrival') or "")
+            arrival = display_local_to_utc_naive(arrival)
             notes = request.form.get(f'pos_{pos.id}_notes') or None
 
             current = existing.get(pos.id)
@@ -1555,6 +1608,7 @@ def admin_event_lodging(eid):
           .filter(Hotel.event_id == eid)
           .all()
     )
+    _sort_hotel_rooms_in_place(hotels)
 
     assigned_people = (
         db.query(Person)
@@ -1731,6 +1785,7 @@ def call_sheet(eid):
               .filter(Hotel.event_id == eid)
               .all()
         )
+        _sort_hotel_rooms_in_place(hotels)
 
         # Load day schedule
         days = (
@@ -1823,6 +1878,7 @@ def public_call_sheet(eid):
               .filter(Hotel.event_id == eid)
               .all()
         )
+        _sort_hotel_rooms_in_place(hotels)
 
         days = (
             db.query(EventDay)
@@ -2066,6 +2122,7 @@ def admin_call_sheet_pdf(eid):
         .filter(Hotel.event_id == eid)
         .all()
     )
+    _sort_hotel_rooms_in_place(hotels)
     days = (
         db.query(EventDay)
         .filter(EventDay.event_id == eid)
