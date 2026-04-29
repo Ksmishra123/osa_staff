@@ -4,7 +4,8 @@ import threading
 import bcrypt
 from flask import make_response
 
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from flask import (
     Flask, render_template, redirect, url_for, request, flash, abort,
@@ -43,6 +44,13 @@ from sendgrid.helpers.mail import Mail
 load_dotenv()
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'dev-secret')
+DISPLAY_TIMEZONE = os.getenv("DISPLAY_TIMEZONE", "America/Chicago")
+try:
+    DISPLAY_TZ = ZoneInfo(DISPLAY_TIMEZONE)
+except Exception:
+    DISPLAY_TIMEZONE = "UTC"
+    DISPLAY_TZ = ZoneInfo(DISPLAY_TIMEZONE)
+app.config["DISPLAY_TIMEZONE"] = DISPLAY_TIMEZONE
 
 # Bind DB and create tables at startup (important under gunicorn)
 init_db()
@@ -116,6 +124,20 @@ def parse_dt(v: str):
     except Exception:
         return None
 
+
+def utc_naive_to_display_local(v: datetime | None) -> datetime | None:
+    """Interpret naive DB datetimes as UTC and convert to display timezone."""
+    if not v:
+        return None
+    return v.replace(tzinfo=timezone.utc).astimezone(DISPLAY_TZ).replace(tzinfo=None)
+
+
+def display_local_to_utc_naive(v: datetime | None) -> datetime | None:
+    """Interpret local display timezone input and convert back to naive UTC."""
+    if not v:
+        return None
+    return v.replace(tzinfo=DISPLAY_TZ).astimezone(timezone.utc).replace(tzinfo=None)
+
 def is_admin() -> bool:
     try:
         if not current_user.is_authenticated or not getattr(current_user, "person", None):
@@ -168,6 +190,12 @@ def datetime_local(v):
     if not v:
         return ''
     return v.strftime('%Y-%m-%dT%H:%M')
+
+
+@app.template_filter('datetime_local_display_tz')
+def datetime_local_display_tz(v):
+    local_v = utc_naive_to_display_local(v)
+    return local_v.strftime('%Y-%m-%dT%H:%M') if local_v else ''
     
 @app.context_processor
 def inject_helpers():
@@ -949,6 +977,7 @@ def admin_assign(eid):
             mode = request.form.get(f'pos_{pos.id}_mode') or None
             booking = request.form.get(f'pos_{pos.id}_booking') or None
             arrival = parse_dt(request.form.get(f'pos_{pos.id}_arrival') or "")
+            arrival = display_local_to_utc_naive(arrival)
             notes = request.form.get(f'pos_{pos.id}_notes') or None
 
             current = existing.get(pos.id)
