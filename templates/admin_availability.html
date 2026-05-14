@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Staff Availability (Read-only)</h2>
+<table class="table table-striped">
+  <thead><tr><th>Staff</th><th>Email</th><th>Start</th><th>End</th><th>City ID</th><th>Status</th><th>Notes</th><th>Updated</th></tr></thead>
+  <tbody>
+    {% for r in rows %}
+      <tr>
+        <td>{{ r.person.name if r.person else r.person_id }}</td>
+        <td>{{ r.person.email if r.person else '' }}</td>
+        <td>{{ r.start_date }}</td>
+        <td>{{ r.end_date }}</td>
+        <td>{{ r.city_id if r.city_id is not none else 'Any' }}</td>
+        <td>{{ r.status }}</td>
+        <td>{{ r.notes or '' }}</td>
+        <td>{{ r.updated_at }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="8">No availability records.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

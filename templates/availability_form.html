@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>{{ 'Edit' if row else 'New' }} Availability</h2>
+<form method="post" class="card p-3">
+  <div class="mb-2">
+    <label>Start Date</label>
+    <input class="form-control" type="date" name="start_date" value="{{ row.start_date if row else '' }}" required>
+  </div>
+  <div class="mb-2">
+    <label>End Date</label>
+    <input class="form-control" type="date" name="end_date" value="{{ row.end_date if row else '' }}" required>
+  </div>
+  <div class="mb-2">
+    <label>City ID (optional)</label>
+    <input class="form-control" type="number" name="city_id" value="{{ row.city_id if row and row.city_id is not none else '' }}">
+  </div>
+  <div class="mb-2">
+    <label>Status</label>
+    <input class="form-control" type="text" name="status" value="{{ row.status if row else 'available' }}" required>
+  </div>
+  <div class="mb-2">
+    <label>Notes</label>
+    <textarea class="form-control" name="notes">{{ row.notes if row else '' }}</textarea>
+  </div>
+  <button class="btn btn-primary" type="submit">Save</button>
+  <a class="btn btn-link" href="{{ url_for('availability_list') }}">Cancel</a>
+</form>
+{% endblock %}
