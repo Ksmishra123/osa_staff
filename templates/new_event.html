@@ -10,6 +10,15 @@
   <label>Main Date/Time
     <input type="datetime-local" name="date">
   </label>
+
+  <label>Season
+    <select name="season_id" required>
+      <option value="">Select a season</option>
+      {% for s in seasons %}
+        <option value="{{ s.id }}" {% if (form and form.get('season_id')|int == s.id) or (not form and s.is_active) %}selected{% endif %}>{{ s.name }}</option>
+      {% endfor %}
+    </select>
+  </label>
 <div class="field">
   <label>
     <input type="checkbox" name="setup_only" {% if ev and ev.setup_only %}checked{% endif %}>

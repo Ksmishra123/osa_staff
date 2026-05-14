@@ -79,6 +79,7 @@ class Event(Base):
     __tablename__ = "events"
 
     id = Column(Integer, primary_key=True)
+    season_id = Column(Integer, ForeignKey("seasons.id", ondelete="SET NULL"), nullable=True, index=True)
 
     # When / where
     date = Column(DateTime, index=True)      # main event date/time
@@ -98,6 +99,7 @@ class Event(Base):
 
     # Relationships
     assignments = relationship("Assignment", back_populates="event", cascade="all, delete-orphan")
+    season = relationship("Season", back_populates="events")
     hotels = relationship("Hotel", back_populates="event", cascade="all, delete-orphan")
     event_days = relationship("EventDay", back_populates="event", cascade="all, delete-orphan")
     days = relationship("EventDay", back_populates="event", overlaps="event_days", cascade="all, delete-orphan")
@@ -239,3 +241,20 @@ class Attachment(Base):
     uploaded_by = Column(Integer, ForeignKey('people.id'))
 
     event = relationship('Event', backref='attachments')
+
+
+class Season(Base):
+    __tablename__ = "seasons"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False, unique=True, index=True)
+    is_active = Column(Boolean, nullable=False, default=False)
+    starts_on = Column(Date, nullable=True)
+    ends_on = Column(Date, nullable=True)
+    display_order = Column(Integer, nullable=False, default=0, index=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    events = relationship("Event", back_populates="season")
+
+    def __repr__(self) -> str:
+        return f"<Season id={self.id} name={self.name!r} active={self.is_active}>"

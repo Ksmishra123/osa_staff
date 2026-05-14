@@ -30,6 +30,7 @@
         {% if is_admin() %}
           <a href='{{ url_for('admin_events') }}'>Admin</a>
           <a href='{{ url_for('admin_people') }}'>People</a>
+          <a href='{{ url_for('admin_seasons') }}'>Seasons</a>
         {% endif %}
         <a href='{{ url_for('logout') }}'>Logout</a>
       {% else %}
@@ -46,6 +47,7 @@
         {% if is_admin() %}
           <a href="{{ url_for('admin_events') }}">Admin Events</a>
           <a href="{{ url_for('admin_people') }}">People</a>
+          <a href="{{ url_for('admin_seasons') }}">Seasons</a>
         {% else %}
           <a href="{{ url_for('events_list') }}">Events</a>
         {% endif %}
