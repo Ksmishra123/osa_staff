@@ -69,6 +69,65 @@ def _worksheet_name_for_season(season=None, season_id=None, default_tab="Assignm
         return f"{default_tab} {season_id}"
     return default_tab
 
+
+
+def _extract_season_sort_year(title: str) -> int:
+    """Best-effort season year extraction for ordering archived season tabs."""
+    text = (title or "")
+    years = [int(y) for y in re.findall(r"(?:19|20)\d{2}", text)]
+    if years:
+        return min(years)
+    return 0
+
+
+def ensure_season_tab_order(sh, default_tab: str, active_ws_title: str):
+    """Keep active season tab first and archive/order older season tabs.
+
+    Only tabs matching the season naming convention are touched:
+    - exactly the active worksheet title
+    - titles that begin with "<default_tab> "
+    Non-season utility tabs are never renamed directly.
+    """
+    worksheets = sh.worksheets()
+    season_prefix = f"{default_tab} "
+    active_ws = None
+    season_ws = []
+
+    for ws in worksheets:
+        title = ws.title or ""
+        if title == active_ws_title:
+            active_ws = ws
+            continue
+        if title.startswith(season_prefix):
+            season_ws.append(ws)
+
+    if not active_ws:
+        try:
+            active_ws = sh.worksheet(active_ws_title)
+        except gspread.WorksheetNotFound:
+            return
+
+    archived = []
+    for ws in season_ws:
+        title = ws.title or ""
+        archived_title = title if title.endswith(" (Archived)") else f"{title} (Archived)"
+        if archived_title != title:
+            ws.update_title(archived_title)
+        archived.append((ws, _extract_season_sort_year(archived_title), archived_title.lower()))
+
+    archived.sort(key=lambda item: (item[1], item[2]))
+
+    try:
+        sh.reorder_worksheets([active_ws], index=0)
+    except Exception as e:
+        logger.warning("SHEETS: failed to move active season tab to front: %s", e)
+
+    for idx, (ws, _, _) in enumerate(archived, start=1):
+        try:
+            sh.reorder_worksheets([ws], index=idx)
+        except Exception as e:
+            logger.warning("SHEETS: failed to reorder archived season tab %s: %s", ws.title, e)
+
 def _find_or_create_worksheet(sh, ws_title, headers):
     try:
         ws = sh.worksheet(ws_title)
@@ -121,6 +180,7 @@ def sync_assignments_sheet(db, only_event_id=None, rows_for_event=None, event=No
 
     ws_title = _worksheet_name_for_season(season=season, season_id=season_id, default_tab=default_tab)
     ws = _find_or_create_worksheet(sh, ws_title, HEADERS)
+    ensure_season_tab_order(sh, default_tab=default_tab, active_ws_title=ws_title)
 
     # Start from base headers, keep any previously-created dynamic headers,
     # then add new headers from unmapped positions in this event.
