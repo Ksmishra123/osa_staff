@@ -117,6 +117,10 @@ def ensure_seasons_support():
             existing = {r[1] for r in rows}
             if "season_id" not in existing:
                 conn.exec_driver_sql("ALTER TABLE events ADD COLUMN season_id INTEGER REFERENCES seasons(id) ON DELETE SET NULL")
+            season_rows = conn.exec_driver_sql("PRAGMA table_info(seasons)").fetchall()
+            season_existing = {r[1] for r in season_rows}
+            if "archived_at" not in season_existing:
+                conn.exec_driver_sql("ALTER TABLE seasons ADD COLUMN archived_at DATETIME")
 
             default_id = conn.exec_driver_sql(
                 "SELECT id FROM seasons WHERE name='Default' LIMIT 1"
@@ -140,7 +144,12 @@ def ensure_seasons_support():
 ensure_seasons_support()
 
 def _season_options(db):
-    return db.query(Season).order_by(Season.display_order.asc(), Season.name.asc()).all()
+    return (
+        db.query(Season)
+        .filter(Season.archived_at.is_(None))
+        .order_by(Season.display_order.asc(), Season.name.asc())
+        .all()
+    )
 
 # -----------------------------------------------------------------------------
 # Uploads config (headshots)
@@ -1152,52 +1161,92 @@ def admin_edit_event(eid):
 
     return render_template('edit_event.html', ev=ev, seasons=seasons)
 
-@app.route('/admin/seasons', methods=['GET', 'POST'])
+def _validate_season_payload(name: str, starts_on, ends_on):
+    if not name:
+        return 'Season name is required.'
+    if len(name) > 80:
+        return 'Season name must be 80 characters or fewer.'
+    if starts_on and ends_on and starts_on > ends_on:
+        return 'Season start date must be before end date.'
+    return None
+
+
+@app.route('/admin/seasons', methods=['GET'])
 @login_required
 def admin_seasons():
     if not is_admin():
         abort(403)
     db = SessionLocal()
+    seasons = _season_options(db)
+    archived_seasons = (
+        db.query(Season)
+        .filter(Season.archived_at.is_not(None))
+        .order_by(Season.archived_at.desc(), Season.name.asc())
+        .all()
+    )
+    return render_template('seasons.html', seasons=seasons, archived_seasons=archived_seasons)
 
-    if request.method == 'POST':
-        action = (request.form.get('action') or request.args.get('action') or '').strip()
-
-        if action.startswith('activate:'):
-            sid = int(action.split(':', 1)[1])
-            db.query(Season).update({Season.is_active: False})
-            target = db.get(Season, sid)
-            if target:
-                target.is_active = True
-                db.commit()
-                flash(f'Season "{target.name}" activated.')
-
-        elif action == 'create':
-            name = (request.form.get('name') or '').strip()
-            starts_on = parse_date(request.form.get('starts_on'))
-            ends_on = parse_date(request.form.get('ends_on'))
-            is_active = truthy(request.form.get('is_active'))
-            if not name:
-                flash('Season name is required.')
-                return redirect(url_for('admin_seasons'))
-            max_order = db.query(Season.display_order).order_by(Season.display_order.desc()).first()
-            next_order = (max_order[0] if max_order else 0) + 1
-            season = Season(name=name, starts_on=starts_on, ends_on=ends_on, is_active=is_active, display_order=next_order)
-            if is_active:
-                db.query(Season).update({Season.is_active: False})
-            db.add(season)
-            db.commit()
-            flash('Season created.')
-
-        elif action == 'reorder':
-            for season in _season_options(db):
-                season.display_order = request.form.get(f'order_{season.id}', type=int) or season.display_order
-            db.commit()
-            flash('Season order updated.')
-
+@app.route('/admin/seasons', methods=['POST'])
+@login_required
+def admin_create_season():
+    if not is_admin():
+        abort(403)
+    db = SessionLocal()
+    name = (request.form.get('name') or '').strip()
+    starts_on = parse_date(request.form.get('starts_on'))
+    ends_on = parse_date(request.form.get('ends_on'))
+    is_active = truthy(request.form.get('is_active'))
+    error = _validate_season_payload(name, starts_on, ends_on)
+    if error:
+        flash(error)
         return redirect(url_for('admin_seasons'))
 
-    seasons = _season_options(db)
-    return render_template('admin_seasons.html', seasons=seasons)
+    max_order = db.query(Season.display_order).order_by(Season.display_order.desc()).first()
+    next_order = (max_order[0] if max_order else 0) + 1
+    season = Season(name=name, starts_on=starts_on, ends_on=ends_on, is_active=False, display_order=next_order)
+    db.add(season)
+    db.flush()
+    if is_active:
+        db.query(Season).update({Season.is_active: False})
+        season.is_active = True
+    db.commit()
+    flash('Season created.')
+    return redirect(url_for('admin_seasons'))
+
+
+@app.route('/admin/seasons/<int:sid>/activate', methods=['POST'])
+@login_required
+def admin_activate_season(sid):
+    if not is_admin():
+        abort(403)
+    db = SessionLocal()
+    target = db.get(Season, sid)
+    if not target or target.archived_at is not None:
+        abort(404)
+    db.query(Season).update({Season.is_active: False})
+    target.is_active = True
+    db.commit()
+    flash(f'Season "{target.name}" activated.')
+    return redirect(url_for('admin_seasons'))
+
+
+@app.route('/admin/seasons/<int:sid>/archive', methods=['POST'])
+@login_required
+def admin_archive_season(sid):
+    if not is_admin():
+        abort(403)
+    db = SessionLocal()
+    target = db.get(Season, sid)
+    if not target:
+        abort(404)
+    if target.is_active:
+        flash('Active season cannot be archived.')
+        return redirect(url_for('admin_seasons'))
+    target.archived_at = datetime.utcnow()
+    target.is_active = False
+    db.commit()
+    flash(f'Season "{target.name}" archived.')
+    return redirect(url_for('admin_seasons'))
 
 @app.route('/admin/events/<int:eid>/publish', methods=['POST'])
 @login_required
