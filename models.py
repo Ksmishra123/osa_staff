@@ -252,6 +252,7 @@ class Season(Base):
     starts_on = Column(Date, nullable=True)
     ends_on = Column(Date, nullable=True)
     display_order = Column(Integer, nullable=False, default=0, index=True)
+    archived_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
     events = relationship("Event", back_populates="season")

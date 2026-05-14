@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Manage Seasons</h2>
+
+<h3>Create Season</h3>
+<form method="post" action="{{ url_for('admin_create_season') }}" class="stack">
+  <label>Name<input type="text" name="name" placeholder="2026 or 2026-2027" maxlength="80" required></label>
+  <label>Starts On<input type="date" name="starts_on"></label>
+  <label>Ends On<input type="date" name="ends_on"></label>
+  <label><input type="checkbox" name="is_active"> Set as active season</label>
+  <button class="btn btn-primary" type="submit">Create Season</button>
+</form>
+
+<hr>
+<h3>Current Seasons</h3>
+<table>
+  <thead><tr><th>Name</th><th>Date Range</th><th>Active</th><th>Actions</th></tr></thead>
+  <tbody>
+    {% for s in seasons %}
+    <tr>
+      <td>{{ s.name }}</td>
+      <td>{{ s.starts_on or '—' }} to {{ s.ends_on or '—' }}</td>
+      <td>{{ 'Yes' if s.is_active else 'No' }}</td>
+      <td style="display:flex; gap:8px;">
+        {% if not s.is_active %}
+        <form method="post" action="{{ url_for('admin_activate_season', sid=s.id) }}">
+          <button class="btn" type="submit">Set Active</button>
+        </form>
+        <form method="post" action="{{ url_for('admin_archive_season', sid=s.id) }}">
+          <button class="btn" type="submit">Archive</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% if archived_seasons %}
+<hr>
+<h3>Archived Seasons</h3>
+<ul>
+  {% for s in archived_seasons %}
+    <li>{{ s.name }} ({{ s.starts_on or '—' }} to {{ s.ends_on or '—' }})</li>
+  {% endfor %}
+</ul>
+{% endif %}
+{% endblock %}
