@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Manage Seasons</h2>
+
+<h3>Create Season</h3>
+<form method="post" class="stack">
+  <button class="btn btn-primary" type="submit" name="action" value="create">Create Season</button>
+  <label>Name<input type="text" name="name" placeholder="2026 or 2026-2027" required></label>
+  <label>Starts On<input type="date" name="starts_on"></label>
+  <label>Ends On<input type="date" name="ends_on"></label>
+  <label><input type="checkbox" name="is_active"> Set as active season</label>
+</form>
+
+<hr>
+<h3>Existing Seasons</h3>
+<form method="post">
+  <table>
+    <thead><tr><th>Name</th><th>Date Range</th><th>Active</th><th>Order</th><th>Action</th></tr></thead>
+    <tbody>
+      {% for s in seasons %}
+      <tr>
+        <td>{{ s.name }}</td>
+        <td>{{ s.starts_on or '—' }} to {{ s.ends_on or '—' }}</td>
+        <td>{{ 'Yes' if s.is_active else 'No' }}</td>
+        <td><input type="number" name="order_{{ s.id }}" value="{{ s.display_order }}" style="width:80px;"></td>
+        <td>{% if not s.is_active %}<button class="btn" type="submit" name="action" value="activate:{{ s.id }}">Activate</button>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <button class="btn btn-primary" type="submit" name="action" value="reorder">Save Order</button>
+</form>
+{% endblock %}

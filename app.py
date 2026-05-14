@@ -25,7 +25,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from models import (
     init_db, SessionLocal, engine,
     Person, Event, Position, Assignment,
-    Hotel, Room, Roommate, EventDay, Attachment
+    Hotel, Room, Roommate, EventDay, Attachment, Season
 )
 
 # ReportLab for PDFs
@@ -95,6 +95,52 @@ def ensure_assignment_itinerary_columns():
 
 ensure_assignment_itinerary_columns()
 
+def ensure_seasons_support():
+    """Compatibility migration for seasons + event.season_id and backfill."""
+    try:
+        with engine.begin() as conn:
+            conn.exec_driver_sql(
+                """
+                CREATE TABLE IF NOT EXISTS seasons (
+                    id INTEGER PRIMARY KEY,
+                    name VARCHAR NOT NULL UNIQUE,
+                    is_active BOOLEAN NOT NULL DEFAULT 0,
+                    starts_on DATE,
+                    ends_on DATE,
+                    display_order INTEGER NOT NULL DEFAULT 0,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+
+            rows = conn.exec_driver_sql("PRAGMA table_info(events)").fetchall()
+            existing = {r[1] for r in rows}
+            if "season_id" not in existing:
+                conn.exec_driver_sql("ALTER TABLE events ADD COLUMN season_id INTEGER REFERENCES seasons(id) ON DELETE SET NULL")
+
+            legacy_id = conn.exec_driver_sql(
+                "SELECT id FROM seasons WHERE name='Legacy' LIMIT 1"
+            ).scalar()
+            if not legacy_id:
+                max_order = conn.exec_driver_sql("SELECT COALESCE(MAX(display_order), 0) FROM seasons").scalar() or 0
+                conn.exec_driver_sql(
+                    "INSERT INTO seasons (name, is_active, display_order, created_at) VALUES ('Legacy', 0, ?, CURRENT_TIMESTAMP)",
+                    (max_order + 1,)
+                )
+                legacy_id = conn.exec_driver_sql("SELECT id FROM seasons WHERE name='Legacy' LIMIT 1").scalar()
+
+            conn.exec_driver_sql(
+                "UPDATE events SET season_id = ? WHERE season_id IS NULL",
+                (legacy_id,)
+            )
+    except Exception:
+        app.logger.exception("Could not auto-migrate seasons support.")
+
+ensure_seasons_support()
+
+def _season_options(db):
+    return db.query(Season).order_by(Season.display_order.asc(), Season.name.asc()).all()
+
 # -----------------------------------------------------------------------------
 # Uploads config (headshots)
 # -----------------------------------------------------------------------------
@@ -163,6 +209,14 @@ def parse_dt(v: str):
         if "T" in v:
             return datetime.fromisoformat(v)
         return datetime.strptime(v, "%Y-%m-%d %H:%M")
+    except Exception:
+        return None
+
+def parse_date(v: str):
+    if not v:
+        return None
+    try:
+        return datetime.strptime(v.strip(), "%Y-%m-%d").date()
     except Exception:
         return None
 
@@ -995,6 +1049,8 @@ def admin_new_event():
     if not is_admin():
         abort(403)
 
+    db = SessionLocal()
+    seasons = _season_options(db)
     if request.method == 'POST':
         form = request.form
 
@@ -1012,12 +1068,15 @@ def admin_new_event():
         coordinator_phone = normalize_phone(form.get('coordinator_phone') or '')
         dress_code        = (form.get('dress_code') or '').strip()
         notes             = (form.get('notes') or '').strip()
+        season_id         = form.get('season_id', type=int)
 
         errors = []
         if not city:
             errors.append("City is required.")
         if not date:
             errors.append("Main event date/time is required.")
+        if not season_id:
+            errors.append("Season is required.")
 
         if errors:
             for e in errors:
@@ -1026,10 +1085,10 @@ def admin_new_event():
             return render_template(
                 'new_event.html',
                 ev=None,  # template can use ev? if it expects it
-                form=form
+                form=form,
+                seasons=seasons
             )
 
-        db = SessionLocal()
         ev = Event(
             city=city,
             date=date,
@@ -1044,7 +1103,7 @@ def admin_new_event():
             coordinator_phone=coordinator_phone,
             dress_code=dress_code,
             notes=notes,
-            setup_only=setup_only,
+            season_id=season_id,
         )
         db.add(ev)
         db.commit()
@@ -1052,7 +1111,7 @@ def admin_new_event():
         return redirect(url_for('admin_events'))
 
     # GET
-    return render_template('new_event.html', ev=None)
+    return render_template('new_event.html', ev=None, seasons=seasons)
 
 @app.route('/admin/events/<int:eid>/edit', methods=['GET','POST'])
 @login_required
@@ -1076,6 +1135,7 @@ def admin_edit_event(eid):
         ev.coordinator_name = (request.form.get('coordinator_name') or '').strip()
         ev.coordinator_phone = normalize_phone(request.form.get('coordinator_phone',''))
         ev.call_sheet_published = truthy(request.form.get('call_sheet_published'))
+        ev.season_id = request.form.get('season_id', type=int)
         ev.setup_only = ('setup_only' in request.form)
         
         db.commit()
@@ -1088,7 +1148,54 @@ def admin_edit_event(eid):
         flash('Event updated.')
         return redirect(url_for('admin_events'))
 
-    return render_template('edit_event.html', ev=ev)
+    return render_template('edit_event.html', ev=ev, seasons=seasons)
+
+@app.route('/admin/seasons', methods=['GET', 'POST'])
+@login_required
+def admin_seasons():
+    if not is_admin():
+        abort(403)
+    db = SessionLocal()
+
+    if request.method == 'POST':
+        action = (request.form.get('action') or request.args.get('action') or '').strip()
+
+        if action.startswith('activate:'):
+            sid = int(action.split(':', 1)[1])
+            db.query(Season).update({Season.is_active: False})
+            target = db.get(Season, sid)
+            if target:
+                target.is_active = True
+                db.commit()
+                flash(f'Season "{target.name}" activated.')
+
+        elif action == 'create':
+            name = (request.form.get('name') or '').strip()
+            starts_on = parse_date(request.form.get('starts_on'))
+            ends_on = parse_date(request.form.get('ends_on'))
+            is_active = truthy(request.form.get('is_active'))
+            if not name:
+                flash('Season name is required.')
+                return redirect(url_for('admin_seasons'))
+            max_order = db.query(Season.display_order).order_by(Season.display_order.desc()).first()
+            next_order = (max_order[0] if max_order else 0) + 1
+            season = Season(name=name, starts_on=starts_on, ends_on=ends_on, is_active=is_active, display_order=next_order)
+            if is_active:
+                db.query(Season).update({Season.is_active: False})
+            db.add(season)
+            db.commit()
+            flash('Season created.')
+
+        elif action == 'reorder':
+            for season in _season_options(db):
+                season.display_order = request.form.get(f'order_{season.id}', type=int) or season.display_order
+            db.commit()
+            flash('Season order updated.')
+
+        return redirect(url_for('admin_seasons'))
+
+    seasons = _season_options(db)
+    return render_template('admin_seasons.html', seasons=seasons)
 
 @app.route('/admin/events/<int:eid>/publish', methods=['POST'])
 @login_required

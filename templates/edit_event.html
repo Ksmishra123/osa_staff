@@ -46,6 +46,16 @@
 
   <hr style="margin:20px 0;">
 
+
+  <div class="field">
+    <label for="season_id">Season</label>
+    <select id="season_id" name="season_id" required>
+      {% for s in seasons %}
+        <option value="{{ s.id }}" {% if ev.season_id == s.id %}selected{% endif %}>{{ s.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
   <div class="field">
     <label>Main Date/Time</label>
     <input type="datetime-local" name="date" value="{{ ev.date|default('',true)|datetime_local }}" required>
