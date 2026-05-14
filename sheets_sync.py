@@ -57,10 +57,23 @@ def _get_client_and_sheet():
     creds = Credentials.from_service_account_info(info, scopes=["https://www.googleapis.com/auth/spreadsheets"])
     gc = gspread.authorize(creds)
     sh = gc.open_by_key(sid)
+    return sh, tab
+
+def _worksheet_name_for_season(season=None, season_id=None, default_tab="Assignments") -> str:
+    season_name = (getattr(season, "name", "") or "").strip()
+    if season_name:
+        return f"{default_tab} {season_name}"
+    if getattr(season, "starts_on", None):
+        return f"{default_tab} {season.starts_on.year}"
+    if season_id:
+        return f"{default_tab} {season_id}"
+    return default_tab
+
+def _find_or_create_worksheet(sh, ws_title, headers):
     try:
-        ws = sh.worksheet(tab)
+        ws = sh.worksheet(ws_title)
     except gspread.WorksheetNotFound:
-        ws = sh.add_worksheet(title=tab, rows=200, cols=len(HEADERS))
+        ws = sh.add_worksheet(title=ws_title, rows=200, cols=max(len(headers), 1))
     return ws
 
 def _ensure_headers(ws, headers):
@@ -81,10 +94,10 @@ def _format_date_range(ev, days):
     dt = getattr(ev, "event_start", None)
     return dt.strftime("%b %-d, %Y") if dt else ""
 
-def sync_assignments_sheet(db, only_event_id=None, rows_for_event=None, event=None) -> int:
-    from models import Assignment, EventDay, Position
+def sync_assignments_sheet(db, only_event_id=None, rows_for_event=None, event=None, season_id=None, season=None) -> int:
+    from models import Assignment, EventDay, Position, Season
     from sqlalchemy.orm import joinedload
-    ws = _get_client_and_sheet()
+    sh, default_tab = _get_client_and_sheet()
 
     # get event + days if not passed
     if not (event and rows_for_event):
@@ -97,6 +110,17 @@ def sync_assignments_sheet(db, only_event_id=None, rows_for_event=None, event=No
         )
     if not event:
         return 0
+    if season_id is not None and getattr(event, "season_id", None) != season_id:
+        return 0
+    if season is None:
+        season = getattr(event, "season", None)
+    if season is None and season_id:
+        season = db.get(Season, season_id)
+    if season_id is None:
+        season_id = getattr(event, "season_id", None)
+
+    ws_title = _worksheet_name_for_season(season=season, season_id=season_id, default_tab=default_tab)
+    ws = _find_or_create_worksheet(sh, ws_title, HEADERS)
 
     # Start from base headers, keep any previously-created dynamic headers,
     # then add new headers from unmapped positions in this event.

@@ -603,7 +603,7 @@ def init():
     return "DB initialized. Run: python seed.py", 200
 
 
-def _sync_event_assignments_to_sheet(db, eid: int, ev: Event | None = None) -> None:
+def _sync_event_assignments_to_sheet(db, eid: int, ev: Event | None = None, season: Season | None = None) -> None:
     """Best-effort sync of one event row in the Assignments Google Sheet."""
     try:
         from sheets_sync import sync_assignments_sheet
@@ -617,7 +617,16 @@ def _sync_event_assignments_to_sheet(db, eid: int, ev: Event | None = None) -> N
               .options(joinedload(Assignment.person), joinedload(Assignment.position))
               .all()
         )
-        sync_assignments_sheet(db, only_event_id=eid, rows_for_event=rows_for_event, event=ev)
+        if season is None:
+            season = ev.season
+        sync_assignments_sheet(
+            db,
+            only_event_id=eid,
+            rows_for_event=rows_for_event,
+            event=ev,
+            season_id=ev.season_id,
+            season=season,
+        )
     except Exception:
         app.logger.exception("Sheets sync failed for event %s", eid)
 
