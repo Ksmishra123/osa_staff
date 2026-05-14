@@ -118,20 +118,21 @@ def ensure_seasons_support():
             if "season_id" not in existing:
                 conn.exec_driver_sql("ALTER TABLE events ADD COLUMN season_id INTEGER REFERENCES seasons(id) ON DELETE SET NULL")
 
-            legacy_id = conn.exec_driver_sql(
-                "SELECT id FROM seasons WHERE name='Legacy' LIMIT 1"
+            default_id = conn.exec_driver_sql(
+                "SELECT id FROM seasons WHERE name='Default' LIMIT 1"
             ).scalar()
-            if not legacy_id:
+            if not default_id:
                 max_order = conn.exec_driver_sql("SELECT COALESCE(MAX(display_order), 0) FROM seasons").scalar() or 0
+                has_active = conn.exec_driver_sql("SELECT COUNT(1) FROM seasons WHERE is_active = 1").scalar() or 0
                 conn.exec_driver_sql(
-                    "INSERT INTO seasons (name, is_active, display_order, created_at) VALUES ('Legacy', 0, ?, CURRENT_TIMESTAMP)",
-                    (max_order + 1,)
+                    "INSERT INTO seasons (name, is_active, display_order, created_at) VALUES ('Default', ?, ?, CURRENT_TIMESTAMP)",
+                    (0 if has_active else 1, max_order + 1)
                 )
-                legacy_id = conn.exec_driver_sql("SELECT id FROM seasons WHERE name='Legacy' LIMIT 1").scalar()
+                default_id = conn.exec_driver_sql("SELECT id FROM seasons WHERE name='Default' LIMIT 1").scalar()
 
             conn.exec_driver_sql(
                 "UPDATE events SET season_id = ? WHERE season_id IS NULL",
-                (legacy_id,)
+                (default_id,)
             )
     except Exception:
         app.logger.exception("Could not auto-migrate seasons support.")
@@ -1120,6 +1121,7 @@ def admin_edit_event(eid):
     db = SessionLocal()
     ev = db.get(Event, eid)
     if not ev: abort(404)
+    seasons = _season_options(db)
 
     if request.method == 'POST':
         ev.city = (request.form.get('city') or '').strip()
