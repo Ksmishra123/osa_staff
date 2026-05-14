@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>My Availability</h2>
+<p><a class="btn btn-primary btn-sm" href="{{ url_for('availability_new') }}">Add Availability</a></p>
+<table class="table table-striped">
+  <thead><tr><th>Start</th><th>End</th><th>City ID</th><th>Status</th><th>Notes</th><th></th></tr></thead>
+  <tbody>
+    {% for r in rows %}
+      <tr>
+        <td>{{ r.start_date }}</td>
+        <td>{{ r.end_date }}</td>
+        <td>{{ r.city_id if r.city_id is not none else 'Any' }}</td>
+        <td>{{ r.status }}</td>
+        <td>{{ r.notes or '' }}</td>
+        <td>
+          <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('availability_edit', aid=r.id) }}">Edit</a>
+          <form method="post" action="{{ url_for('availability_delete', aid=r.id) }}" style="display:inline">
+            <button class="btn btn-outline-danger btn-sm" type="submit">Delete</button>
+          </form>
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="6">No availability entries yet.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

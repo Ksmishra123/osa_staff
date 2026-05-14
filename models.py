@@ -70,6 +70,7 @@ class Person(Base):
 
     # Relationships
     assignments = relationship("Assignment", back_populates="person", cascade="all, delete-orphan")
+    availabilities = relationship("Availability", back_populates="person", cascade="all, delete-orphan")
 
     def __repr__(self) -> str:
         return f"<Person id={self.id} name={self.name!r} email={self.email!r}>"
@@ -259,3 +260,23 @@ class Season(Base):
 
     def __repr__(self) -> str:
         return f"<Season id={self.id} name={self.name!r} active={self.is_active}>"
+
+
+class Availability(Base):
+    __tablename__ = "availabilities"
+
+    id = Column(Integer, primary_key=True)
+    person_id = Column(Integer, ForeignKey("people.id", ondelete="CASCADE"), nullable=False, index=True)
+    city_id = Column(Integer, nullable=True, index=True)
+    start_date = Column(Date, nullable=False, index=True)
+    end_date = Column(Date, nullable=False, index=True)
+    status = Column(String(50), nullable=False, default="available")
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    person = relationship("Person", back_populates="availabilities")
+
+    def __repr__(self) -> str:
+        return (f"<Availability id={self.id} person_id={self.person_id} city_id={self.city_id} "
+                f"start={self.start_date} end={self.end_date} status={self.status!r}>")
