@@ -3,17 +3,16 @@
 <h2>{{ 'Edit' if row else 'New' }} Availability</h2>
 <form method="post" class="card p-3">
   <div class="mb-2">
-    <label>Start Date</label>
-    <input class="form-control" type="date" name="start_date" value="{{ row.start_date if row else '' }}" required>
+    <label>City (optional)</label>
+    <select class="form-control" name="city_name">
+      <option value="">Any city</option>
+      {% for city in city_options %}
+        <option value="{{ city }}" {% if row and row.city_name == city %}selected{% endif %}>{{ city }}</option>
+      {% endfor %}
+    </select>
   </div>
-  <div class="mb-2">
-    <label>End Date</label>
-    <input class="form-control" type="date" name="end_date" value="{{ row.end_date if row else '' }}" required>
-  </div>
-  <div class="mb-2">
-    <label>City ID (optional)</label>
-    <input class="form-control" type="number" name="city_id" value="{{ row.city_id if row and row.city_id is not none else '' }}">
-  </div>
+  <input type="hidden" name="start_date" value="{{ row.start_date if row and row.start_date else '' }}">
+  <input type="hidden" name="end_date" value="{{ row.end_date if row and row.end_date else '' }}">
   <div class="mb-2">
     <label>Status</label>
     <input class="form-control" type="text" name="status" value="{{ row.status if row else 'available' }}" required>
