@@ -268,6 +268,7 @@ class Availability(Base):
     id = Column(Integer, primary_key=True)
     person_id = Column(Integer, ForeignKey("people.id", ondelete="CASCADE"), nullable=False, index=True)
     city_id = Column(Integer, nullable=True, index=True)
+    city_name = Column(String(120), nullable=True, index=True)
     start_date = Column(Date, nullable=False, index=True)
     end_date = Column(Date, nullable=False, index=True)
     status = Column(String(50), nullable=False, default="available")

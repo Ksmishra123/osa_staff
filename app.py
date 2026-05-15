@@ -95,6 +95,19 @@ def ensure_assignment_itinerary_columns():
 
 ensure_assignment_itinerary_columns()
 
+def ensure_availability_columns():
+    """Compatibility migration for availability city-name support."""
+    try:
+        with engine.begin() as conn:
+            rows = conn.exec_driver_sql("PRAGMA table_info(availabilities)").fetchall()
+            existing = {r[1] for r in rows}
+            if "city_name" not in existing:
+                conn.exec_driver_sql("ALTER TABLE availabilities ADD COLUMN city_name VARCHAR(120)")
+    except Exception:
+        app.logger.exception("Could not auto-migrate availability columns.")
+
+ensure_availability_columns()
+
 def ensure_seasons_support():
     """Compatibility migration for seasons + event.season_id and backfill."""
     try:
@@ -231,7 +244,7 @@ def parse_date(v: str):
         return None
 
 
-def validate_availability_window(db, person_id: int, start_date, end_date, city_id, current_id: int | None = None):
+def validate_availability_window(db, person_id: int, start_date, end_date, city_id, city_name: str | None = None, current_id: int | None = None):
     if not start_date or not end_date:
         return "Start and end dates are required."
     if end_date < start_date:
@@ -247,8 +260,10 @@ def validate_availability_window(db, person_id: int, start_date, end_date, city_
     )
     if current_id:
         q = q.filter(Availability.id != current_id)
-    if city_id is None:
-        q = q.filter(Availability.city_id.is_(None))
+    if city_name:
+        q = q.filter(Availability.city_name == city_name)
+    elif city_id is None:
+        q = q.filter(Availability.city_id.is_(None), (Availability.city_name.is_(None) | (Availability.city_name == "")))
     else:
         q = q.filter(Availability.city_id == city_id)
 
@@ -1115,55 +1130,58 @@ def availability_list():
 @login_required
 def availability_new():
     db = SessionLocal()
+    city_options = [r[0] for r in db.query(Event.city).filter(Event.city.isnot(None), Event.city != "").distinct().order_by(Event.city.asc()).all()]
     if request.method == 'POST':
-        start_date = parse_date(request.form.get('start_date', ''))
-        end_date = parse_date(request.form.get('end_date', ''))
-        city_raw = (request.form.get('city_id', '') or '').strip()
-        city_id = int(city_raw) if city_raw.isdigit() else None
+        start_date = parse_date(request.form.get('start_date', '')) or date.today()
+        end_date = parse_date(request.form.get('end_date', '')) or date(2100, 12, 31)
+        city_id = None
+        city_name = (request.form.get('city_name', '') or '').strip() or None
         status = (request.form.get('status', 'available') or 'available').strip()
         notes = (request.form.get('notes', '') or '').strip() or None
-        err = validate_availability_window(db, int(current_user.id), start_date, end_date, city_id)
+        err = validate_availability_window(db, int(current_user.id), start_date, end_date, city_id, city_name=city_name)
         if err:
             flash(err)
-            return render_template('availability_form.html', row=None)
+            return render_template('availability_form.html', row=None, city_options=city_options)
         row = Availability(
             person_id=int(current_user.id), city_id=city_id, start_date=start_date,
-            end_date=end_date, status=status, notes=notes
+            end_date=end_date, city_name=city_name, status=status, notes=notes
         )
         db.add(row)
         db.commit()
         flash("Availability added.")
         return redirect(url_for('availability_list'))
-    return render_template('availability_form.html', row=None)
+    return render_template('availability_form.html', row=None, city_options=city_options)
 
 
 @app.route('/availability/<int:aid>/edit', methods=['GET', 'POST'])
 @login_required
 def availability_edit(aid):
     db = SessionLocal()
+    city_options = [r[0] for r in db.query(Event.city).filter(Event.city.isnot(None), Event.city != "").distinct().order_by(Event.city.asc()).all()]
     row = db.get(Availability, aid)
     if not row or row.person_id != int(current_user.id):
         abort(403)
     if request.method == 'POST':
         start_date = parse_date(request.form.get('start_date', ''))
         end_date = parse_date(request.form.get('end_date', ''))
-        city_raw = (request.form.get('city_id', '') or '').strip()
-        city_id = int(city_raw) if city_raw.isdigit() else None
+        city_id = None
+        city_name = (request.form.get('city_name', '') or '').strip() or None
         status = (request.form.get('status', 'available') or 'available').strip()
         notes = (request.form.get('notes', '') or '').strip() or None
-        err = validate_availability_window(db, int(current_user.id), start_date, end_date, city_id, current_id=row.id)
+        err = validate_availability_window(db, int(current_user.id), start_date, end_date, city_id, city_name=city_name, current_id=row.id)
         if err:
             flash(err)
-            return render_template('availability_form.html', row=row)
+            return render_template('availability_form.html', row=row, city_options=city_options)
         row.start_date = start_date
         row.end_date = end_date
         row.city_id = city_id
+        row.city_name = city_name
         row.status = status
         row.notes = notes
         db.commit()
         flash("Availability updated.")
         return redirect(url_for('availability_list'))
-    return render_template('availability_form.html', row=row)
+    return render_template('availability_form.html', row=row, city_options=city_options)
 
 
 @app.route('/availability/<int:aid>/delete', methods=['POST'])
@@ -1201,6 +1219,9 @@ def ack(aid):
 def admin_events():
     if not is_admin():
         abort(403)
+    db = SessionLocal()
+    events = db.query(Event).order_by(Event.date.asc()).all()
+    return render_template('events.html', events=events)
 
 
 @app.route('/admin/availability')
@@ -1217,9 +1238,6 @@ def admin_availability():
         .all()
     )
     return render_template('admin_availability.html', rows=rows)
-    db = SessionLocal()
-    events = db.query(Event).order_by(Event.date.asc()).all()
-    return render_template('events.html', events=events)
 
 @app.route('/admin/events/new', methods=['GET', 'POST'])
 @login_required
@@ -1458,14 +1476,18 @@ def admin_assign(eid):
     people = db.query(Person).order_by(Person.name.asc()).all()
     positions = db.query(Position).order_by(Position.display_order.asc()).all()
     event_start_date, event_end_date = _event_window_for_matching(db, ev)
-    event_city_id = ev.id
+    event_city_name = (ev.city or "").strip()
 
     availability_rows = (
         db.query(Availability)
         .filter(
             Availability.start_date <= event_end_date,
             Availability.end_date >= event_start_date,
-            (Availability.city_id.is_(None) | (Availability.city_id == event_city_id))
+            (
+                Availability.city_name.is_(None) |
+                (Availability.city_name == "") |
+                Availability.city_name.ilike(event_city_name)
+            )
         )
         .all()
     )

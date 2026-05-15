@@ -3,13 +3,11 @@
 <h2>My Availability</h2>
 <p><a class="btn btn-primary btn-sm" href="{{ url_for('availability_new') }}">Add Availability</a></p>
 <table class="table table-striped">
-  <thead><tr><th>Start</th><th>End</th><th>City ID</th><th>Status</th><th>Notes</th><th></th></tr></thead>
+  <thead><tr><th>City</th><th>Status</th><th>Notes</th><th></th></tr></thead>
   <tbody>
     {% for r in rows %}
       <tr>
-        <td>{{ r.start_date }}</td>
-        <td>{{ r.end_date }}</td>
-        <td>{{ r.city_id if r.city_id is not none else 'Any' }}</td>
+        <td>{{ r.city_name if r.city_name else 'Any' }}</td>
         <td>{{ r.status }}</td>
         <td>{{ r.notes or '' }}</td>
         <td>
@@ -20,7 +18,7 @@
         </td>
       </tr>
     {% else %}
-      <tr><td colspan="6">No availability entries yet.</td></tr>
+      <tr><td colspan="4">No availability entries yet.</td></tr>
     {% endfor %}
   </tbody>
 </table>
