@@ -1,6 +1,26 @@
 {% extends 'base.html' %}
 {% block content %}
 <h1>Assign Staff — {{ ev.city }} ({{ ev.date.strftime('%Y-%m-%d') if ev.date else '' }})</h1>
+<p style="margin-top:-6px; color:#6b7280;">
+  Availability window: {{ event_window_start }} to {{ event_window_end }}
+</p>
+
+<form method="get" style="margin:10px 0;">
+  <label style="display:flex; gap:8px; align-items:center;">
+    <input type="checkbox" name="available_only" value="1" {% if available_only %}checked{% endif %} onchange="this.form.submit()">
+    <span>Available only</span>
+  </label>
+</form>
+
+<div class="card" style="padding:10px; margin:10px 0;">
+  <strong>Status groups:</strong>
+  <div style="display:flex; flex-wrap:wrap; gap:10px; margin-top:6px;">
+    <span>🟢 Available: {{ people_by_status.available|length }}</span>
+    <span>🟡 Partial: {{ people_by_status.partial|length }}</span>
+    <span>🔴 Conflict: {{ people_by_status.conflict|length }}</span>
+    <span>⚪ Unknown: {{ people_by_status.unknown|length }}</span>
+  </div>
+</div>
 
 <!-- Unassign one staff member from this event (clears only their assignments for this event) -->
 <div class="card" style="padding:12px; margin:12px 0;">
@@ -9,7 +29,7 @@
     <input type="hidden" name="action" value="remove_person">
     <select name="person_id" required>
       <option value="">— Select person —</option>
-      {% for person in people %}
+      {% for person in all_people %}
         <option value="{{ person.id }}">{{ person.name }}{% if person.email %} ({{ person.email }}){% endif %}</option>
       {% endfor %}
     </select>
@@ -46,9 +66,27 @@
           <select name="pos_{{ p.id }}">
             <option value="">— Unassigned —</option>
             {% for person in people %}
-              <option value="{{ person.id }}" {% if cur and cur.person_id==person.id %}selected{% endif %}>{{ person.name }}</option>
+              <option value="{{ person.id }}" {% if cur and cur.person_id==person.id %}selected{% endif %}>
+                {{ person.name }}
+                {% set label = people_status.get(person.id, 'unknown') %}
+                {% if label == 'available' %} [available]
+                {% elif label == 'partial' %} [partial]
+                {% elif label == 'conflict' %} [conflict]
+                {% else %} [unknown]
+                {% endif %}
+              </option>
             {% endfor %}
           </select>
+          {% if cur %}
+            {% set cur_label = people_status.get(cur.person_id, 'unknown') %}
+            <div style="font-size:.85em; margin-top:3px;">
+              Status:
+              {% if cur_label == 'available' %}<span style="color:#15803d;">available</span>
+              {% elif cur_label == 'partial' %}<span style="color:#a16207;">partial</span>
+              {% elif cur_label == 'conflict' %}<span style="color:#b91c1c;">conflict</span>
+              {% else %}<span style="color:#6b7280;">unknown</span>{% endif %}
+            </div>
+          {% endif %}
         </td>
         <td>
           <input name="pos_{{ p.id }}_mode" placeholder="Flight / Drive / Train"
@@ -85,6 +123,12 @@
     <label style="display:flex; gap:6px; align-items:center;">
       <input type="checkbox" name="send_emails" value="yes">
       <span>Send notification emails to affected staff</span>
+    </label>
+  </div>
+  <div style="margin:12px 0;">
+    <label style="display:flex; gap:6px; align-items:center;">
+      <input type="checkbox" name="confirm_conflicts" value="yes">
+      <span>Allow saving assignments marked as conflict</span>
     </label>
   </div>
 
