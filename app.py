@@ -1315,8 +1315,6 @@ def admin_edit_event(eid):
         ev.coordinator_phone = normalize_phone(request.form.get('coordinator_phone',''))
         ev.call_sheet_published = truthy(request.form.get('call_sheet_published'))
         ev.season_id = request.form.get('season_id', type=int)
-        ev.setup_only = ('setup_only' in request.form)
-        
         db.commit()
      
         for day in ev.days:
