@@ -256,6 +256,42 @@ def validate_availability_window(db, person_id: int, start_date, end_date, city_
         return "Availability window overlaps with an existing entry for the same city scope."
     return None
 
+
+def _event_window_for_matching(db, ev: Event):
+    day_rows = (
+        db.query(EventDay)
+        .filter(EventDay.event_id == ev.id)
+        .order_by(EventDay.start_dt.asc())
+        .all()
+    )
+    date_candidates = []
+    for d in day_rows:
+        for dt_val in (d.setup_dt, d.setup_end_dt, d.start_dt):
+            if dt_val:
+                date_candidates.append(dt_val.date())
+    for dt_val in (ev.setup_start, ev.event_start, ev.event_end):
+        if dt_val:
+            date_candidates.append(dt_val.date())
+    if ev.date:
+        date_candidates.append(ev.date)
+    if not date_candidates:
+        today = date.today()
+        return today, today
+    return min(date_candidates), max(date_candidates)
+
+
+def _classify_availability_records(records):
+    if not records:
+        return "unknown"
+    statuses = {(r.status or "").strip().lower() for r in records}
+    if any(s in {"conflict", "unavailable", "blocked", "no", "not available"} for s in statuses):
+        return "conflict"
+    if any("partial" in s for s in statuses):
+        return "partial"
+    if any(s == "available" for s in statuses):
+        return "available"
+    return "unknown"
+
 URL_RE = re.compile(r'https?://[^\s<>"\']+')
 
 def extract_links_from_text(text: str) -> list[str]:
@@ -1423,6 +1459,33 @@ def admin_assign(eid):
 
     people = db.query(Person).order_by(Person.name.asc()).all()
     positions = db.query(Position).order_by(Position.display_order.asc()).all()
+    event_start_date, event_end_date = _event_window_for_matching(db, ev)
+    event_city_id = ev.id
+
+    availability_rows = (
+        db.query(Availability)
+        .filter(
+            Availability.start_date <= event_end_date,
+            Availability.end_date >= event_start_date,
+            (Availability.city_id.is_(None) | (Availability.city_id == event_city_id))
+        )
+        .all()
+    )
+    availability_by_person = {}
+    for row in availability_rows:
+        availability_by_person.setdefault(row.person_id, []).append(row)
+
+    people_status = {
+        p.id: _classify_availability_records(availability_by_person.get(p.id, []))
+        for p in people
+    }
+    people_by_status = {"available": [], "partial": [], "conflict": [], "unknown": []}
+    for p in people:
+        label = people_status.get(p.id, "unknown")
+        people_by_status[label].append(p)
+
+    available_only = request.args.get("available_only") == "1"
+    displayed_people = people_by_status["available"] if available_only else people
 
     # Load existing assignments for comparison
     existing = {
@@ -1459,7 +1522,9 @@ def admin_assign(eid):
             return redirect(url_for('admin_assign', eid=eid))
 
         send_emails = (request.form.get('send_emails') == 'yes')
+        conflict_override = (request.form.get('confirm_conflicts') == 'yes')
         changed_people = []
+        conflicting_assignments = []
 
         for pos in positions:
             pid_raw = request.form.get(f'pos_{pos.id}')
@@ -1472,6 +1537,9 @@ def admin_assign(eid):
                 continue
 
             pid = int(pid_raw)
+            person_status = people_status.get(pid, "unknown")
+            if person_status == "conflict":
+                conflicting_assignments.append((pos.name, pid))
             mode = request.form.get(f'pos_{pos.id}_mode') or None
             booking = request.form.get(f'pos_{pos.id}_booking') or None
             arrival = parse_dt(request.form.get(f'pos_{pos.id}_arrival') or "")
@@ -1531,6 +1599,27 @@ def admin_assign(eid):
                 db.add(new_a)
                 changed_people.append((pid, pos.name))
 
+        if conflicting_assignments and not conflict_override:
+            names = []
+            for pos_name, person_id in conflicting_assignments:
+                person = db.get(Person, person_id)
+                names.append(f"{person.name if person else f'Person #{person_id}'} ({pos_name})")
+            flash("Conflict detected for: " + ", ".join(names) + ". Check override box to save anyway.")
+            currents = existing
+            return render_template(
+                'assign.html',
+                ev=ev,
+                people=displayed_people,
+                all_people=people,
+                people_status=people_status,
+                people_by_status=people_by_status,
+                positions=positions,
+                current=currents,
+                available_only=available_only,
+                event_window_start=event_start_date,
+                event_window_end=event_end_date
+            )
+
         db.commit()
 
         # Send emails to only changed staff
@@ -1562,7 +1651,19 @@ def admin_assign(eid):
 
     # GET branch
     currents = existing
-    return render_template('assign.html', ev=ev, people=people, positions=positions, current=currents)
+    return render_template(
+        'assign.html',
+        ev=ev,
+        people=displayed_people,
+        all_people=people,
+        people_status=people_status,
+        people_by_status=people_by_status,
+        positions=positions,
+        current=currents,
+        available_only=available_only,
+        event_window_start=event_start_date,
+        event_window_end=event_end_date
+    )
 
 @app.route('/admin/events/<int:eid>/assign/sync-itineraries', methods=['POST'])
 @login_required
