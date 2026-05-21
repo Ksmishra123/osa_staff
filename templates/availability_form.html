@@ -2,6 +2,7 @@
 {% block content %}
 <h2>{{ 'Edit' if row else 'New' }} Availability</h2>
 <form method="post" class="card p-3">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <div class="mb-2">
     <label>City (optional)</label>
     <select class="form-control" name="city_name">

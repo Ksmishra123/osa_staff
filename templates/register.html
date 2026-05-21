@@ -2,6 +2,7 @@
 {% block content %}
 <h1>Create your account</h1>
 <form method="post" enctype="multipart/form-data" class="card" style="max-width:840px;">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
 
     <label>Name<br>

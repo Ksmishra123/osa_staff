@@ -17,6 +17,7 @@
 <!-- Bulk delete form -->
 <form id="bulk-delete" method="post" action="{{ url_for('admin_bulk_delete_people_v2', q=q) }}"
       onsubmit="return confirm('Delete selected people? This cannot be undone.');">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
   <div style="margin:8px 0; display:flex; gap:8px; align-items:center;">
     <button class="btn btn-outline-danger btn-sm" type="submit">Delete Selected</button>
@@ -59,6 +60,7 @@
                     action="{{ url_for('admin_delete_person_v2', pid=p.id, q=q) }}"
                     style="display:inline"
                     onsubmit="return confirm('Delete {{ p.name }}? This cannot be undone.');">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button class="btn btn-sm btn-outline-danger" type="submit">Delete</button>
               </form>
             </td>

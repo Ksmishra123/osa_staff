@@ -19,6 +19,9 @@ from flask_login import (
 )
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
+from flask_wtf.csrf import CSRFProtect
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 from sqlalchemy.orm import joinedload, aliased
 from sqlalchemy.exc import SQLAlchemyError
@@ -45,7 +48,31 @@ from sendgrid.helpers.mail import Mail
 # -----------------------------------------------------------------------------
 load_dotenv()
 app = Flask(__name__)
-app.secret_key = os.getenv('SECRET_KEY', 'dev-secret')
+
+# Security Configuration
+app.secret_key = os.getenv('SECRET_KEY')
+if not app.secret_key:
+    raise RuntimeError("SECRET_KEY must be set in environment variables")
+
+# Session Security
+app.config['SESSION_COOKIE_SECURE'] = os.getenv('SESSION_COOKIE_SECURE', 'True').lower() == 'true'
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['PERMANENT_SESSION_LIFETIME'] = 3600  # 1 hour
+
+# File Upload Security
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+
+# CSRF Protection
+csrf = CSRFProtect(app)
+
+# Rate Limiting
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="memory://"
+)
 
 # Bind DB and create tables at startup (important under gunicorn)
 init_db()
@@ -522,6 +549,7 @@ from jinja2 import TemplateNotFound
 
 SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
 FROM_EMAIL = os.getenv("FROM_EMAIL", "no-reply@onstageamerica.com")
+ADMIN_NOTIFICATION_EMAIL = os.getenv("ADMIN_NOTIFICATION_EMAIL", "raj@onstageamerica.com")
 
 def send_email_async(to_email: str, subject: str, html: str) -> bool:
     """
@@ -548,6 +576,113 @@ def send_email_async(to_email: str, subject: str, html: str) -> bool:
     import threading
     threading.Thread(target=_send, daemon=True).start()
     return True
+
+def send_new_account_notification(person: Person) -> bool:
+    """
+    Send email notification to admin when a new account is created.
+    Returns True if notification was sent, False otherwise.
+    """
+    if not ADMIN_NOTIFICATION_EMAIL:
+        app.logger.warning("ADMIN_NOTIFICATION_EMAIL not set; skipping new account notification.")
+        return False
+
+    # Format the account information
+    html_body = f"""
+    <html>
+    <head>
+        <style>
+            body {{ font-family: Arial, sans-serif; color: #333; }}
+            .header {{ background: linear-gradient(90deg, #bfa34d, #f0e3a3); padding: 20px; text-align: center; }}
+            .header h1 {{ margin: 0; color: #000; }}
+            .content {{ padding: 20px; }}
+            .info-table {{ border-collapse: collapse; width: 100%; max-width: 600px; margin: 20px 0; }}
+            .info-table td {{ padding: 10px; border: 1px solid #ddd; }}
+            .info-table td:first-child {{ font-weight: bold; background-color: #f7f7f9; width: 180px; }}
+            .footer {{ padding: 20px; text-align: center; color: #666; font-size: 12px; }}
+        </style>
+    </head>
+    <body>
+        <div class="header">
+            <h1>🆕 New Account Created</h1>
+        </div>
+        <div class="content">
+            <p>A new account has been created in the OSA Staff Assignment system.</p>
+
+            <table class="info-table">
+                <tr>
+                    <td>Name</td>
+                    <td>{person.name}</td>
+                </tr>
+                <tr>
+                    <td>Email</td>
+                    <td><a href="mailto:{person.email}">{person.email}</a></td>
+                </tr>
+                <tr>
+                    <td>Phone</td>
+                    <td>{person.phone or 'Not provided'}</td>
+                </tr>
+                <tr>
+                    <td>Address</td>
+                    <td>{person.address or 'Not provided'}</td>
+                </tr>
+                <tr>
+                    <td>Date of Birth</td>
+                    <td>{person.dob.strftime('%B %d, %Y') if person.dob else 'Not provided'}</td>
+                </tr>
+                <tr>
+                    <td>Preferred Airport</td>
+                    <td>{person.preferred_airport or 'Not provided'}</td>
+                </tr>
+                <tr>
+                    <td>Willing to Drive</td>
+                    <td>{'Yes' if person.willing_to_drive else 'No'}</td>
+                </tr>
+                <tr>
+                    <td>Car/Rental</td>
+                    <td>{person.car_or_rental or 'N/A'}</td>
+                </tr>
+                <tr>
+                    <td>Dietary Preference</td>
+                    <td>{person.dietary_preference or 'Not provided'}</td>
+                </tr>
+                <tr>
+                    <td>Role</td>
+                    <td>{person.role or 'user'}</td>
+                </tr>
+                <tr>
+                    <td>Account ID</td>
+                    <td>#{person.id}</td>
+                </tr>
+            </table>
+
+            {f'<p><strong>Bio:</strong><br>{person.bio}</p>' if person.bio else ''}
+
+            <p style="margin-top: 20px;">
+                <a href="http://localhost:5000/admin/people"
+                   style="background: linear-gradient(90deg, #bfa34d, #f0e3a3);
+                          color: black;
+                          padding: 10px 20px;
+                          text-decoration: none;
+                          border-radius: 5px;
+                          font-weight: bold;">
+                    View in Admin Panel
+                </a>
+            </p>
+        </div>
+        <div class="footer">
+            <p>This is an automated notification from the OSA Staff Assignment system.</p>
+            <p>Registration timestamp: {datetime.utcnow().strftime('%B %d, %Y at %I:%M %p UTC')}</p>
+        </div>
+    </body>
+    </html>
+    """
+
+    return send_email_async(
+        to_email=ADMIN_NOTIFICATION_EMAIL,
+        subject="New Account Created in Staff App",
+        html=html_body
+    )
+
 # --- Google Sheets sync helpers ---------------------------------------------
 import json
 import gspread
@@ -711,6 +846,7 @@ def _sync_event_assignments_to_sheet(db, eid: int, ev: Event | None = None, seas
 # Auth routes
 # -----------------------------------------------------------------------------
 @app.route('/login', methods=['GET', 'POST'])
+@limiter.limit("10 per minute")
 def login():
     db = SessionLocal()
     if request.method == 'POST':
@@ -719,21 +855,24 @@ def login():
             password = request.form.get('password','')
             p = db.query(Person).filter(Person.email == email).first()
             if not p:
-                flash('No user with that email.')
+                flash('Invalid email or password.')
                 return redirect(url_for('login'))
             if not p.password_hash:
-                # first-time set
-                p.password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
-                db.commit()
+                # SECURITY: Do not auto-set password on login attempt
+                # Instead, require proper registration or password reset flow
+                flash('Account not initialized. Please contact administrator.')
+                app.logger.warning(f"Login attempt for uninitialized account: {email}")
+                return redirect(url_for('login'))
             if bcrypt.checkpw(password.encode(), p.password_hash.encode()):
                 login_user(User(p))
                 flash('Logged in.')
                 return redirect(url_for('me'))
-            flash('Invalid password.')
+            flash('Invalid email or password.')
             return redirect(url_for('login'))
         except Exception as e:
             app.logger.exception("Login failed")
-            return f"Login error: {type(e).__name__}: {e}", 500
+            flash('An error occurred during login. Please try again.')
+            return redirect(url_for('login')), 500
     return render_template('login.html')
 
 @app.route('/logout')
@@ -933,13 +1072,22 @@ def register():
             )
             db.add(person); db.commit()
 
+            # Send notification email to admin about new account
+            try:
+                send_new_account_notification(person)
+                app.logger.info(f"New account notification sent for {person.email}")
+            except Exception:
+                app.logger.exception("Failed to send new account notification")
+                # Don't fail registration if email notification fails
+
             login_user(User(person))
             flash('Account created. Welcome!')
             return redirect(url_for('me'))
 
         except Exception as e:
             app.logger.exception("Register failed")
-            return f"Register error: {type(e).__name__}: {e}", 500
+            flash('An error occurred during registration. Please try again.')
+            return redirect(url_for('register')), 500
 
     return render_template('register.html', form={})
 
@@ -1926,8 +2074,18 @@ def admin_new_person():
             role = 'user'
 
         pwd_hash = bcrypt.hashpw(b'changeme', bcrypt.gensalt()).decode()
-        db.add(Person(name=name, email=email, phone=phone, address=address, password_hash=pwd_hash, role=role))
+        person = Person(name=name, email=email, phone=phone, address=address, password_hash=pwd_hash, role=role)
+        db.add(person)
         db.commit()
+
+        # Send notification email to admin about new account
+        try:
+            send_new_account_notification(person)
+            app.logger.info(f"New account notification sent for admin-created account: {person.email}")
+        except Exception:
+            app.logger.exception("Failed to send new account notification for admin-created user")
+            # Don't fail account creation if email notification fails
+
         flash("Person created (initial password: changeme).")
         return redirect(url_for('admin_people'))
 

@@ -6,6 +6,7 @@
 <hr>
 <h4>Add New Day</h4>
 <form method="post" style="margin-bottom:20px;">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <input type="hidden" name="action" value="add_day">
   <input type="hidden" name="day_mode" id="day_mode" value="{{ 'first' if not days else 'subsequent' }}">
   <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center;">
@@ -110,6 +111,7 @@
           <details>
             <summary style="cursor:pointer;">Edit</summary>
             <form method="post" style="margin-top:6px;">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="action" value="edit_day">
               <input type="hidden" name="day_id" value="{{ d.id }}">
               <div style="display:flex; flex-wrap:wrap; gap:6px;">
@@ -130,6 +132,7 @@
 
           <!-- Delete -->
           <form method="post" style="margin-top:4px;" onsubmit="return confirm('Delete this day?');">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="action" value="delete_day">
             <input type="hidden" name="day_id" value="{{ d.id }}">
             <button class="btn btn-outline-danger btn-sm">Delete</button>

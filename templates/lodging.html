@@ -5,6 +5,7 @@
 {% if target_state %}
   <h3>Clone a hotel in {{ target_state }}</h3>
   <form method="post" class="mb-3">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="action" value="clone_hotel">
     <select name="src_hotel_id" required>
       <option value="">— Select existing hotel in {{ target_state }} —</option>
@@ -20,6 +21,7 @@
 
 <h3>Add a hotel to this event</h3>
 <form method="post" class="mb-4">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <input type="hidden" name="action" value="add_hotel">
   <div><label>Name <input name="name" required></label></div>
   <div><label>State (2-letter) <input name="state" maxlength="2" placeholder="NJ"></label></div>
@@ -46,6 +48,7 @@
         action="{{ url_for('admin_delete_hotel', hid=h.id) }}" 
         style="display:inline"
         onsubmit="return confirm('Delete {{ h.name }}? This cannot be undone.');">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="event_id" value="{{ ev.id }}">
     <button class="btn btn-sm btn-outline-danger">Delete</button>
   </form>
@@ -83,6 +86,7 @@
                 </td>
                 <td style="text-align:right;">
                   <form id="room-edit-{{ r.id }}" method="post" style="display:inline;">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="action" value="update_room">
                     <input type="hidden" name="room_id" value="{{ r.id }}">
                     <button class="btn btn-sm btn-outline-primary">Save</button>
@@ -91,6 +95,7 @@
                       action="{{ url_for('admin_delete_room', rid=r.id) }}" 
                       onsubmit="return confirm('Delete room {{ r.room_number or r.id }} and its occupants?');"
                       style="display:inline;">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button class="btn btn-sm btn-outline-danger">Delete</button>
                   </form>
                 </td>
@@ -104,6 +109,7 @@
     {% endif %}
 
     <form method="post" class="mt-2">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="action" value="add_room">
       <input type="hidden" name="hotel_id" value="{{ h.id }}">
       <div style="display:flex; gap:8px; flex-wrap:wrap;">
@@ -116,6 +122,7 @@
     </form>
 
     <form method="post" class="mt-2">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="action" value="assign_roommates">
       <div style="display:flex; gap:8px; flex-wrap:wrap;">
         <select name="room_id" required>

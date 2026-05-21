@@ -3,6 +3,7 @@
 <h1>Edit Person</h1>
 
 <form method="post" enctype="multipart/form-data" class="card" style="max-width:900px;">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
 
     <label>Name<br>
@@ -86,6 +87,7 @@
     </label>
   </div>
   <form method="post" action="{{ url_for('admin_delete_person', pid=person.id) }}" onsubmit="return confirm('Delete this person?');">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <button class="btn btn-danger">Delete Person</button>
   </form>
 </form>
@@ -114,6 +116,7 @@
         <td>{{ a.position.name if a.position else '—' }}</td>
         <td>
           <form method="post" style="display:flex; gap:8px; align-items:center;">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="action" value="update_assignment">
             <input type="hidden" name="assignment_id" value="{{ a.id }}">
             <select name="position_id">
@@ -128,6 +131,7 @@
             <button type="submit" class="btn btn-sm">Save</button>
           </form>
           <form method="post" style="margin-top:6px;">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="action" value="remove_assignment">
             <input type="hidden" name="assignment_id" value="{{ a.id }}">
             <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
@@ -144,6 +148,7 @@
   <hr style="margin:16px 0;">
   <h3 style="margin-top:0;">Add Assignment</h3>
   <form method="post" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="action" value="add_assignment">
     <select name="event_id" id="event_id_select" required>
       <option value="">Select city/event</option>

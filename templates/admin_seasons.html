@@ -4,6 +4,7 @@
 
 <h3>Create Season</h3>
 <form method="post" class="stack">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <button class="btn btn-primary" type="submit" name="action" value="create">Create Season</button>
   <label>Name<input type="text" name="name" placeholder="2026 or 2026-2027" required></label>
   <label>Starts On<input type="date" name="starts_on"></label>
@@ -14,6 +15,7 @@
 <hr>
 <h3>Existing Seasons</h3>
 <form method="post">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <table>
     <thead><tr><th>Name</th><th>Date Range</th><th>Active</th><th>Order</th><th>Action</th></tr></thead>
     <tbody>

@@ -4,6 +4,7 @@
 
 <h3>Create Season</h3>
 <form method="post" action="{{ url_for('admin_create_season') }}" class="stack">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <label>Name<input type="text" name="name" placeholder="2026 or 2026-2027" maxlength="80" required></label>
   <label>Starts On<input type="date" name="starts_on"></label>
   <label>Ends On<input type="date" name="ends_on"></label>
@@ -24,9 +25,11 @@
       <td style="display:flex; gap:8px;">
         {% if not s.is_active %}
         <form method="post" action="{{ url_for('admin_activate_season', sid=s.id) }}">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button class="btn" type="submit">Set Active</button>
         </form>
         <form method="post" action="{{ url_for('admin_archive_season', sid=s.id) }}">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button class="btn" type="submit">Archive</button>
         </form>
         {% endif %}

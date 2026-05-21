@@ -4,6 +4,7 @@
 <h2>Edit Event — {{ ev.city or 'New Event' }}</h2>
 
 <form method="post">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <hr style="margin:20px 0;">
 
   <div class="field">

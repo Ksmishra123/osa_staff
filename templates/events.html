@@ -23,6 +23,7 @@
   
 
 <form method="post" action="{{ url_for('admin_toggle_publish', eid=e.id) }}" style="display:inline">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <input type="hidden" name="publish" value="{{ 0 if e.call_sheet_published else 1 }}">
   <button class="btn btn-sm {{ 'btn-outline-secondary' if e.call_sheet_published else 'btn-success' }}">
     {{ 'Unpublish' if e.call_sheet_published else 'Publish' }}
@@ -30,6 +31,7 @@
 </form>
 
 <form method="post" action="{{ url_for('admin_delete_event', eid=e.id) }}" style="display:inline" onsubmit="return confirm('Delete this event?');">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <button class="btn btn-sm btn-outline-danger" type="submit">Delete</button>
 </form>
 </td>

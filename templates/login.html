@@ -1,6 +1,7 @@
 {% extends 'base.html' %}{% block content %}
 <h1>Login</h1>
 <form method='post' class='card'>
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 <label>Email<br><input type='email' name='email' required></label>
 <label>Password<br><input type='password' name='password' required></label>
 <button type='submit'>Login</button>

@@ -26,6 +26,7 @@
 <div class="card" style="padding:12px; margin:12px 0;">
   <h3 style="margin:0 0 8px 0;">Unassign staff member from this event</h3>
   <form method="post" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="action" value="remove_person">
     <select name="person_id" required>
       <option value="">— Select person —</option>
@@ -45,6 +46,7 @@
 </div>
 
 <form method="post" enctype="multipart/form-data" class="card">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <table class="table">
     <thead>
       <tr>

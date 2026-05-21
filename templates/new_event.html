@@ -3,6 +3,7 @@
 <h1>New Event</h1>
 
 <form method="post" class="stack">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <label>City
     <input name="city" required>
   </label>

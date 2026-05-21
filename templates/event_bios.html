@@ -3,6 +3,7 @@
 <h1>Print Bios — {{ ev.city }}{% if ev.date %} ({{ ev.date.strftime('%Y-%m-%d') }}){% endif %}</h1>
 
 <form method="post" class="card">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <p>Select people to include, then click “Open Print View”.</p>
 
   <table class="table">
