@@ -2,7 +2,7 @@
 {% block content %}
 <h1>Assign Staff — {{ ev.city }} ({{ ev.date|date_only if ev.date else '' }})</h1>
 <p style="margin-top:-6px; color:#6b7280;">
-  Availability window: {{ event_window_start }} to {{ event_window_end }}
+  Availability window: {{ event_window_start|date_only if event_window_start else '—' }} to {{ event_window_end|date_only if event_window_end else '—' }}
 </p>
 
 <form method="get" style="margin:10px 0;">
