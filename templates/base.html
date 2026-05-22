@@ -1,63 +1,98 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset='utf-8'>
-  <meta name='viewport' content='width=device-width, initial-scale=1'>
+  <meta name='viewport' content='width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes'>
   <meta name="csrf-token" content="{{ csrf_token() }}">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 
+  <!-- PWA Meta Tags for App-like Experience -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="OSA Staff">
+  <meta name="theme-color" content="#bfa34d">
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <title>OSA Staff Assignments</title>
   <link rel='stylesheet' href='{{ url_for('static', filename='style.css') }}'>
-  <style>
-    /* small inline additions for the welcome strip */
-    .welcome-strip {
-      background: #eef6ff;
-      border-bottom: 1px solid #dbeafe;
-      color: #0f172a;
-      padding: 10px 16px;
-      font-size: 14px;
-    }
-    .topbar .brand { font-weight: 700 }
-  </style>
+  <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
 </head>
 <body>
   <header class='topbar'>
     <div class='brand'>OSA Assignments</div>
-    <nav>
-      {% if current_user.is_authenticated %}
-        <a href='{{ url_for('me') }}'>My Assignments</a>
-        <a href='{{ url_for('availability_list') }}'>My Availability</a>
-        <a href='{{ url_for('account_profile') }}'>My Profile</a>
-        <a href='{{ url_for('change_password') }}'>Change Password</a>
-        {% if is_admin() %}
-          <a href='{{ url_for('admin_events') }}'>Admin</a>
-          <a href='{{ url_for('admin_people') }}'>People</a>
-          <a href='{{ url_for('admin_seasons') }}'>Seasons</a>
-          <a href='{{ url_for('admin_availability') }}'>Availability</a>
-        {% endif %}
-        <a href='{{ url_for('logout') }}'>Logout</a>
-      {% else %}
-        <a href='{{ url_for('login') }}'>Login</a>
-       {% if has_register %}
-          <a href='{{ url_for('register') }}'>Register</a>
-       {% endif %}
 
+    <!-- Hamburger Menu Button (Mobile) -->
+    <button class='menu-toggle' id='menuToggle' aria-label='Toggle menu'>
+      <span></span>
+      <span></span>
+      <span></span>
+    </button>
+
+    <!-- Mobile Menu Overlay -->
+    <div class='mobile-menu-overlay' id='mobileMenuOverlay'></div>
+
+    <!-- Navigation Menu -->
+    <nav class='nav-menu' id='navMenu'>
+      <div class='nav-header'>
+        <div class='nav-title'>Menu</div>
+        <button class='menu-close' id='menuClose' aria-label='Close menu'>&times;</button>
+      </div>
+
+      {% if current_user.is_authenticated %}
+        <div class='nav-section'>
+          <div class='nav-section-title'>My Account</div>
+          <a href='{{ url_for('me') }}'>
+            <span class='nav-icon'>📋</span> My Assignments
+          </a>
+          <a href='{{ url_for('availability_list') }}'>
+            <span class='nav-icon'>📅</span> My Availability
+          </a>
+          <a href='{{ url_for('account_profile') }}'>
+            <span class='nav-icon'>👤</span> My Profile
+          </a>
+          <a href='{{ url_for('change_password') }}'>
+            <span class='nav-icon'>🔒</span> Change Password
+          </a>
+        </div>
+
+        {% if is_admin() %}
+        <div class='nav-section'>
+          <div class='nav-section-title'>Administration</div>
+          <a href='{{ url_for('admin_events') }}'>
+            <span class='nav-icon'>⚙️</span> Admin Events
+          </a>
+          <a href='{{ url_for('admin_people') }}'>
+            <span class='nav-icon'>👥</span> People
+          </a>
+          <a href='{{ url_for('admin_seasons') }}'>
+            <span class='nav-icon'>🗓️</span> Seasons
+          </a>
+          <a href='{{ url_for('admin_availability') }}'>
+            <span class='nav-icon'>📊</span> Availability
+          </a>
+        </div>
+        {% else %}
+          <a href="{{ url_for('events_list') }}">
+            <span class='nav-icon'>🎭</span> Events
+          </a>
+        {% endif %}
+
+        <div class='nav-section'>
+          <a href='{{ url_for('logout') }}' class='logout-link'>
+            <span class='nav-icon'>🚪</span> Logout
+          </a>
+        </div>
+      {% else %}
+        <a href='{{ url_for('login') }}'>
+          <span class='nav-icon'>🔑</span> Login
+        </a>
+        {% if has_register %}
+          <a href='{{ url_for('register') }}'>
+            <span class='nav-icon'>✍️</span> Register
+          </a>
+        {% endif %}
       {% endif %}
     </nav>
-    <nav>
-      ...
-      {% if current_user.is_authenticated %}
-        {% if is_admin() %}
-          <a href="{{ url_for('admin_events') }}">Admin Events</a>
-          <a href="{{ url_for('admin_people') }}">People</a>
-          <a href="{{ url_for('admin_seasons') }}">Seasons</a>
-        {% else %}
-          <a href="{{ url_for('events_list') }}">Events</a>
-        {% endif %}
-      {% endif %}
-      ...
-  </nav>
-
   </header>
 
   {% if current_user.is_authenticated %}
@@ -79,5 +114,37 @@
 
     {% block content %}{% endblock %}
   </main>
+
+  <!-- Mobile Menu JavaScript -->
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const menuToggle = document.getElementById('menuToggle');
+      const menuClose = document.getElementById('menuClose');
+      const navMenu = document.getElementById('navMenu');
+      const overlay = document.getElementById('mobileMenuOverlay');
+
+      function openMenu() {
+        navMenu.classList.add('active');
+        overlay.classList.add('active');
+        document.body.style.overflow = 'hidden';
+      }
+
+      function closeMenu() {
+        navMenu.classList.remove('active');
+        overlay.classList.remove('active');
+        document.body.style.overflow = '';
+      }
+
+      menuToggle.addEventListener('click', openMenu);
+      menuClose.addEventListener('click', closeMenu);
+      overlay.addEventListener('click', closeMenu);
+
+      // Close menu when clicking a link
+      const navLinks = navMenu.querySelectorAll('a');
+      navLinks.forEach(link => {
+        link.addEventListener('click', closeMenu);
+      });
+    });
+  </script>
 </body>
 </html>

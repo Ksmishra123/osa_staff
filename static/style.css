@@ -1,26 +1,517 @@
-body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:0;background:#fafafa;color:#222}
-.container{max-width:1000px;margin:24px auto;padding:0 16px}
-.topbar{background:#fff;border-bottom:1px solid #eee;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;gap:12px;flex-wrap:wrap}
-.topbar .brand{font-weight:700}
-.topbar nav{display:flex;flex-wrap:wrap;gap:10px 16px}
-.topbar nav a{text-decoration:none;color:#333}
-.card{background:#fff;border:1px solid #e5e5e5;border-radius:12px;padding:16px}
-.table{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden}
-.table th,.table td{border-bottom:1px solid #eee;padding:10px 12px;text-align:left}
-.table thead th{background:#f6f6f6}
-.flash{margin-bottom:12px}.flash-item{background:#fff7cc;border:1px solid #ffe58f;padding:8px 12px;border-radius:8px;margin-bottom:6px}
-button{background:#111827;color:#fff;border:none;border-radius:10px;padding:8px 12px;cursor:pointer}
-button:hover{opacity:.9}
-label{display:block;margin-bottom:10px}
-input,select,textarea{width:100%;padding:8px;border:1px solid #ddd;border-radius:8px}
-.print-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:16px}
-.print-note{color:#555;font-size:12px}
-@media (max-width: 768px){
-  .container{margin:16px auto;padding:0 12px}
-  .topbar{position:static;align-items:flex-start}
-  .topbar nav{width:100%}
-  .topbar nav a{font-size:14px}
-  input,select,textarea,button{font-size:16px}
-  .table{display:block;overflow-x:auto;white-space:nowrap;border-radius:10px}
+/* ============================================
+   Base Styles
+   ============================================ */
+* {
+  box-sizing: border-box;
 }
-@media print{.topbar,.flash,.print-note{display:none}body{background:#fff}.container{margin:0;padding:0}.table th,.table td{border:1px solid #999}}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  margin: 0;
+  background: #fafafa;
+  color: #222;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.container {
+  max-width: 1000px;
+  margin: 24px auto;
+  padding: 0 16px;
+}
+
+/* ============================================
+   Top Navigation Bar
+   ============================================ */
+.topbar {
+  background: linear-gradient(135deg, #bfa34d 0%, #f0e3a3 100%);
+  border-bottom: 2px solid #a08c3a;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.topbar .brand {
+  font-weight: 700;
+  font-size: 1.25rem;
+  color: #000;
+  white-space: nowrap;
+}
+
+/* ============================================
+   Hamburger Menu Button (Mobile Only)
+   ============================================ */
+.menu-toggle {
+  display: none;
+  flex-direction: column;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  z-index: 1001;
+  transition: transform 0.2s;
+}
+
+.menu-toggle span {
+  width: 25px;
+  height: 3px;
+  background: #000;
+  margin: 3px 0;
+  transition: 0.3s;
+  border-radius: 2px;
+}
+
+.menu-toggle:active {
+  transform: scale(0.9);
+}
+
+/* ============================================
+   Navigation Menu (Desktop)
+   ============================================ */
+.nav-menu {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+}
+
+.nav-header {
+  display: none;
+}
+
+.nav-section {
+  display: contents;
+}
+
+.nav-section-title {
+  display: none;
+}
+
+.nav-menu a {
+  text-decoration: none;
+  color: #000;
+  font-weight: 500;
+  padding: 8px 12px;
+  border-radius: 6px;
+  transition: background 0.2s;
+  display: inline-block;
+}
+
+.nav-menu a:hover {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.nav-icon {
+  display: none;
+}
+
+.mobile-menu-overlay {
+  display: none;
+}
+
+/* Welcome Strip */
+.welcome-strip {
+  background: #eef6ff;
+  border-bottom: 1px solid #dbeafe;
+  color: #0f172a;
+  padding: 12px 16px;
+  font-size: 14px;
+  text-align: center;
+}
+
+/* ============================================
+   Cards & Forms
+   ============================================ */
+.card {
+  background: #fff;
+  border: 1px solid #e5e5e5;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+label {
+  display: block;
+  margin-bottom: 12px;
+  font-weight: 500;
+  color: #333;
+}
+
+input, select, textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 16px;
+  font-family: inherit;
+  transition: border-color 0.2s;
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: #bfa34d;
+  box-shadow: 0 0 0 3px rgba(191, 163, 77, 0.1);
+}
+
+button, .btn {
+  background: linear-gradient(135deg, #111827 0%, #1f2937 100%);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 12px 20px;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 600;
+  transition: transform 0.2s, box-shadow 0.2s;
+  display: inline-block;
+  text-decoration: none;
+}
+
+button:hover, .btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+button:active, .btn:active {
+  transform: translateY(0);
+}
+
+/* ============================================
+   Tables
+   ============================================ */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.table th, .table td {
+  border-bottom: 1px solid #eee;
+  padding: 12px 16px;
+  text-align: left;
+}
+
+.table thead th {
+  background: #f6f6f6;
+  font-weight: 600;
+  color: #333;
+}
+
+.table tbody tr:hover {
+  background: #fafafa;
+}
+
+/* ============================================
+   Flash Messages
+   ============================================ */
+.flash {
+  margin-bottom: 16px;
+}
+
+.flash-item {
+  background: #fff7cc;
+  border: 1px solid #ffe58f;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ============================================
+   Print Styles
+   ============================================ */
+.print-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.print-note {
+  color: #555;
+  font-size: 12px;
+}
+
+@media print {
+  .topbar, .flash, .print-note, .menu-toggle, .welcome-strip {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+  }
+  .container {
+    margin: 0;
+    padding: 0;
+  }
+  .table th, .table td {
+    border: 1px solid #999;
+  }
+}
+
+/* ============================================
+   MOBILE RESPONSIVE STYLES (< 768px)
+   ============================================ */
+@media (max-width: 768px) {
+  /* Show hamburger menu button */
+  .menu-toggle {
+    display: flex;
+  }
+
+  /* Hide desktop navigation */
+  .nav-menu {
+    position: fixed;
+    top: 0;
+    right: -100%;
+    width: 80%;
+    max-width: 320px;
+    height: 100vh;
+    background: #fff;
+    flex-direction: column;
+    gap: 0;
+    padding: 0;
+    box-shadow: -2px 0 10px rgba(0,0,0,0.1);
+    transition: right 0.3s ease;
+    overflow-y: auto;
+    z-index: 1002;
+  }
+
+  .nav-menu.active {
+    right: 0;
+  }
+
+  /* Mobile menu overlay */
+  .mobile-menu-overlay {
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s, visibility 0.3s;
+    z-index: 1001;
+  }
+
+  .mobile-menu-overlay.active {
+    opacity: 1;
+    visibility: visible;
+  }
+
+  /* Mobile menu header */
+  .nav-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    background: linear-gradient(135deg, #bfa34d 0%, #f0e3a3 100%);
+    border-bottom: 2px solid #a08c3a;
+  }
+
+  .nav-title {
+    font-weight: 700;
+    font-size: 1.2rem;
+    color: #000;
+  }
+
+  .menu-close {
+    background: transparent;
+    border: none;
+    font-size: 32px;
+    line-height: 1;
+    cursor: pointer;
+    color: #000;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Mobile navigation sections */
+  .nav-section {
+    display: block;
+    border-bottom: 1px solid #eee;
+  }
+
+  .nav-section-title {
+    display: block;
+    padding: 12px 20px 8px;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #888;
+    letter-spacing: 0.5px;
+  }
+
+  /* Mobile navigation links */
+  .nav-menu a {
+    display: flex;
+    align-items: center;
+    padding: 14px 20px;
+    color: #333;
+    text-decoration: none;
+    border-radius: 0;
+    transition: background 0.2s;
+    font-size: 16px;
+    gap: 12px;
+  }
+
+  .nav-menu a:hover {
+    background: #f5f5f5;
+  }
+
+  .nav-menu a:active {
+    background: #e8e8e8;
+  }
+
+  /* Show icons in mobile menu */
+  .nav-icon {
+    display: inline-block;
+    font-size: 20px;
+    width: 24px;
+    text-align: center;
+  }
+
+  .logout-link {
+    color: #dc2626 !important;
+    font-weight: 600;
+  }
+
+  /* Container adjustments */
+  .container {
+    margin: 16px auto;
+    padding: 0 12px;
+  }
+
+  /* Top bar adjustments */
+  .topbar {
+    padding: 12px 16px;
+  }
+
+  .topbar .brand {
+    font-size: 1.1rem;
+  }
+
+  /* Welcome strip */
+  .welcome-strip {
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+
+  /* Card adjustments */
+  .card {
+    padding: 16px;
+    border-radius: 8px;
+  }
+
+  /* Form elements - larger touch targets */
+  input, select, textarea, button {
+    font-size: 16px; /* Prevents zoom on iOS */
+    padding: 12px 14px;
+  }
+
+  button, .btn {
+    width: 100%;
+    padding: 14px 20px;
+    margin-bottom: 8px;
+  }
+
+  /* Table - horizontal scroll */
+  .table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: 0 -12px;
+    padding: 0 12px;
+  }
+
+  .table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+    border-radius: 8px;
+  }
+
+  .table th, .table td {
+    padding: 10px 12px;
+    font-size: 14px;
+  }
+
+  /* Headings */
+  h1 {
+    font-size: 1.75rem;
+  }
+
+  h2 {
+    font-size: 1.5rem;
+  }
+
+  h3 {
+    font-size: 1.25rem;
+  }
+}
+
+/* ============================================
+   EXTRA SMALL MOBILE (< 480px)
+   ============================================ */
+@media (max-width: 480px) {
+  .nav-menu {
+    width: 85%;
+    max-width: none;
+  }
+
+  .topbar .brand {
+    font-size: 1rem;
+  }
+
+  .card {
+    padding: 12px;
+  }
+
+  h1 {
+    font-size: 1.5rem;
+  }
+}
+
+/* ============================================
+   Touch Device Optimizations
+   ============================================ */
+@media (hover: none) and (pointer: coarse) {
+  /* Increase tap targets for touch devices */
+  button, .btn, .nav-menu a {
+    min-height: 44px;
+  }
+
+  /* Remove hover effects on touch devices */
+  button:hover, .btn:hover {
+    transform: none;
+  }
+
+  /* Add active/tap states instead */
+  button:active, .btn:active {
+    opacity: 0.8;
+  }
+}
