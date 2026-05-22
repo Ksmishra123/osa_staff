@@ -315,7 +315,11 @@ def _event_window_for_matching(db, ev: Event):
         if dt_val:
             date_candidates.append(dt_val.date())
     if ev.date:
-        date_candidates.append(ev.date)
+        # Ensure ev.date is converted to date if it's a datetime
+        if hasattr(ev.date, 'date') and callable(ev.date.date):
+            date_candidates.append(ev.date.date())
+        else:
+            date_candidates.append(ev.date)
     if not date_candidates:
         today = date.today()
         return today, today
