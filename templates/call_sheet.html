@@ -110,7 +110,7 @@
   <div class="cs-header">
     <h1 style="margin:0;">Call Sheet — {{ ev.city }}</h1>
     <div class="cs-sub">
-      {% if ev.date %} {{ ev.date.strftime('%B %d, %Y - %I:%M %p') }} {% else %} &nbsp; {% endif %}
+      {% if ev.date %} {{ ev.date|dt_long }} {% else %} &nbsp; {% endif %}
     </div>
   </div>
 
@@ -123,9 +123,9 @@
   <div class="h2">Event Information</div>
   <div class="grid2">
     <div class="label">City</div><div class="val">{{ ev.city or '—' }}</div>
-    <div class="label">Main Start</div><div class="val">{{ ev.event_start.strftime('%B %d, %Y - %I:%M %p') if ev.event_start else '—' }}</div>
-    <div class="label">Setup</div><div class="val">{{ ev.setup_start.strftime('%B %d, %Y - %I:%M %p') if ev.setup_start else '—' }}</div>
-    <div class="label">End</div><div class="val">{{ ev.event_end.strftime('%B %d, %Y - %I:%M %p') if ev.event_end else '—' }}</div>
+    <div class="label">Main Start</div><div class="val">{{ ev.event_start|dt_long if ev.event_start else '—' }}</div>
+    <div class="label">Setup</div><div class="val">{{ ev.setup_start|dt_long if ev.setup_start else '—' }}</div>
+    <div class="label">End</div><div class="val">{{ ev.event_end|dt_long if ev.event_end else '—' }}</div>
     <div class="label">Venue</div><div class="val">{{ ev.venue or '—' }}</div>
     {% if ev.hotel %}<div class="label">Hotel</div><div class="val">{{ ev.hotel }}</div>{% endif %}
     <div class="label">Coordinator</div>
@@ -155,9 +155,9 @@
       {% for d in day_rows %}
         {% if d.setup_only %}
           <tr style="background:#fff8e1;">
-            <td>{{ d.start.strftime('%B %d, %Y - %I:%M %p') if d.start else '' }}</td>
-            <td>{{ d.setup.strftime('%B %d, %Y - %I:%M %p') if d.setup else '' }}</td>
-            <td>{{ d.staff.strftime('%B %d, %Y - %I:%M %p') if d.staff else '' }}</td>
+            <td>{{ d.start|dt_long if d.start else '' }}</td>
+            <td>{{ d.setup|dt_long if d.setup else '' }}</td>
+            <td>{{ d.staff|dt_long if d.staff else '' }}</td>
             <td style="background-color: #FFCCCC;"><em>Setup Only — No Judges Required</em></td>
             <td>
               {{ d.notes or '' }}
@@ -168,10 +168,10 @@
           </tr>
         {% else %}
           <tr>
-            <td>{{ d.start.strftime('%B %d, %Y - %I:%M %p') if d.start else '' }}</td>
-            <td>{{ d.setup.strftime('%B %d, %Y - %I:%M %p') if d.setup else '' }}</td>
-            <td>{{ d.staff.strftime('%B %d, %Y - %I:%M %p') if d.staff else '' }}</td>
-            <td>{{ d.judges.strftime('%B %d, %Y - %I:%M %p') if d.judges else '' }}</td>
+            <td>{{ d.start|dt_long if d.start else '' }}</td>
+            <td>{{ d.setup|dt_long if d.setup else '' }}</td>
+            <td>{{ d.staff|dt_long if d.staff else '' }}</td>
+            <td>{{ d.judges|dt_long if d.judges else '' }}</td>
             <td>
               {{ d.notes or '' }}
               {% if d.day_link %}<div><a href="{{ d.day_link }}" target="_blank" rel="noopener">{{ d.day_link }}</a></div>{% endif %}

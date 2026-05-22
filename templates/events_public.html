@@ -15,8 +15,8 @@
     <tbody>
       {% for ev in events %}
       <tr style="border-bottom:1px solid #e5e7eb;">
-        <td style="padding:8px;">{{ ev.date.strftime('%B %d, %Y - %I:%M %p') if ev.date else '—' }}</td>
-        <td style="padding:8px;">{{ ev.city or '—' }}</td>
+        <td style="padding:8px;"><strong>{{ ev.date|dt_long if ev.date else '—' }}</strong></td>
+        <td style="padding:8px;"><strong>{{ ev.city or '—' }}</strong></td>
         <td style="padding:8px;">{{ ev.venue or '—' }}</td>
         <td style="padding:8px;">
           <a class="btn btn-sm btn-outline-primary" href="{{ url_for('call_sheet', eid=ev.id) }}" target="_blank">Open</a>

@@ -522,6 +522,36 @@ def dt_long(v):
     # Linux/Render supports %-d / %-I; on Windows use %#d / %#I
     return v.strftime('%B %-d, %Y - %-I:%M %p')
 
+@app.template_filter('dt_short')  # e.g., Nov 11, 2025 4:00 PM
+def dt_short(v):
+    if not v:
+        return ''
+    return v.strftime('%b %-d, %Y %-I:%M %p')
+
+@app.template_filter('date_only')  # e.g., Nov 11, 2025
+def date_only(v):
+    if not v:
+        return ''
+    return v.strftime('%b %-d, %Y')
+
+@app.template_filter('date_range')  # e.g., Nov 11-14, 2025
+def date_range(start, end=None):
+    """Format a date range. If end is same month/year, show Nov 11-14, 2025"""
+    if not start:
+        return ''
+    if not end or start.date() == end.date():
+        return start.strftime('%b %-d, %Y')
+
+    # Same month and year
+    if start.month == end.month and start.year == end.year:
+        return f"{start.strftime('%b %-d')}-{end.strftime('%-d, %Y')}"
+    # Same year, different month
+    elif start.year == end.year:
+        return f"{start.strftime('%b %-d')} - {end.strftime('%b %-d, %Y')}"
+    # Different years
+    else:
+        return f"{start.strftime('%b %-d, %Y')} - {end.strftime('%b %-d, %Y')}"
+
 @app.template_filter('t_short')  # e.g., 4:00 PM
 def t_short(v):
     if not v:

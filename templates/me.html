@@ -7,12 +7,9 @@
   <table class="table" style="width:100%; border-collapse:collapse;">
     <thead>
       <tr style="background:#f5f5f5;">
-        <th style="padding:8px;">Date</th>
-        <th style="padding:8px;">City</th>
+        <th style="padding:8px;">Event</th>
         <th style="padding:8px;">Position</th>
-        <th style="padding:8px;">Setup</th>
-        <th style="padding:8px;">Start</th>
-        <th style="padding:8px;">End</th>
+        <th style="padding:8px;">Schedule</th>
         <th style="padding:8px;">Travel</th>
         <th style="padding:8px; text-align:center;">Acknowledged</th>
         <th style="padding:8px; text-align:center;">Call Sheet</th>
@@ -21,12 +18,18 @@
     <tbody>
       {% for a in rows %}
       <tr style="border-bottom:1px solid #ddd;">
-        <td style="padding:8px;">{{ a.event.date.strftime('%Y-%m-%d %H:%M') if a.event and a.event.date else '' }}</td>
-        <td style="padding:8px;">{{ a.event.city if a.event else '' }}</td>
-        <td style="padding:8px;">{{ a.position.name if a.position else '' }}</td>
-        <td style="padding:8px;">{{ a.event.setup_start.strftime('%Y-%m-%d %H:%M') if a.event and a.event.setup_start else '' }}</td>
-        <td style="padding:8px;">{{ a.event.event_start.strftime('%Y-%m-%d %H:%M') if a.event and a.event.event_start else '' }}</td>
-        <td style="padding:8px;">{{ a.event.event_end.strftime('%Y-%m-%d %H:%M') if a.event and a.event.event_end else '' }}</td>
+        <td style="padding:8px;">
+          <strong>{{ a.event.date|dt_short if a.event and a.event.date else '' }}</strong><br>
+          <span style="color:#666; font-size:13px;">{{ a.event.city if a.event else '' }}</span>
+        </td>
+        <td style="padding:8px;"><strong>{{ a.position.name if a.position else '' }}</strong></td>
+        <td style="padding:8px; font-size:13px;">
+          {% if a.event %}
+            {% if a.event.setup_start %}Setup: {{ a.event.setup_start|t_short }}<br>{% endif %}
+            {% if a.event.event_start %}Start: {{ a.event.event_start|t_short }}<br>{% endif %}
+            {% if a.event.event_end %}End: {{ a.event.event_end|t_short }}{% endif %}
+          {% endif %}
+        </td>
         <td style="padding:8px;">
           {% if a.itinerary_link %}
             <a href="{{ a.itinerary_link }}" target="_blank" rel="noopener">Link</a>

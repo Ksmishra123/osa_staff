@@ -91,22 +91,25 @@
   <table class='table'>
     <thead>
       <tr>
-        <th>Date</th>
+        <th>Event Date</th>
         <th>City</th>
-        <th>Setup</th>
-        <th>Start</th>
-        <th>End</th>
-        <th style="min-width: 450px;">Actions</th>
+        <th>Actions</th>
       </tr>
     </thead>
     <tbody>
       {% for e in events %}
       <tr>
-        <td>{{ e.date.strftime('%Y-%m-%d %H:%M') }}</td>
-        <td>{{ e.city }}</td>
-        <td>{{ e.setup_start.strftime('%Y-%m-%d %H:%M') if e.setup_start else '—' }}</td>
-        <td>{{ e.event_start.strftime('%Y-%m-%d %H:%M') if e.event_start else '—' }}</td>
-        <td>{{ e.event_end.strftime('%Y-%m-%d %H:%M') if e.event_end else '—' }}</td>
+        <td>
+          <strong>{{ e.date|dt_short }}</strong>
+          {% if e.setup_start or e.event_start or e.event_end %}
+          <div style="font-size: 12px; color: #666; margin-top: 4px;">
+            {% if e.setup_start %}Setup: {{ e.setup_start|t_short }}<br>{% endif %}
+            {% if e.event_start %}Start: {{ e.event_start|t_short }}<br>{% endif %}
+            {% if e.event_end %}End: {{ e.event_end|t_short }}{% endif %}
+          </div>
+          {% endif %}
+        </td>
+        <td><strong>{{ e.city }}</strong></td>
         <td>
           <div class="event-actions">
             <!-- Primary Actions -->
