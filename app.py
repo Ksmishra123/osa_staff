@@ -539,7 +539,17 @@ def date_range(start, end=None):
     """Format a date range. If end is same month/year, show Nov 11-14, 2025"""
     if not start:
         return ''
-    if not end or start.date() == end.date():
+
+    # If no end date, just format the start date
+    if not end:
+        return start.strftime('%b %-d, %Y')
+
+    # Convert to date objects if they're datetimes
+    start_date = start.date() if hasattr(start, 'date') and callable(start.date) else start
+    end_date = end.date() if hasattr(end, 'date') and callable(end.date) else end
+
+    # Same date
+    if start_date == end_date:
         return start.strftime('%b %-d, %Y')
 
     # Same month and year

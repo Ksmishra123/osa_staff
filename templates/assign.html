@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 {% block content %}
-<h1>Assign Staff — {{ ev.city }} ({{ ev.date.strftime('%Y-%m-%d') if ev.date else '' }})</h1>
+<h1>Assign Staff — {{ ev.city }} ({{ ev.date|date_only if ev.date else '' }})</h1>
 <p style="margin-top:-6px; color:#6b7280;">
   Availability window: {{ event_window_start }} to {{ event_window_end }}
 </p>
@@ -100,7 +100,7 @@
         </td>
         <td>
           <input type="datetime-local" name="pos_{{ p.id }}_arrival"
-                 value="{% if cur and cur.arrival_ts %}{{ cur.arrival_ts.strftime('%Y-%m-%dT%H:%M') }}{% endif %}">
+                 value="{% if cur and cur.arrival_ts %}{{ cur.arrival_ts|datetime_local }}{% endif %}">
         </td>
         <td>
           <input name="pos_{{ p.id }}_notes" placeholder="Pickup at 2pm / baggage / etc."
