@@ -1,74 +1,294 @@
 {% extends 'base.html' %}
 {% block content %}
-<h1>People</h1>
+<style>
+  .people-header {
+    background: linear-gradient(135deg, #bfa34d 0%, #f0e3a3 100%);
+    padding: 16px 20px;
+    border-radius: 10px;
+    margin-bottom: 16px;
+    color: #000;
+  }
+  .people-header h1 { margin: 0; font-size: 1.5rem; }
 
-<!-- Search + actions row -->
-<form method="get" action="{{ url_for('admin_people') }}" class="stack" style="margin-bottom:12px;">
-  <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-    <input type="text" name="q" value="{{ q or '' }}" placeholder="Search name, email, phone, airport" style="min-width:280px;">
-    <button class="btn btn-sm">Search</button>
-    {% if q %}
-      <a class="btn btn-sm btn-outline" href="{{ url_for('admin_people') }}">Clear</a>
-    {% endif %}
-    <a class="btn btn-sm btn-primary" href="{{ url_for('admin_new_person') }}" style="margin-left:auto;">+ New Person</a>
-  </div>
+  .toolbar {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+  .toolbar input[type="text"] {
+    padding: 8px 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    min-width: 260px;
+    font-size: 14px;
+  }
+  .toolbar .btn-search {
+    background: #4b5563;
+    color: #fff;
+    border: none;
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .toolbar .btn-clear {
+    background: #fff;
+    color: #4b5563;
+    border: 1px solid #d1d5db;
+    padding: 7px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    text-decoration: none;
+  }
+  .toolbar .btn-new {
+    background: #16a34a;
+    color: #fff;
+    border: none;
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    text-decoration: none;
+    margin-left: auto;
+    font-weight: 600;
+  }
+
+  .people-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    background: #fff;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    font-size: 14px;
+  }
+  .people-table thead th {
+    background: #f9fafb;
+    padding: 10px 12px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: #4b5563;
+    border-bottom: 2px solid #e5e7eb;
+  }
+  .people-table tbody td {
+    padding: 10px 12px;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: middle;
+  }
+  .people-table tbody tr:nth-child(even) {
+    background: #fafbfc;
+  }
+  .people-table tbody tr:hover {
+    background: #f0f7ff;
+  }
+  .people-table tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  .name-cell { font-weight: 600; color: #111827; }
+  .muted { color: #9ca3af; }
+
+  /* Compact colored action buttons */
+  .btn-icon {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 5px;
+    font-size: 12px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    text-decoration: none;
+    line-height: 1.2;
+  }
+  .btn-edit {
+    background: #2563eb;
+    color: #fff;
+  }
+  .btn-edit:hover { background: #1d4ed8; color: #fff; }
+  .btn-delete {
+    background: #dc2626;
+    color: #fff;
+  }
+  .btn-delete:hover { background: #b91c1c; }
+  .btn-bulk-delete {
+    background: #dc2626;
+    color: #fff;
+    border: none;
+    padding: 7px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .btn-bulk-delete:hover { background: #b91c1c; }
+
+  /* Rating inline control */
+  .rating-form {
+    display: inline-flex;
+    gap: 4px;
+    align-items: center;
+  }
+  .rating-select {
+    padding: 3px 6px;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    font-size: 12px;
+    background: #fff;
+  }
+  .rating-reason-input {
+    padding: 3px 6px;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    font-size: 12px;
+    width: 130px;
+  }
+  .rating-reason-input.hidden { display: none; }
+  .rating-save {
+    background: #4b5563;
+    color: #fff;
+    border: none;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .rating-stars { color: #f59e0b; font-size: 14px; letter-spacing: 1px; }
+  .rating-stars-empty { color: #d1d5db; }
+  .rating-low-tag {
+    display: inline-block;
+    margin-top: 2px;
+    font-size: 10px;
+    color: #b91c1c;
+    background: #fee2e2;
+    padding: 1px 6px;
+    border-radius: 4px;
+  }
+
+  .actions-cell {
+    white-space: nowrap;
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+
+  @media (max-width: 768px) {
+    .people-table { display: block; overflow-x: auto; }
+    .toolbar input[type="text"] { min-width: 180px; }
+    .toolbar .btn-new { margin-left: 0; }
+  }
+</style>
+
+<div class="people-header">
+  <h1>👥 People</h1>
+</div>
+
+<!-- Toolbar -->
+<form method="get" action="{{ url_for('admin_people') }}" class="toolbar">
+  <input type="text" name="q" value="{{ q or '' }}" placeholder="Search name, email, phone, airport">
+  <button class="btn-search" type="submit">Search</button>
+  {% if q %}
+    <a class="btn-clear" href="{{ url_for('admin_people') }}">Clear</a>
+  {% endif %}
+  <a class="btn-new" href="{{ url_for('admin_new_person') }}">+ New Person</a>
 </form>
 
 <!-- Bulk delete form -->
 <form id="bulk-delete" method="post" action="{{ url_for('admin_bulk_delete_people_v2', q=q) }}"
       onsubmit="return confirm('Delete selected people? This cannot be undone.');">
-<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-  <div style="margin:8px 0; display:flex; gap:8px; align-items:center;">
-    <button class="btn btn-outline-danger btn-sm" type="submit">Delete Selected</button>
+  <div style="margin: 6px 0 10px 0;">
+    <button class="btn-bulk-delete" type="submit">Delete Selected</button>
   </div>
 
-  <div class="table-responsive">
-    <table class="table table-sm" style="width:100%; border-collapse:collapse;">
+  <div style="overflow-x: auto;">
+    <table class="people-table">
       <thead>
-        <tr style="background:#f7f7f9;">
-          <th style="width:36px; text-align:center; padding:8px;">
+        <tr>
+          <th style="width:32px; text-align:center;">
             <input type="checkbox" id="checkall" onclick="toggleAll(this)">
           </th>
-          <th style="padding:8px;">Name</th>
-          <th style="padding:8px;">Email</th>
-          <th style="padding:8px;">Phone</th>
-          <th style="padding:8px;">Role</th>
-          <th style="padding:8px;">Preferred Airport</th>
-          <th style="padding:8px;">Willing to Drive</th>
-          <th style="padding:8px; width:240px;">Actions</th>
+          <th>Name</th>
+          <th>Email</th>
+          <th>Phone</th>
+          <th>Role</th>
+          <th>Airport</th>
+          <th>Drive</th>
+          <th style="width:240px;">Rating</th>
+          <th style="width:140px;">Actions</th>
         </tr>
       </thead>
       <tbody>
         {% if people and people|length %}
           {% for p in people %}
-          <tr style="border-bottom:1px solid #e5e7eb;">
-            <td style="text-align:center; padding:8px;">
-              <input type="checkbox" name="ids" value="{{ p.id }}">
+          <tr>
+            <td style="text-align:center;">
+              <input type="checkbox" name="ids" value="{{ p.id }}" form="bulk-delete">
             </td>
-            <td style="padding:8px;">{{ p.name }}</td>
-            <td style="padding:8px;">{{ p.email }}</td>
-            <td style="padding:8px;">{{ p.phone or '—' }}</td>
-            <td style="padding:8px;">{{ p.role or 'user' }}</td>
-            <td style="padding:8px;">{{ p.preferred_airport or '—' }}</td>
-            <td style="padding:8px;">{{ 'Yes' if p.willing_to_drive else 'No' }}</td>
-            <td style="padding:8px;">
-              <a class="btn btn-sm btn-outline-primary" href="{{ url_for('admin_edit_person', pid=p.id) }}">Edit</a>
-
-              <!-- Single delete form (not nested inside the bulk form) -->
-              <form method="post"
-                    action="{{ url_for('admin_delete_person_v2', pid=p.id, q=q) }}"
-                    style="display:inline"
-                    onsubmit="return confirm('Delete {{ p.name }}? This cannot be undone.');">
-<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button class="btn btn-sm btn-outline-danger" type="submit">Delete</button>
+            <td class="name-cell">{{ p.name }}</td>
+            <td>{{ p.email }}</td>
+            <td>{% if p.phone %}{{ p.phone }}{% else %}<span class="muted">—</span>{% endif %}</td>
+            <td>{{ p.role or 'user' }}</td>
+            <td>{% if p.preferred_airport %}{{ p.preferred_airport }}{% else %}<span class="muted">—</span>{% endif %}</td>
+            <td>{{ 'Yes' if p.willing_to_drive else 'No' }}</td>
+            <td>
+              <!-- Inline rating form (separate, not nested) -->
+              <span class="rating-form-wrapper" data-pid="{{ p.id }}">
+                {% if p.rating %}
+                  <span class="rating-stars" title="{{ p.rating }}/5">
+                    {% for i in range(1, 6) %}{% if i <= p.rating %}★{% else %}<span class="rating-stars-empty">★</span>{% endif %}{% endfor %}
+                  </span>
+                {% else %}
+                  <span class="muted" style="font-size:12px;">Not rated</span>
+                {% endif %}
+                <a class="btn-icon" style="background:#6b7280;color:#fff;margin-left:6px;"
+                   href="#" onclick="toggleRatingForm({{ p.id }}); return false;">✎</a>
+                {% if p.rating and p.rating <= 3 and p.rating_reason %}
+                  <div class="rating-low-tag" title="{{ p.rating_reason }}">⚠ {{ p.rating_reason[:40] }}{% if p.rating_reason|length > 40 %}…{% endif %}</div>
+                {% endif %}
+              </span>
+            </td>
+            <td class="actions-cell">
+              <a class="btn-icon btn-edit" href="{{ url_for('admin_edit_person', pid=p.id) }}">✏️ Edit</a>
+              <button class="btn-icon btn-delete"
+                      type="submit"
+                      form="delete-person-{{ p.id }}">🗑 Delete</button>
+            </td>
+          </tr>
+          <!-- Hidden quick-rate row -->
+          <tr id="rating-row-{{ p.id }}" style="display:none; background:#f9fafb;">
+            <td colspan="9" style="padding:10px 16px;">
+              <form method="post" action="{{ url_for('admin_quick_rate_person', pid=p.id) }}" class="rating-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="q" value="{{ q or '' }}">
+                <strong style="margin-right:8px;">Rate {{ p.name }}:</strong>
+                <select name="rating" class="rating-select" onchange="toggleReason(this, {{ p.id }})">
+                  <option value="">— Not rated —</option>
+                  {% for r in [5, 4, 3, 2, 1] %}
+                    <option value="{{ r }}" {% if p.rating == r %}selected{% endif %}>{{ r }} ★</option>
+                  {% endfor %}
+                </select>
+                <input type="text" name="rating_reason"
+                       class="rating-reason-input {% if not (p.rating and p.rating <= 3) %}hidden{% endif %}"
+                       id="reason-{{ p.id }}"
+                       placeholder="Reason for low rating (required)"
+                       value="{{ p.rating_reason or '' }}">
+                <button type="submit" class="rating-save">Save</button>
+                <a href="#" onclick="toggleRatingForm({{ p.id }}); return false;" style="font-size:12px;color:#6b7280;text-decoration:none;">Cancel</a>
               </form>
             </td>
           </tr>
           {% endfor %}
         {% else %}
           <tr>
-            <td colspan="7" style="padding:12px; text-align:center; color:#777;">
+            <td colspan="9" style="padding:16px; text-align:center; color:#9ca3af;">
               No people found.
             </td>
           </tr>
@@ -77,15 +297,44 @@
     </table>
   </div>
 
-  <div style="margin-top:8px;">
-    <button class="btn btn-outline-danger btn-sm" type="submit">Delete Selected</button>
+  <div style="margin-top:10px;">
+    <button class="btn-bulk-delete" type="submit">Delete Selected</button>
   </div>
 </form>
 
+<!-- Per-row delete forms, kept outside the bulk-delete form -->
+{% for p in people %}
+<form id="delete-person-{{ p.id }}"
+      method="post"
+      action="{{ url_for('admin_delete_person_v2', pid=p.id, q=q) }}"
+      onsubmit="return confirm('Delete {{ p.name }}? This cannot be undone.');"
+      style="display:none;">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+</form>
+{% endfor %}
+
 <script>
-function toggleAll(master){
+function toggleAll(master) {
   const boxes = document.querySelectorAll("input[name='ids']");
   boxes.forEach(b => b.checked = master.checked);
+}
+
+function toggleRatingForm(pid) {
+  const row = document.getElementById('rating-row-' + pid);
+  if (row) row.style.display = (row.style.display === 'none') ? '' : 'none';
+}
+
+function toggleReason(select, pid) {
+  const reason = document.getElementById('reason-' + pid);
+  if (!reason) return;
+  const val = parseInt(select.value, 10);
+  if (!isNaN(val) && val <= 3) {
+    reason.classList.remove('hidden');
+    reason.required = true;
+  } else {
+    reason.classList.add('hidden');
+    reason.required = false;
+  }
 }
 </script>
 {% endblock %}

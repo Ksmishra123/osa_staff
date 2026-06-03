@@ -135,6 +135,21 @@ def ensure_availability_columns():
 
 ensure_availability_columns()
 
+def ensure_person_rating_columns():
+    """Compatibility migration for staff rating + low-rating reason."""
+    try:
+        with engine.begin() as conn:
+            rows = conn.exec_driver_sql("PRAGMA table_info(people)").fetchall()
+            existing = {r[1] for r in rows}
+            if "rating" not in existing:
+                conn.exec_driver_sql("ALTER TABLE people ADD COLUMN rating INTEGER")
+            if "rating_reason" not in existing:
+                conn.exec_driver_sql("ALTER TABLE people ADD COLUMN rating_reason TEXT")
+    except Exception:
+        app.logger.exception("Could not auto-migrate person rating columns.")
+
+ensure_person_rating_columns()
+
 def ensure_seasons_support():
     """Compatibility migration for seasons + event.season_id and backfill."""
     try:
@@ -2103,6 +2118,43 @@ def admin_people():
     return render_template('people.html', people=people, q=q)
 
 
+@app.route('/admin/people/<int:pid>/rate', methods=['POST'])
+@login_required
+def admin_quick_rate_person(pid):
+    if not is_admin():
+        abort(403)
+    db = SessionLocal()
+    p = db.get(Person, pid)
+    if not p:
+        abort(404)
+
+    q = (request.form.get('q') or '').strip()
+    rating_raw = (request.form.get('rating') or '').strip()
+    reason_val = (request.form.get('rating_reason') or '').strip()
+
+    if rating_raw == '':
+        p.rating = None
+        p.rating_reason = None
+    else:
+        try:
+            rating_val = int(rating_raw)
+            if not (1 <= rating_val <= 5):
+                flash("Rating must be between 1 and 5.")
+                return redirect(url_for('admin_people', q=q))
+            if rating_val <= 3 and not reason_val:
+                flash(f"Please provide a reason for the low rating for {p.name}.")
+                return redirect(url_for('admin_people', q=q))
+            p.rating = rating_val
+            p.rating_reason = reason_val if rating_val <= 3 else None
+        except ValueError:
+            flash("Invalid rating value.")
+            return redirect(url_for('admin_people', q=q))
+
+    db.commit()
+    flash(f"Rating updated for {p.name}.")
+    return redirect(url_for('admin_people', q=q))
+
+
 @app.route('/admin/people/new', methods=['GET', 'POST'])
 @login_required
 def admin_new_person():
@@ -2284,6 +2336,24 @@ def admin_edit_person(pid):
         p.car_or_rental = (form.get('car_or_rental') or '').strip() if p.willing_to_drive else None
         p.dietary_preference = (form.get('dietary_preference') or '').strip()
         p.bio = (form.get('bio') or '').strip()
+
+        # Rating + low-rating reason
+        rating_raw = (form.get('rating') or '').strip()
+        if rating_raw == '':
+            p.rating = None
+            p.rating_reason = None
+        else:
+            try:
+                rating_val = int(rating_raw)
+                if 1 <= rating_val <= 5:
+                    reason_val = (form.get('rating_reason') or '').strip()
+                    if rating_val <= 3 and not reason_val:
+                        flash("Please provide a reason for a rating of 3 or below.")
+                        return render_template('edit_person.html', person=p)
+                    p.rating = rating_val
+                    p.rating_reason = reason_val if rating_val <= 3 else None
+            except ValueError:
+                pass
 
         # DOB
         dob_str = (form.get('dob') or '').strip()

@@ -48,6 +48,25 @@
     <label>Dietary Preference<br>
       <input name="dietary_preference" value="{{ person.dietary_preference or '' }}" placeholder="Vegetarian, Vegan, None, etc.">
     </label>
+
+    <div class="field">
+      <label>Staff Rating<br>
+        <select name="rating" id="rating-select" onchange="toggleEditReason()">
+          <option value="" {% if not person.rating %}selected{% endif %}>— Not rated —</option>
+          {% for r in [5, 4, 3, 2, 1] %}
+            <option value="{{ r }}" {% if person.rating == r %}selected{% endif %}>{{ r }} ★</option>
+          {% endfor %}
+        </select>
+      </label>
+      <div id="rating-reason-wrap" style="margin-top:8px; {% if not (person.rating and person.rating <= 3) %}display:none;{% endif %}">
+        <label>Reason for low rating <span style="color:#b91c1c;">*</span><br>
+          <input name="rating_reason" id="rating-reason"
+                 value="{{ person.rating_reason or '' }}"
+                 placeholder="Required for ratings of 3 or below">
+        </label>
+      </div>
+    </div>
+
     <div class="field">
     <label>Role</label>
       <select name="role">
@@ -187,6 +206,21 @@
     eventSelect.addEventListener('change', filterPositions);
     filterPositions();
   })();
+
+  function toggleEditReason() {
+    const sel = document.getElementById('rating-select');
+    const wrap = document.getElementById('rating-reason-wrap');
+    const reason = document.getElementById('rating-reason');
+    if (!sel || !wrap) return;
+    const val = parseInt(sel.value, 10);
+    if (!isNaN(val) && val <= 3) {
+      wrap.style.display = '';
+      if (reason) reason.required = true;
+    } else {
+      wrap.style.display = 'none';
+      if (reason) reason.required = false;
+    }
+  }
 </script>
 
 {% endblock %}

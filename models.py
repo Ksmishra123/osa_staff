@@ -67,6 +67,8 @@ class Person(Base):
     dietary_preference = Column(String)
     headshot_path = Column(String)           # "/uploads/<file>"
     bio = Column(Text)                       # free-form bio
+    rating = Column(Integer)                 # 1-5; nullable when not rated
+    rating_reason = Column(Text)             # required when rating <= 3
 
     # Relationships
     assignments = relationship("Assignment", back_populates="person", cascade="all, delete-orphan")
