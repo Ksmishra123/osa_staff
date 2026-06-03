@@ -1754,7 +1754,22 @@ def admin_assign(eid):
                 conflicting_assignments.append((pos.name, pid))
             mode = request.form.get(f'pos_{pos.id}_mode') or None
             booking = request.form.get(f'pos_{pos.id}_booking') or None
-            arrival = parse_dt(request.form.get(f'pos_{pos.id}_arrival') or "")
+
+            # Parse separate arrival date and time fields
+            arrival_date_str = request.form.get(f'pos_{pos.id}_arrival_date') or ""
+            arrival_time_str = request.form.get(f'pos_{pos.id}_arrival_time') or ""
+            arrival = None
+            if arrival_date_str:
+                try:
+                    if arrival_time_str:
+                        # Combine date and time
+                        arrival = datetime.strptime(f"{arrival_date_str} {arrival_time_str}", "%Y-%m-%d %H:%M")
+                    else:
+                        # Date only, use midnight
+                        arrival = datetime.strptime(arrival_date_str, "%Y-%m-%d")
+                except ValueError:
+                    pass  # Invalid format, leave as None
+
             notes = request.form.get(f'pos_{pos.id}_notes') or None
             itinerary_link = (request.form.get(f'pos_{pos.id}_itinerary_link') or "").strip() or None
             itinerary_file = request.files.get(f'pos_{pos.id}_itinerary_file')

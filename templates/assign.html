@@ -1,146 +1,367 @@
 {% extends 'base.html' %}
 {% block content %}
-<h1>Assign Staff — {{ ev.city }} ({{ ev.date|date_only if ev.date else '' }})</h1>
-<p style="margin-top:-6px; color:#6b7280;">
-  Availability window: {{ event_window_start|date_only if event_window_start else '—' }} to {{ event_window_end|date_only if event_window_end else '—' }}
-</p>
+<style>
+  .assign-header {
+    background: linear-gradient(135deg, #bfa34d 0%, #f0e3a3 100%);
+    padding: 20px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    color: #000;
+  }
+  .assign-header h1 {
+    margin: 0 0 8px 0;
+    font-size: 1.75rem;
+  }
+  .assign-header p {
+    margin: 0;
+    opacity: 0.8;
+  }
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .stat-card {
+    background: #fff;
+    padding: 12px;
+    border-radius: 8px;
+    border: 2px solid #e5e5e5;
+    text-align: center;
+  }
+  .stat-card .emoji {
+    font-size: 24px;
+    margin-bottom: 4px;
+  }
+  .stat-card .count {
+    font-size: 24px;
+    font-weight: 700;
+    color: #111;
+  }
+  .stat-card .label {
+    font-size: 12px;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .assign-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    background: #fff;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .assign-table thead th {
+    background: #f7f7f9;
+    padding: 12px 10px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 13px;
+    border-bottom: 2px solid #e5e5e5;
+  }
+  .assign-table tbody td {
+    padding: 12px 10px;
+    border-bottom: 1px solid #f0f0f0;
+    vertical-align: top;
+  }
+  .assign-table tbody tr:last-child td {
+    border-bottom: none;
+  }
+  .assign-table tbody tr:hover {
+    background: #fafafa;
+  }
+  .position-name {
+    font-weight: 600;
+    color: #111;
+    font-size: 14px;
+  }
+  .person-select {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+  }
+  .person-select:focus {
+    outline: none;
+    border-color: #bfa34d;
+    box-shadow: 0 0 0 3px rgba(191, 163, 77, 0.1);
+  }
+  .status-badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    margin-top: 4px;
+  }
+  .status-available { background: #dcfce7; color: #15803d; }
+  .status-partial { background: #fef3c7; color: #a16207; }
+  .status-conflict { background: #fee2e2; color: #b91c1c; }
+  .status-unknown { background: #f3f4f6; color: #6b7280; }
+  .input-field {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 13px;
+  }
+  .input-field:focus {
+    outline: none;
+    border-color: #bfa34d;
+    box-shadow: 0 0 0 3px rgba(191, 163, 77, 0.1);
+  }
+  .input-field::placeholder {
+    color: #999;
+  }
+  .input-small {
+    width: 100%;
+    max-width: 110px;
+  }
+  .travel-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .arrival-grid {
+    display: grid;
+    grid-template-columns: 1fr 90px;
+    gap: 6px;
+  }
+  .section-card {
+    background: #fff;
+    border: 1px solid #e5e5e5;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .section-title {
+    font-weight: 600;
+    margin: 0 0 12px 0;
+    color: #111;
+  }
+  .action-buttons {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 20px;
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, #bfa34d 0%, #f0e3a3 100%);
+    color: #000;
+    font-weight: 600;
+    padding: 12px 24px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(191, 163, 77, 0.3);
+  }
+  .btn-secondary {
+    background: #6b7280;
+    color: #fff;
+    padding: 12px 24px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .checkbox-label {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  @media (max-width: 768px) {
+    .assign-table {
+      display: block;
+      overflow-x: auto;
+    }
+    .travel-grid,
+    .arrival-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
 
-<form method="get" style="margin:10px 0;">
-  <label style="display:flex; gap:8px; align-items:center;">
-    <input type="checkbox" name="available_only" value="1" {% if available_only %}checked{% endif %} onchange="this.form.submit()">
-    <span>Available only</span>
-  </label>
-</form>
+<div class="assign-header">
+  <h1>📋 Assign Staff — {{ ev.city }}</h1>
+  <p>{{ ev.date|dt_short if ev.date else 'No date set' }}</p>
+  <p style="margin-top:4px; font-size:13px;">
+    Availability window: {{ event_window_start|date_only if event_window_start else '—' }} to {{ event_window_end|date_only if event_window_end else '—' }}
+  </p>
+</div>
 
-<div class="card" style="padding:10px; margin:10px 0;">
-  <strong>Status groups:</strong>
-  <div style="display:flex; flex-wrap:wrap; gap:10px; margin-top:6px;">
-    <span>🟢 Available: {{ people_by_status.available|length }}</span>
-    <span>🟡 Partial: {{ people_by_status.partial|length }}</span>
-    <span>🔴 Conflict: {{ people_by_status.conflict|length }}</span>
-    <span>⚪ Unknown: {{ people_by_status.unknown|length }}</span>
+<!-- Stats Cards -->
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="emoji">🟢</div>
+    <div class="count">{{ people_by_status.available|length }}</div>
+    <div class="label">Available</div>
+  </div>
+  <div class="stat-card">
+    <div class="emoji">🟡</div>
+    <div class="count">{{ people_by_status.partial|length }}</div>
+    <div class="label">Partial</div>
+  </div>
+  <div class="stat-card">
+    <div class="emoji">🔴</div>
+    <div class="count">{{ people_by_status.conflict|length }}</div>
+    <div class="label">Conflict</div>
+  </div>
+  <div class="stat-card">
+    <div class="emoji">⚪</div>
+    <div class="count">{{ people_by_status.unknown|length }}</div>
+    <div class="label">Unknown</div>
   </div>
 </div>
 
-<!-- Unassign one staff member from this event (clears only their assignments for this event) -->
-<div class="card" style="padding:12px; margin:12px 0;">
-  <h3 style="margin:0 0 8px 0;">Unassign staff member from this event</h3>
-  <form method="post" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <input type="hidden" name="action" value="remove_person">
-    <select name="person_id" required>
-      <option value="">— Select person —</option>
-      {% for person in all_people %}
-        <option value="{{ person.id }}">{{ person.name }}{% if person.email %} ({{ person.email }}){% endif %}</option>
-      {% endfor %}
-    </select>
-    <button type="submit"
-            class="btn btn-danger btn-sm"
-            onclick="return confirm('Unassign this person from all positions for this event?');">
-      Unassign from Event
-    </button>
-    <div style="color:#6b7280; font-size:0.9em;">
-      This will clear any assignments for this person in this event. It won’t affect other staff.
-    </div>
+<!-- Filter -->
+<div class="section-card">
+  <form method="get">
+    <label class="checkbox-label">
+      <input type="checkbox" name="available_only" value="1" {% if available_only %}checked{% endif %} onchange="this.form.submit()">
+      <span>Show only available staff</span>
+    </label>
   </form>
 </div>
 
-<form method="post" enctype="multipart/form-data" class="card">
-<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-  <table class="table">
-    <thead>
-      <tr>
-        <th style="width:200px;">Position</th>
-        <th style="width:240px;">Person</th>
-        <th style="width:140px;">Transport Mode</th>
-        <th style="width:160px;">Flight / Booking</th>
-        <th style="width:200px;">Arrival (local)</th>
-        <th>Notes</th>
-        <th style="width:220px;">Itinerary Link / File</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for p in positions %}
-      {% set cur = current.get(p.id) %}
-      <tr>
-        <td>{{ p.name }}</td>
-        <td>
-          <select name="pos_{{ p.id }}">
-            <option value="">— Unassigned —</option>
-            {% for person in people %}
-              <option value="{{ person.id }}" {% if cur and cur.person_id==person.id %}selected{% endif %}>
-                {{ person.name }}
-                {% set label = people_status.get(person.id, 'unknown') %}
-                {% if label == 'available' %} [available]
-                {% elif label == 'partial' %} [partial]
-                {% elif label == 'conflict' %} [conflict]
-                {% else %} [unknown]
-                {% endif %}
-              </option>
-            {% endfor %}
-          </select>
-          {% if cur %}
-            {% set cur_label = people_status.get(cur.person_id, 'unknown') %}
-            <div style="font-size:.85em; margin-top:3px;">
-              Status:
-              {% if cur_label == 'available' %}<span style="color:#15803d;">available</span>
-              {% elif cur_label == 'partial' %}<span style="color:#a16207;">partial</span>
-              {% elif cur_label == 'conflict' %}<span style="color:#b91c1c;">conflict</span>
-              {% else %}<span style="color:#6b7280;">unknown</span>{% endif %}
-            </div>
-          {% endif %}
-        </td>
-        <td>
-          <input name="pos_{{ p.id }}_mode" placeholder="Flight / Drive / Train"
-                 value="{{ cur.transport_mode if cur and cur.transport_mode else '' }}">
-        </td>
-        <td>
-          <input name="pos_{{ p.id }}_booking" placeholder="AA123 / PNR / etc."
-                 value="{{ cur.transport_booking if cur and cur.transport_booking else '' }}">
-        </td>
-        <td>
-          <input type="datetime-local" name="pos_{{ p.id }}_arrival"
-                 value="{% if cur and cur.arrival_ts %}{{ cur.arrival_ts|datetime_local }}{% endif %}">
-        </td>
-        <td>
-          <input name="pos_{{ p.id }}_notes" placeholder="Pickup at 2pm / baggage / etc."
-                 value="{{ cur.transport_notes if cur and cur.transport_notes else '' }}">
-        </td>
-        <td>
-          <input name="pos_{{ p.id }}_itinerary_link" placeholder="https://www.orbitz.com/..."
-                 value="{{ cur.itinerary_link if cur and cur.itinerary_link else '' }}" style="margin-bottom:6px;">
-          <input type="file" name="pos_{{ p.id }}_itinerary_file" accept=".pdf,.png,.jpg,.jpeg,.txt">
-          {% if cur and cur.itinerary_file_path %}
-            <div style="font-size:.85em; margin-top:4px;">
-              Current: <a href="{{ url_for('download_assignment_itinerary', aid=cur.id) }}" target="_blank">{{ cur.itinerary_filename or 'Download file' }}</a>
-            </div>
-          {% endif %}
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+<!-- Unassign Section -->
+<div class="section-card">
+  <h3 class="section-title">🗑️ Unassign Staff Member</h3>
+  <form method="post" style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" value="remove_person">
+    <div style="flex: 1; min-width: 250px;">
+      <label style="display:block; margin-bottom:4px; font-size:13px; font-weight:500;">Select Person</label>
+      <select name="person_id" required class="person-select">
+        <option value="">— Select person to unassign —</option>
+        {% for person in all_people %}
+          <option value="{{ person.id }}">{{ person.name }}{% if person.email %} ({{ person.email }}){% endif %}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="btn-secondary" onclick="return confirm('Unassign this person from all positions for this event?');">
+      Unassign from Event
+    </button>
+  </form>
+  <p style="margin:8px 0 0 0; font-size:12px; color:#666;">
+    This will remove all assignments for the selected person in this event only.
+  </p>
+</div>
 
-  <div style="margin:12px 0; display:flex; gap:8px; align-items:center;">
-    <label style="display:flex; gap:6px; align-items:center;">
+<!-- Assignment Form -->
+<form method="post" enctype="multipart/form-data">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  <div style="overflow-x: auto;">
+    <table class="assign-table">
+      <thead>
+        <tr>
+          <th style="width:140px;">Position</th>
+          <th style="width:200px;">Staff Member</th>
+          <th style="width:280px;">Travel Details</th>
+          <th style="width:180px;">Arrival</th>
+          <th>Notes</th>
+          <th style="width:200px;">Itinerary</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in positions %}
+        {% set cur = current.get(p.id) %}
+        <tr>
+          <!-- Position -->
+          <td>
+            <div class="position-name">{{ p.name }}</div>
+          </td>
+
+          <!-- Person Selection -->
+          <td>
+            <select name="pos_{{ p.id }}" class="person-select">
+              <option value="">— Unassigned —</option>
+              {% for person in people %}
+                <option value="{{ person.id }}" {% if cur and cur.person_id==person.id %}selected{% endif %}>
+                  {{ person.name }}
+                </option>
+              {% endfor %}
+            </select>
+            {% if cur %}
+              {% set cur_label = people_status.get(cur.person_id, 'unknown') %}
+              <span class="status-badge status-{{ cur_label }}">{{ cur_label }}</span>
+            {% endif %}
+          </td>
+
+          <!-- Travel Details -->
+          <td>
+            <div class="travel-grid">
+              <input name="pos_{{ p.id }}_mode" placeholder="Flight/Drive/Train" class="input-field"
+                     value="{{ cur.transport_mode if cur and cur.transport_mode else '' }}">
+              <input name="pos_{{ p.id }}_booking" placeholder="AA123 / PNR" class="input-field"
+                     value="{{ cur.transport_booking if cur and cur.transport_booking else '' }}">
+            </div>
+          </td>
+
+          <!-- Arrival Date & Time -->
+          <td>
+            <div class="arrival-grid">
+              <input type="date" name="pos_{{ p.id }}_arrival_date" class="input-field"
+                     value="{% if cur and cur.arrival_ts %}{{ cur.arrival_ts.strftime('%Y-%m-%d') }}{% endif %}">
+              <input type="time" name="pos_{{ p.id }}_arrival_time" class="input-field input-small"
+                     value="{% if cur and cur.arrival_ts %}{{ cur.arrival_ts.strftime('%H:%M') }}{% endif %}">
+            </div>
+          </td>
+
+          <!-- Notes -->
+          <td>
+            <input name="pos_{{ p.id }}_notes" placeholder="Pickup info, baggage, etc." class="input-field"
+                   value="{{ cur.transport_notes if cur and cur.transport_notes else '' }}">
+          </td>
+
+          <!-- Itinerary -->
+          <td>
+            <input name="pos_{{ p.id }}_itinerary_link" placeholder="https://..." class="input-field" style="margin-bottom:6px;"
+                   value="{{ cur.itinerary_link if cur and cur.itinerary_link else '' }}">
+            <input type="file" name="pos_{{ p.id }}_itinerary_file" accept=".pdf,.png,.jpg,.jpeg,.txt" class="input-field">
+            {% if cur and cur.itinerary_file_path %}
+              <div style="font-size:11px; margin-top:4px; color:#666;">
+                📎 <a href="{{ url_for('download_assignment_itinerary', aid=cur.id) }}" target="_blank" style="color:#bfa34d;">{{ cur.itinerary_filename or 'View file' }}</a>
+              </div>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Options -->
+  <div style="margin:20px 0;">
+    <label class="checkbox-label">
       <input type="checkbox" name="send_emails" value="yes">
-      <span>Send notification emails to affected staff</span>
+      <span>📧 Send notification emails to affected staff</span>
     </label>
   </div>
   <div style="margin:12px 0;">
-    <label style="display:flex; gap:6px; align-items:center;">
+    <label class="checkbox-label">
       <input type="checkbox" name="confirm_conflicts" value="yes">
-      <span>Allow saving assignments marked as conflict</span>
+      <span>⚠️ Allow saving assignments marked as conflict</span>
     </label>
   </div>
 
-  <div style="display:flex; gap:8px; align-items:center;">
-    <button type="submit">Save Assignments</button>
-    <button type="submit"
+  <!-- Action Buttons -->
+  <div class="action-buttons">
+    <button type="submit" class="btn-primary">💾 Save Assignments</button>
+    <button type="submit" class="btn-secondary"
             formaction="{{ url_for('admin_sync_itineraries', eid=ev.id) }}"
             formmethod="post">
-      Pull Itineraries from Inbox
+      📥 Pull Itineraries from Inbox
     </button>
   </div>
 </form>
+
 {% endblock %}
