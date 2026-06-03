@@ -1277,18 +1277,25 @@ from datetime import datetime, timedelta
 def me():
     db = SessionLocal()
     today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    show_past = request.args.get('show_past') == '1'
 
     Ev = aliased(Event)
     Pos = aliased(Position)
 
-    rows = (db.query(Assignment)
-              .join(Ev, Assignment.event_id == Ev.id)
-              .join(Pos, Assignment.position_id == Pos.id)
-              .options(joinedload(Assignment.event), joinedload(Assignment.position))
-              .filter(Assignment.person_id == int(current_user.id),
-                      Ev.date != None)
-              .order_by(Ev.date.asc(), Pos.display_order.asc())
-              .all())
+    q = (db.query(Assignment)
+            .join(Ev, Assignment.event_id == Ev.id)
+            .join(Pos, Assignment.position_id == Pos.id)
+            .options(joinedload(Assignment.event), joinedload(Assignment.position))
+            .filter(Assignment.person_id == int(current_user.id),
+                    Ev.date != None))
+
+    if not show_past:
+        q = q.filter(
+            (Ev.event_end.is_(None) & (Ev.date >= today))
+            | (Ev.event_end >= today)
+        )
+
+    rows = q.order_by(Ev.date.asc(), Pos.display_order.asc()).all()
 
     # --- NEW: stamp seen_at the first time the user loads /me ---
     now = datetime.utcnow()
@@ -1317,7 +1324,7 @@ def me():
     for room, hotel, ev in user_lodging:
         lodging_by_event.setdefault(ev.id, []).append({"hotel": hotel, "room": room})
 
-    return render_template('me.html', rows=rows, lodging_by_event=lodging_by_event)
+    return render_template('me.html', rows=rows, lodging_by_event=lodging_by_event, show_past=show_past)
 
 
 @app.route('/availability')
