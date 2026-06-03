@@ -2,6 +2,16 @@
 {% block content %}
 <h1>Events</h1>
 
+<div style="margin: 8px 0 16px 0; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+  {% if show_past %}
+    <a href="{{ url_for('events_list') }}" class="btn btn-sm btn-outline-secondary">👁 Hide past events</a>
+    <span style="font-size:12px;color:#666;">Showing all events (including past)</span>
+  {% else %}
+    <a href="{{ url_for('events_list', show_past=1) }}" class="btn btn-sm btn-outline-secondary">📜 Show past events</a>
+    <span style="font-size:12px;color:#666;">Past events are hidden</span>
+  {% endif %}
+</div>
+
 <div class="table-responsive">
   <table class="table table-sm" style="width:100%; border-collapse:collapse;">
     <thead>

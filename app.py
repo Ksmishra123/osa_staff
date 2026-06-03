@@ -1427,8 +1427,17 @@ def admin_events():
     if not is_admin():
         abort(403)
     db = SessionLocal()
-    events = db.query(Event).order_by(Event.date.asc()).all()
-    return render_template('events.html', events=events)
+    show_past = request.args.get('show_past') == '1'
+    today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    query = db.query(Event)
+    if not show_past:
+        # Hide events whose end (or date, if no end) is before today
+        query = query.filter(
+            (Event.event_end.is_(None) & (Event.date.is_(None) | (Event.date >= today)))
+            | (Event.event_end >= today)
+        )
+    events = query.order_by(Event.date.asc()).all()
+    return render_template('events.html', events=events, show_past=show_past)
 
 
 @app.route('/admin/availability')
@@ -2923,14 +2932,16 @@ def call_sheet(eid):
 @login_required
 def events_list():
     db = SessionLocal()
-    now = datetime.utcnow()
-    evs = (
-        db.query(Event)
-          .filter((Event.date == None) | (Event.date >= now))
-          .order_by(Event.date.asc())
-          .all()
-    )
-    return render_template('events_public.html', events=evs)
+    show_past = request.args.get('show_past') == '1'
+    today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    query = db.query(Event)
+    if not show_past:
+        query = query.filter(
+            (Event.event_end.is_(None) & (Event.date.is_(None) | (Event.date >= today)))
+            | (Event.event_end >= today)
+        )
+    evs = query.order_by(Event.date.asc()).all()
+    return render_template('events_public.html', events=evs, show_past=show_past)
 
 @app.route('/callsheet/<int:eid>')
 def public_call_sheet(eid):

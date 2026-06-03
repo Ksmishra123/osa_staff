@@ -178,10 +178,108 @@
     align-items: center;
   }
 
+  /* Clickable name */
+  .name-link {
+    color: #1d4ed8;
+    text-decoration: none;
+    cursor: pointer;
+    border-bottom: 1px dashed #93c5fd;
+  }
+  .name-link:hover { color: #1e40af; border-bottom-color: #1e40af; }
+
+  /* Modal */
+  .person-modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 40px 16px;
+    overflow-y: auto;
+  }
+  .person-modal-overlay.active { display: flex; }
+  .person-modal {
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+    width: 100%;
+    max-width: 560px;
+    padding: 20px 24px;
+    position: relative;
+  }
+  .person-modal h2 {
+    margin: 0 0 4px 0;
+    font-size: 1.4rem;
+    color: #111827;
+  }
+  .person-modal .subtitle {
+    color: #6b7280;
+    font-size: 13px;
+    margin-bottom: 16px;
+  }
+  .person-modal .close-btn {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    background: transparent;
+    border: none;
+    font-size: 24px;
+    color: #6b7280;
+    cursor: pointer;
+    line-height: 1;
+    padding: 4px 8px;
+  }
+  .person-modal .close-btn:hover { color: #111827; }
+  .person-modal dl {
+    display: grid;
+    grid-template-columns: 130px 1fr;
+    gap: 8px 12px;
+    margin: 0;
+    font-size: 14px;
+  }
+  .person-modal dt {
+    color: #6b7280;
+    font-weight: 500;
+  }
+  .person-modal dd {
+    margin: 0;
+    color: #111827;
+    word-break: break-word;
+  }
+  .person-modal .modal-bio {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid #e5e7eb;
+    font-size: 14px;
+    color: #374151;
+    white-space: pre-wrap;
+  }
+  .person-modal .modal-headshot {
+    float: right;
+    width: 80px;
+    height: 80px;
+    object-fit: cover;
+    border-radius: 8px;
+    margin-left: 12px;
+    margin-bottom: 8px;
+  }
+  .person-modal .modal-actions {
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid #e5e7eb;
+    display: flex;
+    gap: 8px;
+  }
+  .person-modal .rating-stars { font-size: 14px; }
+
   @media (max-width: 768px) {
     .people-table { display: block; overflow-x: auto; }
     .toolbar input[type="text"] { min-width: 180px; }
     .toolbar .btn-new { margin-left: 0; }
+    .person-modal dl { grid-template-columns: 1fr; gap: 2px 0; }
+    .person-modal dt { margin-top: 8px; }
   }
 </style>
 
@@ -232,7 +330,9 @@
             <td style="text-align:center;">
               <input type="checkbox" name="ids" value="{{ p.id }}" form="bulk-delete">
             </td>
-            <td class="name-cell">{{ p.name }}</td>
+            <td class="name-cell">
+              <a class="name-link" href="#" onclick="openPersonModal({{ p.id }}); return false;">{{ p.name }}</a>
+            </td>
             <td>{{ p.email }}</td>
             <td>{% if p.phone %}{{ p.phone }}{% else %}<span class="muted">—</span>{% endif %}</td>
             <td>{{ p.role or 'user' }}</td>
@@ -313,6 +413,51 @@
 </form>
 {% endfor %}
 
+<!-- Person detail modals -->
+<div id="person-modal-overlay" class="person-modal-overlay" onclick="closePersonModalOnOverlay(event)">
+  {% for p in people %}
+  <div class="person-modal" id="person-modal-{{ p.id }}" style="display:none;" onclick="event.stopPropagation();">
+    <button class="close-btn" onclick="closePersonModal()" aria-label="Close">&times;</button>
+    {% if p.headshot_path %}
+      <img src="{{ p.headshot_path }}" alt="{{ p.name }}" class="modal-headshot">
+    {% endif %}
+    <h2>{{ p.name }}</h2>
+    <div class="subtitle">{{ p.role or 'user' }}</div>
+
+    <dl>
+      <dt>Email</dt><dd><a href="mailto:{{ p.email }}">{{ p.email }}</a></dd>
+      <dt>Phone</dt><dd>{% if p.phone %}<a href="tel:{{ p.phone }}">{{ p.phone }}</a>{% else %}<span class="muted">—</span>{% endif %}</dd>
+      <dt>Address</dt><dd>{{ p.address or '—' }}</dd>
+      <dt>Date of Birth</dt><dd>{{ p.dob.strftime('%Y-%m-%d') if p.dob else '—' }}</dd>
+      <dt>Preferred Airport</dt><dd>{{ p.preferred_airport or '—' }}</dd>
+      <dt>Willing to Drive</dt><dd>{{ 'Yes' if p.willing_to_drive else 'No' }}{% if p.willing_to_drive and p.car_or_rental %} ({{ p.car_or_rental }}){% endif %}</dd>
+      <dt>Dietary</dt><dd>{{ p.dietary_preference or '—' }}</dd>
+      <dt>Rating</dt>
+      <dd>
+        {% if p.rating %}
+          <span class="rating-stars">{% for i in range(1, 6) %}{% if i <= p.rating %}★{% else %}<span class="rating-stars-empty">★</span>{% endif %}{% endfor %}</span>
+          ({{ p.rating }}/5)
+          {% if p.rating <= 3 and p.rating_reason %}
+            <div class="rating-low-tag" style="margin-top:6px;">⚠ {{ p.rating_reason }}</div>
+          {% endif %}
+        {% else %}
+          <span class="muted">Not rated</span>
+        {% endif %}
+      </dd>
+    </dl>
+
+    {% if p.bio %}
+      <div class="modal-bio"><strong>Bio</strong><br>{{ p.bio }}</div>
+    {% endif %}
+
+    <div class="modal-actions">
+      <a class="btn-icon btn-edit" href="{{ url_for('admin_edit_person', pid=p.id) }}">✏️ Edit</a>
+      <button type="button" class="btn-icon" style="background:#6b7280;color:#fff;" onclick="closePersonModal()">Close</button>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
 <script>
 function toggleAll(master) {
   const boxes = document.querySelectorAll("input[name='ids']");
@@ -336,5 +481,30 @@ function toggleReason(select, pid) {
     reason.required = false;
   }
 }
+
+function openPersonModal(pid) {
+  document.querySelectorAll('.person-modal').forEach(m => m.style.display = 'none');
+  const modal = document.getElementById('person-modal-' + pid);
+  const overlay = document.getElementById('person-modal-overlay');
+  if (modal && overlay) {
+    modal.style.display = '';
+    overlay.classList.add('active');
+    document.body.style.overflow = 'hidden';
+  }
+}
+
+function closePersonModal() {
+  const overlay = document.getElementById('person-modal-overlay');
+  if (overlay) overlay.classList.remove('active');
+  document.body.style.overflow = '';
+}
+
+function closePersonModalOnOverlay(e) {
+  if (e.target.id === 'person-modal-overlay') closePersonModal();
+}
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closePersonModal();
+});
 </script>
 {% endblock %}
