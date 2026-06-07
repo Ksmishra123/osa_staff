@@ -167,11 +167,24 @@ class Assignment(Base):
     itinerary_link = Column(Text)         # direct link (e.g., Orbitz trip URL)
     itinerary_file_path = Column(Text)    # uploaded itinerary file path
     itinerary_filename = Column(String)   # original uploaded filename
+    itinerary_parsed = Column(Text)       # JSON of flight/hotel info extracted from the file
 
     # Relationships
     event = relationship("Event", back_populates="assignments")
     position = relationship("Position", back_populates="assignments")
     person = relationship("Person", back_populates="assignments")
+
+    @property
+    def itinerary_details(self) -> dict:
+        """Decoded flight/hotel info parsed from the itinerary file (or {})."""
+        if not self.itinerary_parsed:
+            return {}
+        try:
+            import json
+            data = json.loads(self.itinerary_parsed)
+            return data if isinstance(data, dict) else {}
+        except Exception:
+            return {}
 
     def __repr__(self) -> str:
         return (f"<Assignment id={self.id} event_id={self.event_id} "

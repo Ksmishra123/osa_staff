@@ -324,12 +324,17 @@
 
           <!-- Itinerary -->
           <td>
-            <input name="pos_{{ p.id }}_itinerary_link" placeholder="https://..." class="input-field" style="margin-bottom:6px;"
-                   value="{{ cur.itinerary_link if cur and cur.itinerary_link else '' }}">
-            <input type="file" name="pos_{{ p.id }}_itinerary_file" accept=".pdf,.png,.jpg,.jpeg,.txt" class="input-field">
-            {% if cur and cur.itinerary_file_path %}
-              <div style="font-size:11px; margin-top:4px; color:#666;">
-                📎 <a href="{{ url_for('download_assignment_itinerary', aid=cur.id) }}" target="_blank" style="color:#bfa34d;">{{ cur.itinerary_filename or 'View file' }}</a>
+            <input type="file" name="pos_{{ p.id }}_itinerary_file" accept=".pdf,.txt" class="input-field">
+            <div style="font-size:10px; color:#999; margin-top:2px;">PDF is read for flight/hotel info, then discarded — the file is not stored.</div>
+            {% set det = cur.itinerary_details if cur else {} %}
+            {% if det.flights or det.hotels %}
+              <div style="font-size:11px; margin-top:4px; color:#444; line-height:1.4;">
+                {% for f in det.flights or [] %}
+                  <div>✈️ {{ f.flight or f.airline }}{% if f['from'] or f['to'] %} {{ f['from'] or '?' }}→{{ f['to'] or '?' }}{% endif %}{% if f.depart_time %} {{ f.depart_time }}{% endif %}</div>
+                {% endfor %}
+                {% for h in det.hotels or [] %}
+                  <div>🏨 {{ h.name }}{% if h.check_in %} {{ h.check_in }}{% endif %}</div>
+                {% endfor %}
               </div>
             {% endif %}
           </td>

@@ -1,5 +1,6 @@
 import os
 import re
+import json
 import threading
 import bcrypt
 import imaplib
@@ -103,20 +104,30 @@ def ensure_event_days_columns():
 ensure_event_days_columns()
 
 def ensure_assignment_itinerary_columns():
-    """Compatibility migration for per-assignment itinerary metadata."""
+    """Compatibility migration for per-assignment itinerary metadata.
+
+    Uses the SQLAlchemy inspector (not a SQLite-only PRAGMA) so the columns get
+    added on SQLite, MySQL and Postgres alike. ADD COLUMN with TEXT/VARCHAR(255)
+    is valid on all three.
+    """
     try:
+        from sqlalchemy import inspect as sa_inspect
+        inspector = sa_inspect(engine)
+        if "assignments" not in inspector.get_table_names():
+            return
+        existing = {col["name"] for col in inspector.get_columns("assignments")}
+        needed = {
+            "itinerary_link": "TEXT",
+            "itinerary_file_path": "TEXT",
+            "itinerary_filename": "VARCHAR(255)",
+            "itinerary_parsed": "TEXT",
+        }
         with engine.begin() as conn:
-            rows = conn.exec_driver_sql("PRAGMA table_info(assignments)").fetchall()
-            existing = {r[1] for r in rows}
-            alters = []
-            if "itinerary_link" not in existing:
-                alters.append("ALTER TABLE assignments ADD COLUMN itinerary_link TEXT")
-            if "itinerary_file_path" not in existing:
-                alters.append("ALTER TABLE assignments ADD COLUMN itinerary_file_path TEXT")
-            if "itinerary_filename" not in existing:
-                alters.append("ALTER TABLE assignments ADD COLUMN itinerary_filename VARCHAR")
-            for stmt in alters:
-                conn.exec_driver_sql(stmt)
+            for col, coltype in needed.items():
+                if col not in existing:
+                    conn.exec_driver_sql(
+                        f"ALTER TABLE assignments ADD COLUMN {col} {coltype}"
+                    )
     except Exception:
         app.logger.exception("Could not auto-migrate assignment itinerary columns.")
 
@@ -355,6 +366,72 @@ def _classify_availability_records(records):
 
 URL_RE = re.compile(r'https?://[^\s<>"\']+')
 
+# Itinerary content parser (extracts flight/hotel info, then the source is
+# discarded — we keep only the parsed summary, never the file or link).
+try:
+    from itinerary_parser import (
+        parse_itinerary_file, parse_itinerary_text, parse_itinerary_bytes
+    )
+except Exception:  # pragma: no cover - keep app booting even if parser/pypdf missing
+    parse_itinerary_file = None
+    parse_itinerary_text = None
+    parse_itinerary_bytes = None
+    app.logger.exception("Itinerary parser unavailable; itineraries cannot be extracted.")
+
+
+def _parsed_to_json(data: dict | None) -> str | None:
+    return json.dumps(data) if data else None
+
+
+def extract_itinerary_from_storage(file_storage) -> str | None:
+    """Read an uploaded itinerary, return parsed JSON, and keep nothing.
+
+    The file's bytes are parsed in memory/temp only; the original is never
+    written to the portal's storage.
+    """
+    if not file_storage or not getattr(file_storage, "filename", None):
+        return None
+    if not parse_itinerary_bytes:
+        return None
+    try:
+        data = parse_itinerary_bytes(file_storage.read(), file_storage.filename) or {}
+        return _parsed_to_json(data)
+    except Exception:
+        app.logger.exception("Failed to parse uploaded itinerary %s", file_storage.filename)
+        return None
+
+
+def extract_itinerary_from_bytes(data: bytes, filename: str, body_text: str | None = None) -> str | None:
+    """Parse an email attachment (or body text) without persisting the source."""
+    parsed = {}
+    try:
+        if data and parse_itinerary_bytes:
+            parsed = parse_itinerary_bytes(data, filename) or {}
+        if not parsed and body_text and parse_itinerary_text:
+            parsed = parse_itinerary_text(body_text) or {}
+    except Exception:
+        app.logger.exception("Failed to parse itinerary attachment %s", filename)
+        return None
+    return _parsed_to_json(parsed)
+
+
+def discard_itinerary_source(assignment) -> None:
+    """Drop any stored itinerary file/link so only the parsed summary is kept.
+
+    Deletes the source file from disk if one is still referenced (e.g. data from
+    before we switched to summary-only storage), then clears the columns.
+    """
+    path = getattr(assignment, "itinerary_file_path", None)
+    if path and os.path.exists(path):
+        try:
+            os.remove(path)
+        except Exception:
+            app.logger.warning("Could not remove itinerary file %s", path)
+    assignment.itinerary_file_path = None
+    assignment.itinerary_filename = None
+    assignment.itinerary_link = None
+
+
 def extract_links_from_text(text: str) -> list[str]:
     if not text:
         return []
@@ -474,23 +551,23 @@ def sync_event_itineraries_from_inbox(db, ev: Event, max_messages: int = 100):
 
             changed = False
 
-            if link and assignment.itinerary_link != link:
-                assignment.itinerary_link = link
-                changed = True
-
+            # Extract flight/hotel details from the attachment (or, failing that,
+            # the email body). The attachment and link are NOT stored — only the
+            # parsed summary is kept on the portal.
+            parsed = None
             if attachment:
                 filename, bytes_payload = attachment
-                unique_name = f"{int(datetime.utcnow().timestamp())}_{assignment.id}_{filename}"
-                save_path = os.path.join(UPLOAD_ITINERARIES_DIR, unique_name)
-                with open(save_path, "wb") as f:
-                    f.write(bytes_payload)
-                if assignment.itinerary_file_path and os.path.exists(assignment.itinerary_file_path):
-                    try:
-                        os.remove(assignment.itinerary_file_path)
-                    except Exception:
-                        app.logger.warning("Could not remove old itinerary file for assignment %s", assignment.id)
-                assignment.itinerary_file_path = save_path
-                assignment.itinerary_filename = filename
+                parsed = extract_itinerary_from_bytes(bytes_payload, filename, body_text)
+            elif body_text:
+                parsed = extract_itinerary_from_bytes(b"", "", body_text)
+
+            if parsed and parsed != assignment.itinerary_parsed:
+                assignment.itinerary_parsed = parsed
+                changed = True
+
+            # Clear any previously stored source file/link for this person.
+            if assignment.itinerary_file_path or assignment.itinerary_link:
+                discard_itinerary_source(assignment)
                 changed = True
 
             if changed:
@@ -743,7 +820,6 @@ def send_new_account_notification(person: Person) -> bool:
     )
 
 # --- Google Sheets sync helpers ---------------------------------------------
-import json
 import gspread
 from google.oauth2.service_account import Credentials
 
@@ -1802,16 +1878,13 @@ def admin_assign(eid):
                     pass  # Invalid format, leave as None
 
             notes = request.form.get(f'pos_{pos.id}_notes') or None
-            itinerary_link = (request.form.get(f'pos_{pos.id}_itinerary_link') or "").strip() or None
             itinerary_file = request.files.get(f'pos_{pos.id}_itinerary_file')
-            itinerary_filename = None
-            itinerary_path = None
-            if itinerary_file and itinerary_file.filename:
-                safe_name = secure_filename(itinerary_file.filename)
-                itinerary_filename = safe_name
-                unique_name = f"{int(datetime.utcnow().timestamp())}_{pos.id}_{safe_name}"
-                itinerary_path = os.path.join(UPLOAD_ITINERARIES_DIR, unique_name)
-                itinerary_file.save(itinerary_path)
+            itinerary_uploaded = bool(itinerary_file and itinerary_file.filename)
+            itinerary_parsed = None
+            if itinerary_uploaded:
+                # Parse the upload in memory and keep ONLY the flight/hotel
+                # summary — the file itself is never written to the portal.
+                itinerary_parsed = extract_itinerary_from_storage(itinerary_file)
 
             if current:
                 # update only if something changed
@@ -1821,8 +1894,7 @@ def admin_assign(eid):
                     current.transport_booking != booking or
                     current.arrival_ts != arrival or
                     (current.transport_notes or '') != (notes or '') or
-                    (current.itinerary_link or '') != (itinerary_link or '') or
-                    bool(itinerary_path)
+                    itinerary_uploaded
                 )
                 if has_change:
                     current.person_id = pid
@@ -1830,18 +1902,15 @@ def admin_assign(eid):
                     current.transport_booking = booking
                     current.arrival_ts = arrival
                     current.transport_notes = notes
-                    current.itinerary_link = itinerary_link
-                    if itinerary_path:
-                        if current.itinerary_file_path and os.path.exists(current.itinerary_file_path):
-                            try:
-                                os.remove(current.itinerary_file_path)
-                            except Exception:
-                                app.logger.warning("Could not remove old itinerary file for assignment %s", current.id)
-                        current.itinerary_file_path = itinerary_path
-                        current.itinerary_filename = itinerary_filename
+                    if itinerary_uploaded:
+                        # Replace with the freshly parsed summary (or clear it if
+                        # nothing could be read — we never keep the source).
+                        current.itinerary_parsed = itinerary_parsed
+                    # Never retain a file or link on the portal.
+                    discard_itinerary_source(current)
                     changed_people.append((pid, pos.name))
             else:
-                # new assignment
+                # new assignment — store only the parsed summary
                 new_a = Assignment(
                     event_id=eid,
                     position_id=pos.id,
@@ -1850,9 +1919,7 @@ def admin_assign(eid):
                     transport_booking=booking,
                     arrival_ts=arrival,
                     transport_notes=notes,
-                    itinerary_link=itinerary_link,
-                    itinerary_file_path=itinerary_path,
-                    itinerary_filename=itinerary_filename,
+                    itinerary_parsed=itinerary_parsed,
                 )
                 db.add(new_a)
                 changed_people.append((pid, pos.name))

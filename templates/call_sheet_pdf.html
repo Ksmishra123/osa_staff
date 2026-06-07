@@ -44,8 +44,9 @@
               {% if a.arrival_ts %} | Arr: {{ a.arrival_ts.strftime('%Y-%m-%d %H:%M') }}{% endif %}
               {% if a.transport_booking %} | {{ a.transport_booking }}{% endif %}
               {% if a.transport_notes %} | {{ a.transport_notes }}{% endif %}
-              {% if a.itinerary_link %} | Link: {{ a.itinerary_link }}{% endif %}
-              {% if a.itinerary_file_path %} | File: available in app{% endif %}
+              {% set det = a.itinerary_details %}
+              {% for f in det.flights or [] %} | ✈ {{ f.flight or f.airline }}{% if f['from'] or f['to'] %} {{ f['from'] or '?' }}→{{ f['to'] or '?' }}{% endif %}{% if f.date %} {{ f.date }}{% endif %}{% if f.depart_time %} Dep {{ f.depart_time }}{% endif %}{% if f.arrive_time %} Arr {{ f.arrive_time }}{% endif %}{% endfor %}
+              {% for h in det.hotels or [] %} | 🏨 {{ h.name }}{% if h.check_in or h.check_out %} {{ h.check_in or '?' }}→{{ h.check_out or '?' }}{% endif %}{% if h.confirmation %} Conf {{ h.confirmation }}{% endif %}{% endfor %}
             </td>
           </tr>
         {% endfor %}

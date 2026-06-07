@@ -40,13 +40,33 @@
             {% if a.event.event_end %}End: {{ a.event.event_end|t_short }}{% endif %}
           {% endif %}
         </td>
-        <td style="padding:8px;">
-          {% if a.itinerary_link %}
-            <a href="{{ a.itinerary_link }}" target="_blank" rel="noopener">Link</a>
+        <td style="padding:8px; font-size:13px;">
+          {% set det = a.itinerary_details %}
+          {% if det.flights %}
+            {% for f in det.flights %}
+              <div style="margin-bottom:4px;">
+                ✈️ <strong>{{ f.flight or f.airline }}</strong>
+                {% if f['from'] or f['to'] %}<br>{{ f['from'] or '?' }} → {{ f['to'] or '?' }}{% endif %}
+                {% if f.date %}<br><span style="color:#666;">{{ f.date }}</span>{% endif %}
+                {% if f.depart_time or f.arrive_time %}
+                  <br><span style="color:#666;">Dep {{ f.depart_time or '—' }} · Arr {{ f.arrive_time or '—' }}</span>
+                {% endif %}
+              </div>
+            {% endfor %}
           {% endif %}
-          {% if a.itinerary_file_path %}
-            {% if a.itinerary_link %}&nbsp;|&nbsp;{% endif %}
-            <a href="{{ url_for('download_assignment_itinerary', aid=a.id) }}" target="_blank">File</a>
+          {% if det.hotels %}
+            {% for h in det.hotels %}
+              <div style="margin-bottom:4px;">
+                🏨 <strong>{{ h.name }}</strong>
+                {% if h.check_in or h.check_out %}
+                  <br><span style="color:#666;">{{ h.check_in or '?' }} → {{ h.check_out or '?' }}</span>
+                {% endif %}
+                {% if h.confirmation %}<br><span style="color:#666;">Conf: {{ h.confirmation }}</span>{% endif %}
+              </div>
+            {% endfor %}
+          {% endif %}
+          {% if det.confirmations and not det.hotels %}
+            <div style="color:#666;">Conf: {{ det.confirmations|join(', ') }}</div>
           {% endif %}
         </td>
 
