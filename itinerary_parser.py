@@ -16,6 +16,8 @@ not parsed here: they almost always sit behind a login, so their contents can't
 be fetched server-side. For those, attach the PDF/email confirmation instead.
 """
 
+from __future__ import annotations
+
 import re
 
 # pypdf is an optional dependency. If it's not installed we still parse plain
@@ -89,7 +91,17 @@ HOTEL_KEYWORDS = (
 
 _TIME_RE = re.compile(r"\b(\d{1,2}:\d{2}\s*[APap]\.?\s?[Mm]\.?)")
 _AIRPORT_PAREN_RE = re.compile(r"\(([A-Z]{3})\)")
-_FLIGHT_NO_RE = re.compile(r"\b([A-Z]{2})\s?(\d{1,4})\b")
+# Flight number: carrier code + 1-4 digits. No trailing word boundary, because
+# web-print itineraries glue it to the next word (e.g. "DL1546Boeing"); the
+# negative lookahead just stops us splitting a longer number.
+_FLIGHT_NO_RE = re.compile(r"\b([A-Z]{2})\s?(\d{1,4})(?!\d)")
+# Two airport codes glued together at the start of a line and followed by a
+# date, e.g. "DTWBWI Sat, Jul 4". The trailing date requirement keeps a bare
+# 6-letter confirmation code (e.g. "HBZORF" on its own line) from matching.
+_GLUED_ROUTE_RE = re.compile(
+    r"^([A-Z]{3})([A-Z]{3})\s+"
+    r"(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|\d)"
+)
 _CONFIRM_RE = re.compile(
     r"(?:confirmation(?:\s+(?:code|number|no\.?|#))?|record\s+locator|"
     r"booking\s+(?:id|reference|number|code|ref)|reservation\s+(?:number|code|id)|"
@@ -139,7 +151,8 @@ def _find_date(line: str) -> str | None:
         return f"{m.group(2)[:3].title()} {int(m.group(1))}, {m.group(3)}"
     m = _DATE_RE.search(line)
     if m:
-        return m.group(0).strip()
+        # Normalize ALL-CAPS web-print dates ("SAT, JUL 4" -> "Sat, Jul 4").
+        return m.group(0).strip().title()
     return None
 
 
@@ -227,7 +240,7 @@ def parse_flights(text: str) -> list[dict]:
                     flight_label = f"{code} {nm.group(1)}"
                     break
 
-        route = _ROUTE_RE.search(line)
+        route = _ROUTE_RE.search(line) or _GLUED_ROUTE_RE.match(line)
 
         if flight_label:
             flush()
