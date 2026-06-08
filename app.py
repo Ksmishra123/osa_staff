@@ -432,6 +432,53 @@ def discard_itinerary_source(assignment) -> None:
     assignment.itinerary_link = None
 
 
+def derive_itinerary_autofill(parsed_json, ev=None) -> dict:
+    """From parsed itinerary JSON, derive values for the structured assignment
+    fields (Mode / Booking / Arrival / Notes). Any key may be None.
+
+    Arrival uses the OUTBOUND (first) flight's arrival date+time. Flight dates may
+    omit the year (web-print itineraries), so we default the year to the event's.
+    """
+    out = {"mode": None, "booking": None, "arrival_ts": None, "notes": None}
+    if not parsed_json:
+        return out
+    try:
+        data = json.loads(parsed_json) if isinstance(parsed_json, str) else parsed_json
+    except Exception:
+        return out
+
+    flights = (data or {}).get("flights") or []
+    if flights:
+        out["mode"] = "flight"
+        # One-line summary of every leg, e.g. "DL 1546 DTW→BWI 10:10AM / ...".
+        parts = []
+        for f in flights:
+            seg = f.get("flight") or f.get("airline") or ""
+            route = ""
+            if f.get("from") or f.get("to"):
+                route = f" {f.get('from') or '?'}→{f.get('to') or '?'}"
+            tm = f" {f.get('depart_time')}" if f.get("depart_time") else ""
+            piece = (seg + route + tm).strip()
+            if piece:
+                parts.append(piece)
+        out["notes"] = " / ".join(parts) or None
+
+        first = flights[0]
+        arr = f"{first.get('date') or ''} {first.get('arrive_time') or ''}".strip()
+        if arr:
+            try:
+                from dateutil import parser as _dtp
+                default_year = getattr(getattr(ev, "date", None), "year", None) or datetime.utcnow().year
+                out["arrival_ts"] = _dtp.parse(arr, default=datetime(default_year, 1, 1))
+            except Exception:
+                out["arrival_ts"] = None
+
+    confs = (data or {}).get("confirmations") or []
+    if confs:
+        out["booking"] = confs[0]
+    return out
+
+
 def extract_links_from_text(text: str) -> list[str]:
     if not text:
         return []
@@ -564,6 +611,16 @@ def sync_event_itineraries_from_inbox(db, ev: Event, max_messages: int = 100):
             if parsed and parsed != assignment.itinerary_parsed:
                 assignment.itinerary_parsed = parsed
                 changed = True
+                # Auto-fill blank structured fields from the parsed itinerary.
+                af = derive_itinerary_autofill(parsed, ev)
+                if not assignment.transport_mode and af["mode"]:
+                    assignment.transport_mode = af["mode"]
+                if not assignment.transport_booking and af["booking"]:
+                    assignment.transport_booking = af["booking"]
+                if not assignment.arrival_ts and af["arrival_ts"]:
+                    assignment.arrival_ts = af["arrival_ts"]
+                if not assignment.transport_notes and af["notes"]:
+                    assignment.transport_notes = af["notes"]
 
             # Clear any previously stored source file/link for this person.
             if assignment.itinerary_file_path or assignment.itinerary_link:
@@ -1885,6 +1942,18 @@ def admin_assign(eid):
                 # Parse the upload in memory and keep ONLY the flight/hotel
                 # summary — the file itself is never written to the portal.
                 itinerary_parsed = extract_itinerary_from_storage(itinerary_file)
+                # Auto-fill Mode/Booking/Arrival/Notes from the itinerary, but
+                # only where the admin left the field blank.
+                if itinerary_parsed:
+                    af = derive_itinerary_autofill(itinerary_parsed, ev)
+                    if not mode and af["mode"]:
+                        mode = af["mode"]
+                    if not booking and af["booking"]:
+                        booking = af["booking"]
+                    if not arrival and af["arrival_ts"]:
+                        arrival = af["arrival_ts"]
+                    if not notes and af["notes"]:
+                        notes = af["notes"]
 
             if current:
                 # update only if something changed
