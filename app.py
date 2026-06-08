@@ -133,6 +133,31 @@ def ensure_assignment_itinerary_columns():
 
 ensure_assignment_itinerary_columns()
 
+def ensure_person_approval_column():
+    """Add people.is_approved for the admin-approval gate.
+
+    On first creation, backfill every EXISTING account to approved so current
+    staff are not locked out — only new self-registrations start unapproved.
+    The backfill runs only when the column is first added, so it never
+    re-approves accounts an admin is still reviewing.
+    """
+    try:
+        from sqlalchemy import inspect as sa_inspect
+        inspector = sa_inspect(engine)
+        if "people" not in inspector.get_table_names():
+            return
+        existing = {col["name"] for col in inspector.get_columns("people")}
+        if "is_approved" not in existing:
+            with engine.begin() as conn:
+                conn.exec_driver_sql(
+                    "ALTER TABLE people ADD COLUMN is_approved BOOLEAN NOT NULL DEFAULT 0"
+                )
+                conn.exec_driver_sql("UPDATE people SET is_approved = 1")
+    except Exception:
+        app.logger.exception("Could not auto-migrate people.is_approved column.")
+
+ensure_person_approval_column()
+
 def ensure_availability_columns():
     """Compatibility migration for availability city-name support."""
     try:
@@ -779,6 +804,16 @@ def send_new_account_notification(person: Person) -> bool:
         app.logger.warning("ADMIN_NOTIFICATION_EMAIL not set; skipping new account notification.")
         return False
 
+    # Build a working link to the pending-approval list. Prefer APP_BASE_URL
+    # (set in Render), else derive from the current request, else relative.
+    base_url = (os.getenv('APP_BASE_URL') or '').rstrip('/')
+    if not base_url:
+        try:
+            base_url = request.url_root.rstrip('/')
+        except Exception:
+            base_url = ''
+    approve_url = f"{base_url}/admin/people?pending=1"
+
     # Format the account information
     html_body = f"""
     <html>
@@ -851,14 +886,14 @@ def send_new_account_notification(person: Person) -> bool:
             {f'<p><strong>Bio:</strong><br>{person.bio}</p>' if person.bio else ''}
 
             <p style="margin-top: 20px;">
-                <a href="http://localhost:5000/admin/people"
+                <a href="{approve_url}"
                    style="background: linear-gradient(90deg, #bfa34d, #f0e3a3);
                           color: black;
                           padding: 10px 20px;
                           text-decoration: none;
                           border-radius: 5px;
                           font-weight: bold;">
-                    View in Admin Panel
+                    Review &amp; Approve Pending Accounts
                 </a>
             </p>
         </div>
@@ -1056,6 +1091,11 @@ def login():
                 app.logger.warning(f"Login attempt for uninitialized account: {email}")
                 return redirect(url_for('login'))
             if bcrypt.checkpw(password.encode(), p.password_hash.encode()):
+                if not getattr(p, 'is_approved', True):
+                    flash('Your account is pending administrator approval. '
+                          'You will be able to log in once it is approved.')
+                    app.logger.info(f"Login blocked for unapproved account: {email}")
+                    return redirect(url_for('login'))
                 login_user(User(p))
                 flash('Logged in.')
                 return redirect(url_for('me'))
@@ -1202,11 +1242,18 @@ def admin_event_days(eid):
 # Register (enhanced profile + headshot)
 # -----------------------------------------------------------------------------
 @app.route('/register', methods=['GET', 'POST'])
+@limiter.limit("15 per hour; 5 per minute", methods=["POST"])
 def register():
     db = SessionLocal()
     if request.method == 'POST':
         try:
             form = request.form
+            # Honeypot: a hidden field real users never see. Bots fill it in.
+            # Silently pretend success without creating anything.
+            if (form.get('company_website') or '').strip():
+                app.logger.warning("Registration honeypot triggered; ignoring submission.")
+                flash('Account created! It is pending administrator approval.')
+                return redirect(url_for('login'))
             name = (form.get('name') or '').strip()
             email = (form.get('email') or '').strip().lower()
             password = form.get('password') or ''
@@ -1260,11 +1307,12 @@ def register():
                 phone=phone, address=address, preferred_airport=preferred_airport,
                 willing_to_drive=willing_to_drive, car_or_rental=car_or_rental,
                 dietary_preference=dietary_preference, dob=dob,
-                headshot_path=headshot_path, bio=bio
+                headshot_path=headshot_path, bio=bio,
+                is_approved=False,  # admin must approve before this account can log in
             )
             db.add(person); db.commit()
 
-            # Send notification email to admin about new account
+            # Send notification email to admin about new account (to approve it)
             try:
                 send_new_account_notification(person)
                 app.logger.info(f"New account notification sent for {person.email}")
@@ -1272,9 +1320,10 @@ def register():
                 app.logger.exception("Failed to send new account notification")
                 # Don't fail registration if email notification fails
 
-            login_user(User(person))
-            flash('Account created. Welcome!')
-            return redirect(url_for('me'))
+            # Do NOT log the new user in — they must be approved first.
+            flash('Account created! It is pending administrator approval. '
+                  'You will be able to log in once an admin approves it.')
+            return redirect(url_for('login'))
 
         except Exception as e:
             app.logger.exception("Register failed")
@@ -2257,6 +2306,7 @@ def admin_people():
         abort(403)
     db = SessionLocal()
     q = (request.args.get('q') or '').strip()
+    pending_only = (request.args.get('pending') == '1')
     query = db.query(Person)
     if q:
         like = f"%{q}%"
@@ -2266,8 +2316,29 @@ def admin_people():
             (Person.phone.ilike(like)) |
             (Person.preferred_airport.ilike(like))
         )
+    if pending_only:
+        query = query.filter(Person.is_approved.is_(False))
     people = query.order_by(Person.name.asc()).all()
-    return render_template('people.html', people=people, q=q)
+    pending_count = db.query(Person).filter(Person.is_approved.is_(False)).count()
+    return render_template('people.html', people=people, q=q,
+                           pending_count=pending_count, pending_only=pending_only)
+
+
+@app.route('/admin/people/<int:pid>/approve', methods=['POST'])
+@login_required
+def admin_approve_person(pid):
+    if not is_admin():
+        abort(403)
+    db = SessionLocal()
+    p = db.get(Person, pid)
+    if not p:
+        abort(404)
+    p.is_approved = True
+    db.commit()
+    flash(f"Approved {p.name}. They can now log in.")
+    q = (request.form.get('q') or '').strip()
+    pending = request.form.get('pending')
+    return redirect(url_for('admin_people', q=q, pending=pending))
 
 
 @app.route('/admin/people/<int:pid>/rate', methods=['POST'])
@@ -2337,7 +2408,8 @@ def admin_new_person():
             role = 'user'
 
         pwd_hash = bcrypt.hashpw(b'changeme', bcrypt.gensalt()).decode()
-        person = Person(name=name, email=email, phone=phone, address=address, password_hash=pwd_hash, role=role)
+        person = Person(name=name, email=email, phone=phone, address=address,
+                        password_hash=pwd_hash, role=role, is_approved=True)
         db.add(person)
         db.commit()
 

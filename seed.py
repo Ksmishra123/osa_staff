@@ -14,7 +14,7 @@ def main():
                            ('Tina Vittorioso','tina@onstageamerica.com'),('Alonzo Smith','alonzo@onstageamerica.com'),
                            ('Autumn Reed','autumn@onstageamerica.com')]:
             ph=bcrypt.hashpw(b'changeme', bcrypt.gensalt()).decode()
-            db.add(Person(name=name, email=email, phone='(555) 555-0000', address='Address', password_hash=ph))
+            db.add(Person(name=name, email=email, phone='(555) 555-0000', address='Address', password_hash=ph, is_approved=True))
         db.commit()
     if db.query(Event).count()==0:
         db.add(Event(date=datetime(2025,3,14,8,0), city='Long Island, NY',

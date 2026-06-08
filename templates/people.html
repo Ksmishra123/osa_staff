@@ -287,6 +287,17 @@
   <h1>👥 People</h1>
 </div>
 
+{% if pending_count and pending_count > 0 %}
+  <div style="margin:8px 0; padding:10px 14px; background:#fffbeb; border:1px solid #fcd34d; border-radius:8px; color:#92400e;">
+    ⏳ <strong>{{ pending_count }}</strong> account{{ 's' if pending_count != 1 else '' }} pending approval.
+    {% if pending_only %}
+      <a href="{{ url_for('admin_people') }}" style="margin-left:8px; font-weight:600;">Show all</a>
+    {% else %}
+      <a href="{{ url_for('admin_people', pending='1') }}" style="margin-left:8px; font-weight:600;">Review pending →</a>
+    {% endif %}
+  </div>
+{% endif %}
+
 <!-- Toolbar -->
 <form method="get" action="{{ url_for('admin_people') }}" class="toolbar">
   <input type="text" name="q" value="{{ q or '' }}" placeholder="Search name, email, phone, airport">
@@ -332,6 +343,9 @@
             </td>
             <td class="name-cell">
               <a class="name-link" href="#" onclick="openPersonModal({{ p.id }}); return false;">{{ p.name }}</a>
+              {% if not p.is_approved %}
+                <span style="display:inline-block; margin-left:6px; padding:1px 7px; font-size:11px; font-weight:600; color:#92400e; background:#fef3c7; border:1px solid #fcd34d; border-radius:10px;">Pending</span>
+              {% endif %}
             </td>
             <td>{{ p.email }}</td>
             <td>{% if p.phone %}{{ p.phone }}{% else %}<span class="muted">—</span>{% endif %}</td>
@@ -356,6 +370,14 @@
               </span>
             </td>
             <td class="actions-cell">
+              {% if not p.is_approved %}
+              <form method="post" action="{{ url_for('admin_approve_person', pid=p.id) }}" style="display:inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="q" value="{{ q }}">
+                <input type="hidden" name="pending" value="{{ '1' if pending_only else '' }}">
+                <button class="btn-icon" type="submit" style="background:#16a34a;color:#fff;">✓ Approve</button>
+              </form>
+              {% endif %}
               <a class="btn-icon btn-edit" href="{{ url_for('admin_edit_person', pid=p.id) }}">✏️ Edit</a>
               <button class="btn-icon btn-delete"
                       type="submit"

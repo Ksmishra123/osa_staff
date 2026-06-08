@@ -56,6 +56,9 @@ class Person(Base):
     name = Column(String, nullable=False)
     email = Column(String, unique=True, nullable=False, index=True)
     password_hash = Column(String, nullable=False)
+    # New self-registrations start unapproved; an admin must approve before the
+    # account can log in. Admin-created and pre-existing accounts are approved.
+    is_approved = Column(Boolean, nullable=False, default=False)
 
     # Profile
     phone = Column(String)                   # normalized to "(XXX) XXX-XXXX"
