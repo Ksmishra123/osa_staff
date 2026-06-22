@@ -14,16 +14,16 @@
     font-weight: 500;
     text-decoration: none;
     border-radius: 6px;
-    border: 1px solid #ddd;
-    background: #fff;
-    color: #333;
+    border: 1px solid #2a2a30;
+    background: #101015;
+    color: #ffffffe6;
     transition: all 0.2s;
     white-space: nowrap;
     cursor: pointer;
   }
   .action-btn:hover {
-    background: #f5f5f5;
-    border-color: #ccc;
+    background: #1a1a20;
+    border-color: #3a3a42;
   }
   .action-btn-primary {
     background: linear-gradient(135deg, #bfa34d 0%, #f0e3a3 100%);
@@ -61,7 +61,7 @@
   .action-divider {
     width: 1px;
     height: 20px;
-    background: #e5e5e5;
+    background: #2a2a30;
     margin: 0 4px;
   }
   @media (max-width: 768px) {
@@ -87,10 +87,10 @@
   <a href="{{ url_for('admin_new_event') }}" class="action-btn action-btn-primary">+ New Event</a>
   {% if show_past %}
     <a href="{{ url_for('admin_events') }}" class="action-btn action-btn-secondary">👁 Hide past events</a>
-    <span style="font-size:12px;color:#666;">Showing all events (including past)</span>
+    <span style="font-size:12px;color:#9ca3af;">Showing all events (including past)</span>
   {% else %}
     <a href="{{ url_for('admin_events', show_past=1) }}" class="action-btn">📜 Show past events</a>
-    <span style="font-size:12px;color:#666;">Past events are hidden</span>
+    <span style="font-size:12px;color:#9ca3af;">Past events are hidden</span>
   {% endif %}
 </div>
 
@@ -109,7 +109,7 @@
         <td>
           <strong>{{ e.date|dt_short }}</strong>
           {% if e.setup_start or e.event_start or e.event_end %}
-          <div style="font-size: 12px; color: #666; margin-top: 4px;">
+          <div style="font-size: 12px; color: #9ca3af; margin-top: 4px;">
             {% if e.setup_start %}Setup: {{ e.setup_start|t_short }}<br>{% endif %}
             {% if e.event_start %}Start: {{ e.event_start|t_short }}<br>{% endif %}
             {% if e.event_end %}End: {{ e.event_end|t_short }}{% endif %}

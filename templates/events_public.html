@@ -5,17 +5,17 @@
 <div style="margin: 8px 0 16px 0; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
   {% if show_past %}
     <a href="{{ url_for('events_list') }}" class="btn btn-sm btn-outline-secondary">👁 Hide past events</a>
-    <span style="font-size:12px;color:#666;">Showing all events (including past)</span>
+    <span style="font-size:12px;color:#9ca3af;">Showing all events (including past)</span>
   {% else %}
     <a href="{{ url_for('events_list', show_past=1) }}" class="btn btn-sm btn-outline-secondary">📜 Show past events</a>
-    <span style="font-size:12px;color:#666;">Past events are hidden</span>
+    <span style="font-size:12px;color:#9ca3af;">Past events are hidden</span>
   {% endif %}
 </div>
 
 <div class="table-responsive">
   <table class="table table-sm" style="width:100%; border-collapse:collapse;">
     <thead>
-      <tr style="background:#f7f7f9;">
+      <tr>
         <th style="padding:8px;">Date</th>
         <th style="padding:8px;">City</th>
         <th style="padding:8px;">Venue</th>
@@ -37,7 +37,7 @@
       </tr>
       {% else %}
       <tr>
-        <td colspan="4" style="padding:12px; text-align:center; color:#777;">No upcoming events.</td>
+        <td colspan="4" style="padding:12px; text-align:center; color:#9ca3af;">No upcoming events.</td>
       </tr>
       {% endfor %}
     </tbody>

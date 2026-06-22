@@ -6,17 +6,17 @@
 <div style="margin: 8px 0 16px 0; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
   {% if show_past %}
     <a href="{{ url_for('me') }}" class="btn btn-sm btn-outline-secondary">👁 Hide past assignments</a>
-    <span style="font-size:12px;color:#666;">Showing all assignments (including past)</span>
+    <span style="font-size:12px;color:#9ca3af;">Showing all assignments (including past)</span>
   {% else %}
     <a href="{{ url_for('me', show_past=1) }}" class="btn btn-sm btn-outline-secondary">📜 Show past assignments</a>
-    <span style="font-size:12px;color:#666;">Past assignments are hidden</span>
+    <span style="font-size:12px;color:#9ca3af;">Past assignments are hidden</span>
   {% endif %}
 </div>
 
 {% if rows and rows|length > 0 %}
   <table class="table" style="width:100%; border-collapse:collapse;">
     <thead>
-      <tr style="background:#f5f5f5;">
+      <tr>
         <th style="padding:8px;">Event</th>
         <th style="padding:8px;">Position</th>
         <th style="padding:8px;">Schedule</th>
@@ -30,7 +30,7 @@
       <tr style="border-bottom:1px solid #ddd;">
         <td style="padding:8px;">
           <strong>{{ a.event.date|dt_short if a.event and a.event.date else '' }}</strong><br>
-          <span style="color:#666; font-size:13px;">{{ a.event.city if a.event else '' }}</span>
+          <span style="color:#9ca3af; font-size:13px;">{{ a.event.city if a.event else '' }}</span>
         </td>
         <td style="padding:8px;"><strong>{{ a.position.name if a.position else '' }}</strong></td>
         <td style="padding:8px; font-size:13px;">
@@ -47,9 +47,9 @@
               <div style="margin-bottom:4px;">
                 ✈️ <strong>{{ f.flight or f.airline }}</strong>
                 {% if f['from'] or f['to'] %}<br>{{ f['from'] or '?' }} → {{ f['to'] or '?' }}{% endif %}
-                {% if f.date %}<br><span style="color:#666;">{{ f.date }}</span>{% endif %}
+                {% if f.date %}<br><span style="color:#9ca3af;">{{ f.date }}</span>{% endif %}
                 {% if f.depart_time or f.arrive_time %}
-                  <br><span style="color:#666;">Dep {{ f.depart_time or '—' }} · Arr {{ f.arrive_time or '—' }}</span>
+                  <br><span style="color:#9ca3af;">Dep {{ f.depart_time or '—' }} · Arr {{ f.arrive_time or '—' }}</span>
                 {% endif %}
               </div>
             {% endfor %}
@@ -59,14 +59,14 @@
               <div style="margin-bottom:4px;">
                 🏨 <strong>{{ h.name }}</strong>
                 {% if h.check_in or h.check_out %}
-                  <br><span style="color:#666;">{{ h.check_in or '?' }} → {{ h.check_out or '?' }}</span>
+                  <br><span style="color:#9ca3af;">{{ h.check_in or '?' }} → {{ h.check_out or '?' }}</span>
                 {% endif %}
-                {% if h.confirmation %}<br><span style="color:#666;">Conf: {{ h.confirmation }}</span>{% endif %}
+                {% if h.confirmation %}<br><span style="color:#9ca3af;">Conf: {{ h.confirmation }}</span>{% endif %}
               </div>
             {% endfor %}
           {% endif %}
           {% if det.confirmations and not det.hotels %}
-            <div style="color:#666;">Conf: {{ det.confirmations|join(', ') }}</div>
+            <div style="color:#9ca3af;">Conf: {{ det.confirmations|join(', ') }}</div>
           {% endif %}
         </td>
 
@@ -104,7 +104,7 @@
   <div class="table-responsive">
     <table class="table table-sm" style="width:100%; border-collapse:collapse;">
       <thead>
-        <tr style="background:#f5f5f5;">
+        <tr>
           <th style="padding:8px;">Event</th>
           <th style="padding:8px;">Hotel</th>
           <th style="padding:8px;">Room</th>

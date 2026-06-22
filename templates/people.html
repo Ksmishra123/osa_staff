@@ -34,9 +34,9 @@
     cursor: pointer;
   }
   .toolbar .btn-clear {
-    background: #fff;
-    color: #4b5563;
-    border: 1px solid #d1d5db;
+    background: #0a0a0d;
+    color: #ffffffb8;
+    border: 1px solid #1f1f27;
     padding: 7px 12px;
     border-radius: 6px;
     font-size: 13px;
@@ -58,39 +58,40 @@
     width: 100%;
     border-collapse: separate;
     border-spacing: 0;
-    background: #fff;
+    background: #0a0a0d;
+    color: #ffffffb8;
     border-radius: 8px;
     overflow: hidden;
     box-shadow: 0 1px 2px rgba(0,0,0,0.05);
     font-size: 14px;
   }
   .people-table thead th {
-    background: #f9fafb;
+    background: #101015;
     padding: 10px 12px;
     text-align: left;
     font-weight: 600;
     font-size: 12px;
     text-transform: uppercase;
     letter-spacing: 0.4px;
-    color: #4b5563;
-    border-bottom: 2px solid #e5e7eb;
+    color: #f5d080;
+    border-bottom: 2px solid #1f1f27;
   }
   .people-table tbody td {
     padding: 10px 12px;
-    border-bottom: 1px solid #f1f5f9;
+    border-bottom: 1px solid #1f1f27;
     vertical-align: middle;
   }
   .people-table tbody tr:nth-child(even) {
-    background: #fafbfc;
+    background: #101015;
   }
   .people-table tbody tr:hover {
-    background: #f0f7ff;
+    background: #15151c;
   }
   .people-table tbody tr:last-child td {
     border-bottom: none;
   }
 
-  .name-cell { font-weight: 600; color: #111827; }
+  .name-cell { font-weight: 600; color: #ffffff; }
   .muted { color: #9ca3af; }
 
   /* Compact colored action buttons */
@@ -137,17 +138,20 @@
   }
   .rating-select {
     padding: 3px 6px;
-    border: 1px solid #d1d5db;
+    border: 1px solid #1f1f27;
     border-radius: 4px;
     font-size: 12px;
-    background: #fff;
+    background: #0a0a0d;
+    color: #ffffffb8;
   }
   .rating-reason-input {
     padding: 3px 6px;
-    border: 1px solid #d1d5db;
+    border: 1px solid #1f1f27;
     border-radius: 4px;
     font-size: 12px;
     width: 130px;
+    background: #0a0a0d;
+    color: #ffffffb8;
   }
   .rating-reason-input.hidden { display: none; }
   .rating-save {
@@ -180,12 +184,12 @@
 
   /* Clickable name */
   .name-link {
-    color: #1d4ed8;
+    color: #f5d080;
     text-decoration: none;
     cursor: pointer;
-    border-bottom: 1px dashed #93c5fd;
+    border-bottom: 1px dashed #be9420;
   }
-  .name-link:hover { color: #1e40af; border-bottom-color: #1e40af; }
+  .name-link:hover { color: #e8a23a; border-bottom-color: #e8a23a; }
 
   /* Modal */
   .person-modal-overlay {
@@ -201,7 +205,9 @@
   }
   .person-modal-overlay.active { display: flex; }
   .person-modal {
-    background: #fff;
+    background: #0a0a0d;
+    color: #ffffffb8;
+    border: 1px solid #1f1f27;
     border-radius: 10px;
     box-shadow: 0 10px 30px rgba(0,0,0,0.25);
     width: 100%;
@@ -212,10 +218,10 @@
   .person-modal h2 {
     margin: 0 0 4px 0;
     font-size: 1.4rem;
-    color: #111827;
+    color: #ffffff;
   }
   .person-modal .subtitle {
-    color: #6b7280;
+    color: #9ca3af;
     font-size: 13px;
     margin-bottom: 16px;
   }
@@ -226,12 +232,12 @@
     background: transparent;
     border: none;
     font-size: 24px;
-    color: #6b7280;
+    color: #9ca3af;
     cursor: pointer;
     line-height: 1;
     padding: 4px 8px;
   }
-  .person-modal .close-btn:hover { color: #111827; }
+  .person-modal .close-btn:hover { color: #ffffff; }
   .person-modal dl {
     display: grid;
     grid-template-columns: 130px 1fr;
@@ -240,20 +246,20 @@
     font-size: 14px;
   }
   .person-modal dt {
-    color: #6b7280;
+    color: #9ca3af;
     font-weight: 500;
   }
   .person-modal dd {
     margin: 0;
-    color: #111827;
+    color: #ffffffb8;
     word-break: break-word;
   }
   .person-modal .modal-bio {
     margin-top: 14px;
     padding-top: 14px;
-    border-top: 1px solid #e5e7eb;
+    border-top: 1px solid #1f1f27;
     font-size: 14px;
-    color: #374151;
+    color: #ffffffb8;
     white-space: pre-wrap;
   }
   .person-modal .modal-headshot {
@@ -268,7 +274,7 @@
   .person-modal .modal-actions {
     margin-top: 16px;
     padding-top: 14px;
-    border-top: 1px solid #e5e7eb;
+    border-top: 1px solid #1f1f27;
     display: flex;
     gap: 8px;
   }
@@ -385,7 +391,7 @@
             </td>
           </tr>
           <!-- Hidden quick-rate row -->
-          <tr id="rating-row-{{ p.id }}" style="display:none; background:#f9fafb;">
+          <tr id="rating-row-{{ p.id }}" style="display:none; background:#101015; color:#ffffffb8;">
             <td colspan="9" style="padding:10px 16px;">
               <form method="post" action="{{ url_for('admin_quick_rate_person', pid=p.id) }}" class="rating-form">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -403,7 +409,7 @@
                        placeholder="Reason for low rating (required)"
                        value="{{ p.rating_reason or '' }}">
                 <button type="submit" class="rating-save">Save</button>
-                <a href="#" onclick="toggleRatingForm({{ p.id }}); return false;" style="font-size:12px;color:#6b7280;text-decoration:none;">Cancel</a>
+                <a href="#" onclick="toggleRatingForm({{ p.id }}); return false;" style="font-size:12px;color:#9ca3af;text-decoration:none;">Cancel</a>
               </form>
             </td>
           </tr>
