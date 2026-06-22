@@ -1,4 +1,27 @@
 /* ============================================
+   OSA Design Tokens — matches www.onstageamerica.com
+   Dark theme + gold accents
+   ============================================ */
+:root {
+  --osa-black: #010101;
+  --osa-black-s: #07070d;
+  --osa-bg: #000;
+  --osa-card: #0a0a0d;       /* hsl(240 12% 4%) */
+  --osa-card-2: #101015;
+  --osa-border: #1f1f27;
+  --osa-text: #ffffffb8;     /* muted white body text */
+  --osa-text-strong: #ffffff;
+  --osa-text-dim: #ffffff8a;
+  --osa-gold: #be9420;
+  --osa-gold-l: #e8a23a;
+  --osa-gold-b: #f5d080;
+  --osa-gold-d: #8a6010;
+  --osa-cream: #f5efe0;
+  --font-body: "Inter", "Inter Fallback", -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-display: "League Spartan", "League Spartan Fallback", var(--font-body);
+}
+
+/* ============================================
    Base Styles
    ============================================ */
 * {
@@ -6,12 +29,26 @@
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family: var(--font-body);
   margin: 0;
-  background: #fafafa;
-  color: #222;
+  background: var(--osa-black);
+  color: var(--osa-text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  color: var(--osa-text-strong);
+  letter-spacing: 0.01em;
+}
+
+a {
+  color: var(--osa-gold-l);
+}
+
+a:hover {
+  color: var(--osa-gold-b);
 }
 
 .container {
@@ -33,12 +70,14 @@ body {
   position: sticky;
   top: 0;
   z-index: 1000;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.4);
 }
 
 .topbar .brand {
+  font-family: var(--font-display);
   font-weight: 700;
   font-size: 1.25rem;
+  text-transform: uppercase;
   color: #000;
   white-space: nowrap;
 }
@@ -103,7 +142,8 @@ body {
 }
 
 .nav-menu a:hover {
-  background: rgba(0, 0, 0, 0.1);
+  background: rgba(0, 0, 0, 0.12);
+  color: #000;
 }
 
 .nav-icon {
@@ -116,66 +156,79 @@ body {
 
 /* Welcome Strip */
 .welcome-strip {
-  background: #eef6ff;
-  border-bottom: 1px solid #dbeafe;
-  color: #0f172a;
+  background: var(--osa-black-s);
+  border-bottom: 1px solid var(--osa-border);
+  color: var(--osa-text);
   padding: 12px 16px;
   font-size: 14px;
   text-align: center;
+}
+
+.welcome-strip strong {
+  color: var(--osa-gold-b);
 }
 
 /* ============================================
    Cards & Forms
    ============================================ */
 .card {
-  background: #fff;
-  border: 1px solid #e5e5e5;
+  background: var(--osa-card);
+  border: 1px solid var(--osa-border);
   border-radius: 12px;
   padding: 20px;
   margin-bottom: 16px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+  color: var(--osa-text);
 }
 
 label {
   display: block;
   margin-bottom: 12px;
   font-weight: 500;
-  color: #333;
+  color: var(--osa-text-strong);
 }
 
 input, select, textarea {
   width: 100%;
   padding: 10px 12px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--osa-border);
   border-radius: 8px;
   font-size: 16px;
   font-family: inherit;
+  background: var(--osa-card-2);
+  color: var(--osa-text-strong);
   transition: border-color 0.2s;
+}
+
+input::placeholder, textarea::placeholder {
+  color: #ffffff55;
 }
 
 input:focus, select:focus, textarea:focus {
   outline: none;
-  border-color: #bfa34d;
-  box-shadow: 0 0 0 3px rgba(191, 163, 77, 0.1);
+  border-color: var(--osa-gold);
+  box-shadow: 0 0 0 3px rgba(190, 148, 32, 0.25);
 }
 
 button, .btn {
-  background: linear-gradient(135deg, #111827 0%, #1f2937 100%);
-  color: #fff;
+  background: linear-gradient(180deg, var(--osa-gold-l) 0%, var(--osa-gold) 100%);
+  color: #1a1206;
   border: none;
   border-radius: 10px;
   padding: 12px 20px;
   cursor: pointer;
   font-size: 16px;
   font-weight: 600;
-  transition: transform 0.2s, box-shadow 0.2s;
+  font-family: var(--font-body);
+  transition: transform 0.2s, box-shadow 0.2s, filter 0.2s;
   display: inline-block;
   text-decoration: none;
 }
 
 button:hover, .btn:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  filter: brightness(1.08);
+  box-shadow: 0 4px 12px rgba(190, 148, 32, 0.25);
 }
 
 button:active, .btn:active {
@@ -188,26 +241,31 @@ button:active, .btn:active {
 .table {
   width: 100%;
   border-collapse: collapse;
-  background: #fff;
+  background: var(--osa-card);
+  border: 1px solid var(--osa-border);
   border-radius: 12px;
   overflow: hidden;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+  color: var(--osa-text);
 }
 
 .table th, .table td {
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--osa-border);
   padding: 12px 16px;
   text-align: left;
 }
 
 .table thead th {
-  background: #f6f6f6;
+  background: var(--osa-card-2);
   font-weight: 600;
-  color: #333;
+  color: var(--osa-gold-b);
+  text-transform: uppercase;
+  font-size: 12px;
+  letter-spacing: 0.04em;
 }
 
 .table tbody tr:hover {
-  background: #fafafa;
+  background: #15151b;
 }
 
 /* ============================================
@@ -218,8 +276,9 @@ button:active, .btn:active {
 }
 
 .flash-item {
-  background: #fff7cc;
-  border: 1px solid #ffe58f;
+  background: rgba(190, 148, 32, 0.10);
+  border: 1px solid var(--osa-gold);
+  color: var(--osa-gold-b);
   padding: 12px 16px;
   border-radius: 8px;
   margin-bottom: 8px;
@@ -238,6 +297,100 @@ button:active, .btn:active {
 }
 
 /* ============================================
+   Bootstrap component overrides (Bootstrap loads before this file)
+   ============================================ */
+.btn-primary, .btn-success {
+  background: linear-gradient(180deg, var(--osa-gold-l), var(--osa-gold));
+  border-color: var(--osa-gold);
+  color: #1a1206;
+}
+.btn-primary:hover, .btn-success:hover {
+  background: linear-gradient(180deg, var(--osa-gold-b), var(--osa-gold-l));
+  border-color: var(--osa-gold-l);
+  color: #1a1206;
+}
+.btn-secondary {
+  background: var(--osa-card-2);
+  border-color: var(--osa-border);
+  color: var(--osa-text-strong);
+}
+.btn-secondary:hover {
+  background: #1a1a22;
+  border-color: var(--osa-gold);
+  color: var(--osa-text-strong);
+}
+.btn-outline-primary {
+  color: var(--osa-gold-l);
+  border-color: var(--osa-gold);
+  background: transparent;
+}
+.btn-outline-primary:hover {
+  background: var(--osa-gold);
+  border-color: var(--osa-gold);
+  color: #1a1206;
+}
+.btn-outline-secondary {
+  color: var(--osa-text);
+  border-color: var(--osa-border);
+  background: transparent;
+}
+.btn-outline-secondary:hover {
+  background: var(--osa-card-2);
+  border-color: var(--osa-gold);
+  color: var(--osa-text-strong);
+}
+.btn-outline-danger {
+  color: #ff7676;
+  border-color: #7a2b2b;
+  background: transparent;
+}
+.btn-outline-danger:hover {
+  background: #7a2b2b;
+  border-color: #7a2b2b;
+  color: #fff;
+}
+.btn-danger {
+  background: #9b2c2c;
+  border-color: #9b2c2c;
+  color: #fff;
+}
+.btn-danger:hover {
+  background: #b03434;
+  border-color: #b03434;
+}
+
+.card-header, .card-footer {
+  background: var(--osa-card-2);
+  border-color: var(--osa-border);
+  color: var(--osa-text-strong);
+}
+
+.table { --bs-table-bg: transparent; --bs-table-color: var(--osa-text); }
+.table > :not(caption) > * > * {
+  border-bottom-color: var(--osa-border);
+  color: var(--osa-text);
+  background: transparent;
+}
+.table-striped > tbody > tr:nth-of-type(odd) > * {
+  --bs-table-accent-bg: transparent;
+  background: #0e0e13;
+  color: var(--osa-text);
+}
+
+.form-control, .form-select {
+  background: var(--osa-card-2);
+  border-color: var(--osa-border);
+  color: var(--osa-text-strong);
+}
+.form-control:focus, .form-select:focus {
+  background: var(--osa-card-2);
+  border-color: var(--osa-gold);
+  color: var(--osa-text-strong);
+  box-shadow: 0 0 0 0.2rem rgba(190, 148, 32, 0.25);
+}
+.form-control::placeholder { color: #ffffff55; }
+
+/* ============================================
    Print Styles
    ============================================ */
 .print-header {
@@ -249,16 +402,26 @@ button:active, .btn:active {
 }
 
 .print-note {
-  color: #555;
+  color: var(--osa-text-dim);
   font-size: 12px;
 }
 
 @media print {
-  .topbar, .flash, .print-note, .menu-toggle, .welcome-strip {
+  .topbar, .flash, .print-note, .menu-toggle, .welcome-strip, .staff-only-warning {
     display: none !important;
   }
   body {
     background: #fff;
+    color: #000;
+  }
+  .card, .table {
+    background: #fff;
+    color: #000;
+    border-color: #999;
+  }
+  .table thead th {
+    background: #f6f6f6;
+    color: #000;
   }
   .container {
     margin: 0;
@@ -266,6 +429,7 @@ button:active, .btn:active {
   }
   .table th, .table td {
     border: 1px solid #999;
+    color: #000;
   }
 }
 
@@ -286,11 +450,11 @@ button:active, .btn:active {
     width: 80%;
     max-width: 320px;
     height: 100vh;
-    background: #fff;
+    background: var(--osa-black-s);
     flex-direction: column;
     gap: 0;
     padding: 0;
-    box-shadow: -2px 0 10px rgba(0,0,0,0.1);
+    box-shadow: -2px 0 10px rgba(0,0,0,0.5);
     transition: right 0.3s ease;
     overflow-y: auto;
     z-index: 1002;
@@ -308,7 +472,7 @@ button:active, .btn:active {
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0, 0, 0, 0.5);
+    background: rgba(0, 0, 0, 0.6);
     opacity: 0;
     visibility: hidden;
     transition: opacity 0.3s, visibility 0.3s;
@@ -331,6 +495,7 @@ button:active, .btn:active {
   }
 
   .nav-title {
+    font-family: var(--font-display);
     font-weight: 700;
     font-size: 1.2rem;
     color: #000;
@@ -354,7 +519,7 @@ button:active, .btn:active {
   /* Mobile navigation sections */
   .nav-section {
     display: block;
-    border-bottom: 1px solid #eee;
+    border-bottom: 1px solid var(--osa-border);
   }
 
   .nav-section-title {
@@ -363,7 +528,7 @@ button:active, .btn:active {
     font-size: 12px;
     font-weight: 700;
     text-transform: uppercase;
-    color: #888;
+    color: var(--osa-gold-b);
     letter-spacing: 0.5px;
   }
 
@@ -372,7 +537,7 @@ button:active, .btn:active {
     display: flex;
     align-items: center;
     padding: 14px 20px;
-    color: #333;
+    color: var(--osa-text);
     text-decoration: none;
     border-radius: 0;
     transition: background 0.2s;
@@ -381,11 +546,12 @@ button:active, .btn:active {
   }
 
   .nav-menu a:hover {
-    background: #f5f5f5;
+    background: #15151b;
+    color: var(--osa-gold-l);
   }
 
   .nav-menu a:active {
-    background: #e8e8e8;
+    background: #1f1f27;
   }
 
   /* Show icons in mobile menu */
@@ -397,7 +563,7 @@ button:active, .btn:active {
   }
 
   .logout-link {
-    color: #dc2626 !important;
+    color: #ff7676 !important;
     font-weight: 600;
   }
 
