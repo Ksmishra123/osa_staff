@@ -1,0 +1,120 @@
+{% extends 'base.html' %}
+{% block content %}
+
+{% set with_email = people | selectattr('email') | list %}
+{% set without_email = people | rejectattr('email') | list %}
+
+<h2>Send Email to Selected People</h2>
+
+<form method="post" action="{{ url_for('admin_people_email_send') }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" id="send_mode" name="send_mode" value="all">
+  <input type="hidden" name="q" value="{{ q or '' }}">
+  <input type="hidden" name="role" value="{{ role or '' }}">
+  {# Carry the selection forward so the send step hits exactly who was checked #}
+  {% for p in people %}
+    <input type="hidden" name="ids" value="{{ p.id }}">
+  {% endfor %}
+
+  <div class="field">
+    <label>Subject</label>
+    <input name="subject" id="subject" required placeholder="Enter subject line"
+           class="form-control" value="{{ subject or '' }}">
+  </div>
+
+  <div class="field">
+    <label>Message</label>
+    <textarea id="body" name="body" rows="10"
+              placeholder="Write your message here...">{{ body or '' }}</textarea>
+  </div>
+
+  <div style="margin-top:12px;">
+    <button class="btn btn-primary" type="submit"
+            onclick="return confirm('Send this email to {{ with_email|length }} recipient(s)?');">
+      Send to {{ with_email|length }} Recipient{{ 's' if with_email|length != 1 else '' }}
+    </button>
+    <button class="btn btn-outline-secondary" type="button" id="send-test">Send Test to Myself</button>
+    <a href="{{ url_for('admin_people', q=q, role=role) }}" class="btn btn-secondary">Cancel</a>
+  </div>
+</form>
+
+<hr>
+
+<h4>Recipients ({{ with_email|length }})</h4>
+{% if with_email %}
+  {% set all_emails = with_email | map(attribute='email') | join(',') %}
+  <div style="margin-bottom:10px;">
+    <a href="mailto:?bcc={{ all_emails | urlencode }}" class="btn btn-outline-primary btn-sm">
+      ✉️ Open in My Email App (BCC all)
+    </a>
+  </div>
+  <ul>
+    {% for p in with_email %}
+      <li>{{ p.name }} — {{ p.email }} <span class="muted">({{ p.role or 'user' }})</span></li>
+    {% endfor %}
+  </ul>
+{% else %}
+  <p><em>None of the selected people have an email address on file.</em></p>
+{% endif %}
+
+{% if without_email %}
+  <div style="margin:10px 0; padding:10px 14px; background:#fffbeb; border:1px solid #fcd34d;
+              border-radius:8px; color:#92400e;">
+    ⚠ <strong>{{ without_email|length }}</strong> selected
+    {{ 'person has' if without_email|length == 1 else 'people have' }}
+    no email address and will be skipped:
+    {{ without_email | map(attribute='name') | join(', ') }}
+  </div>
+{% endif %}
+
+<hr>
+
+<h3>📬 Live Preview</h3>
+<div id="email-preview" style="
+  border: 1px solid #ccc;
+  padding: 16px;
+  border-radius: 8px;
+  background: #f9f9f9;
+  color: #1a1a1a;
+  font-family: Arial, sans-serif;
+  line-height: 1.5;
+  min-height: 200px;
+  white-space: pre-wrap;
+">
+  <em>Start typing your message above to see the preview...</em>
+</div>
+
+<!-- Trumbowyg WYSIWYG Editor -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/trumbowyg@2.27.3/dist/ui/trumbowyg.min.css">
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/trumbowyg@2.27.3/dist/trumbowyg.min.js"></script>
+
+<script>
+  $(function() {
+    $('#body').trumbowyg({
+      btns: [
+        ['bold', 'italic', 'underline'],
+        ['unorderedList', 'orderedList'],
+        ['link'],
+        ['removeformat']
+      ],
+      autogrow: true
+    });
+
+    function refreshPreview() {
+      const content = $('#body').trumbowyg('html');
+      document.getElementById('email-preview').innerHTML =
+        content || '<em>Start typing your message above to see the preview...</em>';
+    }
+    $('#body').on('tbwchange keyup', refreshPreview);
+    refreshPreview();
+
+    // Test send skips the recipient confirmation entirely
+    $('#send-test').on('click', function() {
+      $('#send_mode').val('test');
+      $(this).closest('form')[0].submit();
+    });
+  });
+</script>
+
+{% endblock %}

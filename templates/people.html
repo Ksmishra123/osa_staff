@@ -130,6 +130,19 @@
   }
   .btn-bulk-delete:hover { background: #b91c1c; }
 
+  .btn-bulk-email {
+    background: #c9a227;
+    color: #1a1a1a;
+    border: none;
+    padding: 7px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-right: 6px;
+  }
+  .btn-bulk-email:hover { background: #e0b62c; }
+
   /* Rating inline control */
   .rating-form {
     display: inline-flex;
@@ -307,20 +320,34 @@
 <!-- Toolbar -->
 <form method="get" action="{{ url_for('admin_people') }}" class="toolbar">
   <input type="text" name="q" value="{{ q or '' }}" placeholder="Search name, email, phone, airport">
+  <select name="role" onchange="this.form.submit();">
+    <option value=""          {% if not role %}selected{% endif %}>All roles</option>
+    <option value="user"      {% if role == 'user' %}selected{% endif %}>Users only</option>
+    <option value="viewer"    {% if role == 'viewer' %}selected{% endif %}>Viewers only</option>
+    <option value="admin"     {% if role == 'admin' %}selected{% endif %}>Admins only</option>
+    <option value="not_admin" {% if role == 'not_admin' %}selected{% endif %}>Exclude admins</option>
+  </select>
+  {% if pending_only %}<input type="hidden" name="pending" value="1">{% endif %}
   <button class="btn-search" type="submit">Search</button>
-  {% if q %}
-    <a class="btn-clear" href="{{ url_for('admin_people') }}">Clear</a>
+  {% if q or role %}
+    <a class="btn-clear" href="{{ url_for('admin_people', pending='1' if pending_only else None) }}">Clear</a>
   {% endif %}
   <a class="btn-new" href="{{ url_for('admin_new_person') }}">+ New Person</a>
 </form>
 
-<!-- Bulk delete form -->
-<form id="bulk-delete" method="post" action="{{ url_for('admin_bulk_delete_people_v2', q=q) }}"
-      onsubmit="return confirm('Delete selected people? This cannot be undone.');">
+<!-- Bulk actions form. The confirm lives on the delete buttons, NOT on the form,
+     so the Email Selected button (which reuses this same selection via formaction)
+     doesn't pop a delete warning. -->
+<form id="bulk-delete" method="post" action="{{ url_for('admin_bulk_delete_people_v2', q=q, role=role) }}">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="q" value="{{ q or '' }}">
+  <input type="hidden" name="role" value="{{ role or '' }}">
 
   <div style="margin: 6px 0 10px 0;">
-    <button class="btn-bulk-delete" type="submit">Delete Selected</button>
+    <button class="btn-bulk-email" type="submit"
+            formaction="{{ url_for('admin_people_email') }}">✉️ Email Selected</button>
+    <button class="btn-bulk-delete" type="submit"
+            onclick="return confirm('Delete selected people? This cannot be undone.');">Delete Selected</button>
   </div>
 
   <div style="overflow-x: auto;">
@@ -377,12 +404,8 @@
             </td>
             <td class="actions-cell">
               {% if not p.is_approved %}
-              <form method="post" action="{{ url_for('admin_approve_person', pid=p.id) }}" style="display:inline;">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <input type="hidden" name="q" value="{{ q }}">
-                <input type="hidden" name="pending" value="{{ '1' if pending_only else '' }}">
-                <button class="btn-icon" type="submit" style="background:#16a34a;color:#fff;">✓ Approve</button>
-              </form>
+              <button class="btn-icon" type="submit" style="background:#16a34a;color:#fff;"
+                      form="approve-person-{{ p.id }}">✓ Approve</button>
               {% endif %}
               <a class="btn-icon btn-edit" href="{{ url_for('admin_edit_person', pid=p.id) }}">✏️ Edit</a>
               <button class="btn-icon btn-delete"
@@ -393,24 +416,23 @@
           <!-- Hidden quick-rate row -->
           <tr id="rating-row-{{ p.id }}" style="display:none; background:#101015; color:#ffffffb8;">
             <td colspan="9" style="padding:10px 16px;">
-              <form method="post" action="{{ url_for('admin_quick_rate_person', pid=p.id) }}" class="rating-form">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <input type="hidden" name="q" value="{{ q or '' }}">
+              <span class="rating-form">
                 <strong style="margin-right:8px;">Rate {{ p.name }}:</strong>
-                <select name="rating" class="rating-select" onchange="toggleReason(this, {{ p.id }})">
+                <select name="rating" class="rating-select" form="rate-person-{{ p.id }}"
+                        onchange="toggleReason(this, {{ p.id }})">
                   <option value="">— Not rated —</option>
                   {% for r in [5, 4, 3, 2, 1] %}
                     <option value="{{ r }}" {% if p.rating == r %}selected{% endif %}>{{ r }} ★</option>
                   {% endfor %}
                 </select>
-                <input type="text" name="rating_reason"
+                <input type="text" name="rating_reason" form="rate-person-{{ p.id }}"
                        class="rating-reason-input {% if not (p.rating and p.rating <= 3) %}hidden{% endif %}"
                        id="reason-{{ p.id }}"
                        placeholder="Reason for low rating (required)"
                        value="{{ p.rating_reason or '' }}">
-                <button type="submit" class="rating-save">Save</button>
+                <button type="submit" class="rating-save" form="rate-person-{{ p.id }}">Save</button>
                 <a href="#" onclick="toggleRatingForm({{ p.id }}); return false;" style="font-size:12px;color:#9ca3af;text-decoration:none;">Cancel</a>
-              </form>
+              </span>
             </td>
           </tr>
           {% endfor %}
@@ -426,18 +448,43 @@
   </div>
 
   <div style="margin-top:10px;">
-    <button class="btn-bulk-delete" type="submit">Delete Selected</button>
+    <button class="btn-bulk-email" type="submit"
+            formaction="{{ url_for('admin_people_email') }}">✉️ Email Selected</button>
+    <button class="btn-bulk-delete" type="submit"
+            onclick="return confirm('Delete selected people? This cannot be undone.');">Delete Selected</button>
   </div>
 </form>
 
-<!-- Per-row delete forms, kept outside the bulk-delete form -->
+<!-- Per-row forms, kept outside the bulk-actions form. HTML forbids nested forms,
+     so the row controls reference these by id via their form="..." attribute. -->
 {% for p in people %}
 <form id="delete-person-{{ p.id }}"
       method="post"
-      action="{{ url_for('admin_delete_person_v2', pid=p.id, q=q) }}"
+      action="{{ url_for('admin_delete_person_v2', pid=p.id, q=q, role=role) }}"
       onsubmit="return confirm('Delete {{ p.name }}? This cannot be undone.');"
       style="display:none;">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+</form>
+
+{% if not p.is_approved %}
+<form id="approve-person-{{ p.id }}"
+      method="post"
+      action="{{ url_for('admin_approve_person', pid=p.id) }}"
+      style="display:none;">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="q" value="{{ q or '' }}">
+  <input type="hidden" name="role" value="{{ role or '' }}">
+  <input type="hidden" name="pending" value="{{ '1' if pending_only else '' }}">
+</form>
+{% endif %}
+
+<form id="rate-person-{{ p.id }}"
+      method="post"
+      action="{{ url_for('admin_quick_rate_person', pid=p.id) }}"
+      style="display:none;">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="q" value="{{ q or '' }}">
+  <input type="hidden" name="role" value="{{ role or '' }}">
 </form>
 {% endfor %}
 

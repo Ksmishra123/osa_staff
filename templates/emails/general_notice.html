@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>On Stage America — Staff Notice</title>
+  <style>
+    body { font-family: Arial, sans-serif; color: #333; line-height: 1.5; }
+    .footer { margin-top: 24px; font-size: 12px; color: #888; }
+  </style>
+</head>
+<body>
+  <h2>On Stage America</h2>
+  <hr>
+  {% if person and person.name %}<p>Hi {{ person.name }},</p>{% endif %}
+  <div>{{ body|safe }}</div>
+  <div class="footer">
+    <p>This message was sent via On Stage America staff portal.</p>
+  </div>
+</body>
+</html>

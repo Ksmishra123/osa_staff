@@ -2299,6 +2299,29 @@ def admin_event_bios(eid):
 # -----------------------------------------------------------------------------
 from sqlalchemy.exc import SQLAlchemyError
 
+# Role filter options shared by the people list and the bulk-email screens.
+# 'not_admin' is the "exclude admins" case. Legacy rows can have a NULL role and
+# render as 'user' in the table, so 'user' must match those too.
+ROLE_FILTER_CHOICES = [
+    ('',          'All roles'),
+    ('user',      'Users only'),
+    ('viewer',    'Viewers only'),
+    ('admin',     'Admins only'),
+    ('not_admin', 'Exclude admins'),
+]
+
+
+def apply_role_filter(query, role):
+    """Narrow a Person query by the `role` query-string value. Unknown values are ignored."""
+    if role == 'user':
+        return query.filter((Person.role == 'user') | (Person.role.is_(None)))
+    if role in ('viewer', 'admin'):
+        return query.filter(Person.role == role)
+    if role == 'not_admin':
+        return query.filter((Person.role != 'admin') | (Person.role.is_(None)))
+    return query
+
+
 @app.route('/admin/people')
 @login_required
 def admin_people():
@@ -2307,6 +2330,7 @@ def admin_people():
     db = SessionLocal()
     q = (request.args.get('q') or '').strip()
     pending_only = (request.args.get('pending') == '1')
+    role = (request.args.get('role') or '').strip()
     query = db.query(Person)
     if q:
         like = f"%{q}%"
@@ -2318,10 +2342,91 @@ def admin_people():
         )
     if pending_only:
         query = query.filter(Person.is_approved.is_(False))
+    query = apply_role_filter(query, role)
     people = query.order_by(Person.name.asc()).all()
     pending_count = db.query(Person).filter(Person.is_approved.is_(False)).count()
-    return render_template('people.html', people=people, q=q,
+    return render_template('people.html', people=people, q=q, role=role,
                            pending_count=pending_count, pending_only=pending_only)
+
+
+def _selected_people(db, form):
+    """Resolve the checked `ids` from the people table into Person rows, name-sorted."""
+    ids_int = sorted({int(x) for x in form.getlist('ids') if str(x).isdigit()})
+    if not ids_int:
+        return []
+    return (db.query(Person)
+              .filter(Person.id.in_(ids_int))
+              .order_by(Person.name.asc())
+              .all())
+
+
+@app.route('/admin/people/email', methods=['POST'])
+@login_required
+def admin_people_email():
+    """Compose step: takes the rows checked on the people page and shows the editor."""
+    if not is_admin():
+        abort(403)
+    db = SessionLocal()
+    q = (request.form.get('q') or '').strip()
+    role = (request.form.get('role') or '').strip()
+
+    people = _selected_people(db, request.form)
+    if not people:
+        flash("No people selected — tick the checkbox next to each recipient first.")
+        return redirect(url_for('admin_people', q=q, role=role))
+
+    return render_template('people_email.html', people=people, q=q, role=role)
+
+
+@app.route('/admin/people/email/send', methods=['POST'])
+@login_required
+def admin_people_email_send():
+    """Send step: delivers the composed message to the carried-forward recipients."""
+    if not is_admin():
+        abort(403)
+    db = SessionLocal()
+    q = (request.form.get('q') or '').strip()
+    role = (request.form.get('role') or '').strip()
+
+    subject = (request.form.get('subject') or '').strip()
+    body = (request.form.get('body') or '').strip()
+    send_mode = request.form.get('send_mode', 'all')
+
+    people = _selected_people(db, request.form)
+    if not people:
+        flash("No people selected.")
+        return redirect(url_for('admin_people', q=q, role=role))
+
+    if not subject or not body:
+        flash("Subject and message are required.")
+        return render_template('people_email.html', people=people, q=q, role=role,
+                               subject=subject, body=body)
+
+    if send_mode == 'test':
+        # Preview against the admin's own inbox, rendered as the first recipient sees it.
+        admin_person = db.query(Person).filter_by(id=current_user.id).first()
+        test_email = (getattr(admin_person, 'email', None)
+                      or os.getenv('FROM_EMAIL', 'no-reply@onstageamerica.com'))
+        html_body = render_template('emails/general_notice.html',
+                                    person=admin_person or people[0], body=body)
+        send_email_async(test_email, subject, html_body)
+        flash(f"✅ Test email sent to {test_email}.")
+        return render_template('people_email.html', people=people, q=q, role=role,
+                               subject=subject, body=body)
+
+    sent, skipped = 0, []
+    for p in people:
+        if not p.email:
+            skipped.append(p.name)
+            continue
+        html_body = render_template('emails/general_notice.html', person=p, body=body)
+        if send_email_async(p.email, subject, html_body):
+            sent += 1
+
+    flash(f"✅ Email sent to {sent} recipient{'s' if sent != 1 else ''}.")
+    if skipped:
+        flash(f"⚠ Skipped {len(skipped)} with no email address: {', '.join(skipped)}")
+    return redirect(url_for('admin_people', q=q, role=role))
 
 
 @app.route('/admin/people/<int:pid>/approve', methods=['POST'])
@@ -2337,8 +2442,9 @@ def admin_approve_person(pid):
     db.commit()
     flash(f"Approved {p.name}. They can now log in.")
     q = (request.form.get('q') or '').strip()
+    role = (request.form.get('role') or '').strip()
     pending = request.form.get('pending')
-    return redirect(url_for('admin_people', q=q, pending=pending))
+    return redirect(url_for('admin_people', q=q, role=role, pending=pending))
 
 
 @app.route('/admin/people/<int:pid>/rate', methods=['POST'])
@@ -2352,6 +2458,7 @@ def admin_quick_rate_person(pid):
         abort(404)
 
     q = (request.form.get('q') or '').strip()
+    role = (request.form.get('role') or '').strip()
     rating_raw = (request.form.get('rating') or '').strip()
     reason_val = (request.form.get('rating_reason') or '').strip()
 
@@ -2363,19 +2470,19 @@ def admin_quick_rate_person(pid):
             rating_val = int(rating_raw)
             if not (1 <= rating_val <= 5):
                 flash("Rating must be between 1 and 5.")
-                return redirect(url_for('admin_people', q=q))
+                return redirect(url_for('admin_people', q=q, role=role))
             if rating_val <= 3 and not reason_val:
                 flash(f"Please provide a reason for the low rating for {p.name}.")
-                return redirect(url_for('admin_people', q=q))
+                return redirect(url_for('admin_people', q=q, role=role))
             p.rating = rating_val
             p.rating_reason = reason_val if rating_val <= 3 else None
         except ValueError:
             flash("Invalid rating value.")
-            return redirect(url_for('admin_people', q=q))
+            return redirect(url_for('admin_people', q=q, role=role))
 
     db.commit()
     flash(f"Rating updated for {p.name}.")
-    return redirect(url_for('admin_people', q=q))
+    return redirect(url_for('admin_people', q=q, role=role))
 
 
 @app.route('/admin/people/new', methods=['GET', 'POST'])
@@ -2749,7 +2856,8 @@ def admin_bulk_delete_people_v2():
 
     flash(f"Bulk delete complete: {successes} deleted, {errors} errors.")
     q = request.args.get('q') or ''
-    return redirect(url_for('admin_people', q=q))
+    role = request.args.get('role') or ''
+    return redirect(url_for('admin_people', q=q, role=role))
 
 # -----------------------------------------------------------------------------
 # Admin: Lodging
