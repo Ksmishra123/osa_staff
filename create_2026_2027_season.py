@@ -21,6 +21,11 @@ SEASON_NAME = "2026-2027"
 SEASON_STARTS = date(2026, 11, 13)
 SEASON_ENDS = date(2027, 7, 24)
 
+# events.date is NOT NULL in the deployed database (and admin_new_event requires
+# a date), so date-TBA events need a stand-in. End of season, so they sort last;
+# the "Date TBA" note on the event is what actually communicates the real state.
+TBA_PLACEHOLDER = date(2027, 7, 31)
+
 # Default clock time used for the main event `date` and each EventDay.start_dt.
 # When an event already exists, its own time-of-day is reused instead.
 DEFAULT_HOUR, DEFAULT_MIN = 8, 0
@@ -100,13 +105,18 @@ def main():
         ev = existing.get(city)
 
         if ev is None:
-            main_date = dt(*days[0]) if days else None
+            if days:
+                main_date = dt(*days[0])
+                suffix = f"{len(days)} day(s)"
+            else:
+                main_date = dt(TBA_PLACEHOLDER.year, TBA_PLACEHOLDER.month, TBA_PLACEHOLDER.day)
+                suffix = f"date TBA, placeholder {TBA_PLACEHOLDER}"
             ev = Event(city=city, date=main_date, notes=notes, season_id=season.id)
             db.add(ev)
             if not dry_run:
                 db.flush()
             created_events += 1
-            print(f"  + {city}: creating event ({len(days)} day(s))")
+            print(f"  + {city}: creating event ({suffix})")
             have_days = set()
             hour, minute = DEFAULT_HOUR, DEFAULT_MIN
         else:
@@ -158,4 +168,9 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as exc:
+        SessionLocal().rollback()
+        print(f"\nFAILED — rolled back, nothing was written.\n  {type(exc).__name__}: {exc}")
+        raise SystemExit(1)
