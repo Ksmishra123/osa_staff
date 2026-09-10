@@ -1644,6 +1644,148 @@ def admin_availability():
     )
     return render_template('admin_availability.html', rows=rows)
 
+
+@app.route('/admin/availability/person/<int:pid>', methods=['GET', 'POST'])
+@login_required
+def admin_person_availability(pid):
+    """Show the cities a person is available for, with the open positions in
+    each city's events, and allow one-click assignment. If a position is
+    already filled, the admin can choose to skip it for that city."""
+    if not is_admin():
+        abort(403)
+
+    db = SessionLocal()
+    person = db.get(Person, pid)
+    if not person:
+        abort(404)
+
+    if request.method == 'POST':
+        # Quick-assign this person to a single (event, position).
+        action = request.form.get('action')
+
+        if action == 'assign':
+            eid_raw = request.form.get('event_id')
+            pos_raw = request.form.get('position_id')
+            if not eid_raw or not pos_raw:
+                flash("Missing event or position.")
+                return redirect(url_for('admin_person_availability', pid=pid))
+
+            eid = int(eid_raw)
+            pos_id = int(pos_raw)
+            ev = db.get(Event, eid)
+            position = db.get(Position, pos_id)
+            if not ev or not position:
+                abort(404)
+
+            # Guard against assigning into a position that is already filled
+            # (one person per position per event is the convention here).
+            occupied = (
+                db.query(Assignment)
+                  .filter(Assignment.event_id == eid, Assignment.position_id == pos_id)
+                  .first()
+            )
+            if occupied:
+                if occupied.person_id == pid:
+                    flash(f"{person.name} is already assigned to {position.name} for {ev.city}.")
+                else:
+                    other = db.get(Person, occupied.person_id)
+                    other_name = other.name if other else f"Person #{occupied.person_id}"
+                    flash(f"{position.name} in {ev.city} is already filled by {other_name}. Not assigned.")
+                return redirect(url_for('admin_person_availability', pid=pid))
+
+            db.add(Assignment(event_id=eid, position_id=pos_id, person_id=pid))
+            db.commit()
+            _sync_event_assignments_to_sheet(db, eid, ev)
+            flash(f"Assigned {person.name} to {position.name} for {ev.city}.")
+            return redirect(url_for('admin_person_availability', pid=pid))
+
+        flash("Unknown action.")
+        return redirect(url_for('admin_person_availability', pid=pid))
+
+    # GET: build the list of cities this person is available for.
+    avail_rows = (
+        db.query(Availability)
+        .filter(Availability.person_id == pid)
+        .order_by(Availability.start_date.asc())
+        .all()
+    )
+
+    positions = db.query(Position).order_by(Position.display_order.asc()).all()
+
+    # Upcoming events, so we only surface actionable assignment targets.
+    today = date.today()
+    events = (
+        db.query(Event)
+        .order_by(Event.date.asc())
+        .all()
+    )
+
+    # For each availability record, find the matching upcoming events. A blank
+    # city_name means "available anywhere", so it matches every city.
+    cities = []
+    for row in avail_rows:
+        row_city = (row.city_name or "").strip()
+        matched_events = []
+        for ev in events:
+            ev_start, ev_end = _event_window_for_matching(db, ev)
+            if ev_end < today:
+                continue  # past event
+            # Date overlap with the availability window.
+            if ev_start > row.end_date or ev_end < row.start_date:
+                continue
+            # City match (blank availability city = any city).
+            if row_city and (ev.city or "").strip().lower() != row_city.lower():
+                continue
+
+            existing = {
+                a.position_id: a
+                for a in db.query(Assignment)
+                          .filter(Assignment.event_id == ev.id)
+                          .all()
+            }
+            pos_view = []
+            for pos in positions:
+                a = existing.get(pos.id)
+                if a is None:
+                    state = "open"
+                    holder = None
+                elif a.person_id == pid:
+                    state = "assigned_here"
+                    holder = person.name
+                else:
+                    state = "full"
+                    holder_person = db.get(Person, a.person_id)
+                    holder = holder_person.name if holder_person else f"Person #{a.person_id}"
+                pos_view.append({
+                    "id": pos.id,
+                    "name": pos.name,
+                    "state": state,
+                    "holder": holder,
+                })
+            matched_events.append({
+                "event": ev,
+                "window_start": ev_start,
+                "window_end": ev_end,
+                "positions": pos_view,
+                "open_count": sum(1 for p in pos_view if p["state"] == "open"),
+            })
+
+        cities.append({
+            "city_label": row_city or "Any city",
+            "status": (row.status or "available"),
+            "start_date": row.start_date,
+            "end_date": row.end_date,
+            "notes": row.notes,
+            "events": matched_events,
+        })
+
+    return render_template(
+        'admin_person_availability.html',
+        person=person,
+        cities=cities,
+    )
+
+
 @app.route('/admin/events/new', methods=['GET', 'POST'])
 @login_required
 def admin_new_event():

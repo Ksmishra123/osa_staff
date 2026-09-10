@@ -6,7 +6,13 @@
   <tbody>
     {% for r in rows %}
       <tr>
-        <td>{{ r.person.name if r.person else r.person_id }}</td>
+        <td>
+          {% if r.person %}
+            <a href="{{ url_for('admin_person_availability', pid=r.person.id) }}">{{ r.person.name }}</a>
+          {% else %}
+            {{ r.person_id }}
+          {% endif %}
+        </td>
         <td>{{ r.person.email if r.person else '' }}</td>
         <td>{{ r.city_name if r.city_name else 'Any' }}</td>
         <td>{{ r.status }}</td>

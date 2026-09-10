@@ -1,0 +1,79 @@
+{% extends 'base.html' %}
+{% block content %}
+<div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+  <h2 style="margin:0;">{{ person.name }} — Available Cities</h2>
+  <a href="{{ url_for('admin_availability') }}" class="btn btn-sm btn-secondary">← Back to availability</a>
+</div>
+<p style="color:#aaa; margin-top:4px;">{{ person.email }}</p>
+
+{% if not cities %}
+  <p>No availability records for this staff member.</p>
+{% endif %}
+
+{% for c in cities %}
+  <div style="border:1px solid #444; border-radius:8px; padding:16px; margin:16px 0;">
+    <h3 style="margin:0 0 4px;">
+      {{ c.city_label }}
+      <span style="font-size:0.8em; color:#ccc; font-weight:normal;">
+        ({{ c.status }})
+      </span>
+    </h3>
+    <div style="color:#aaa; font-size:0.9em;">
+      Available {{ c.start_date }} → {{ c.end_date }}
+      {% if c.notes %} · {{ c.notes }}{% endif %}
+    </div>
+
+    {% if not c.events %}
+      <p style="margin-top:12px; color:#aaa;">No upcoming events match this availability window.</p>
+    {% else %}
+      {% for e in c.events %}
+        <div style="margin-top:14px; padding-top:12px; border-top:1px dashed #444;">
+          <strong>{{ e.event.city }}</strong>
+          — {{ e.window_start }}{% if e.window_end != e.window_start %} → {{ e.window_end }}{% endif %}
+          <span style="color:#aaa; font-size:0.9em;">
+            ({{ e.open_count }} open position{{ '' if e.open_count == 1 else 's' }})
+          </span>
+
+          <table class="table table-sm" style="margin-top:8px;">
+            <thead>
+              <tr><th>Position</th><th>Status</th><th style="width:180px;">Action</th></tr>
+            </thead>
+            <tbody>
+              {% for pos in e.positions %}
+                <tr>
+                  <td>{{ pos.name }}</td>
+                  <td>
+                    {% if pos.state == 'open' %}
+                      <span style="color:#4caf50;">Open</span>
+                    {% elif pos.state == 'assigned_here' %}
+                      <span style="color:#2196f3;">Assigned to {{ person.name }}</span>
+                    {% else %}
+                      <span style="color:#e57373;">Full — {{ pos.holder }}</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if pos.state == 'open' %}
+                      <form method="POST" style="margin:0;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="action" value="assign">
+                        <input type="hidden" name="event_id" value="{{ e.event.id }}">
+                        <input type="hidden" name="position_id" value="{{ pos.id }}">
+                        <button type="submit" class="btn btn-sm btn-primary">Assign here</button>
+                      </form>
+                    {% elif pos.state == 'assigned_here' %}
+                      <span style="color:#aaa;">—</span>
+                    {% else %}
+                      {# Position is full: offer to skip it for this city. #}
+                      <span style="color:#aaa;" title="This position is already filled; skipped for this city.">Skip (full)</span>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% endfor %}
+    {% endif %}
+  </div>
+{% endfor %}
+{% endblock %}
