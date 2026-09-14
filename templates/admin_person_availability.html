@@ -24,7 +24,7 @@
     </div>
 
     {% if not c.events %}
-      <p style="margin-top:12px; color:#aaa;">No upcoming events match this availability window.</p>
+      <p style="margin-top:12px; color:#aaa;">No upcoming events with open positions match this availability window.</p>
     {% else %}
       {% for e in c.events %}
         <div style="margin-top:14px; padding-top:12px; border-top:1px dashed #444;">
@@ -36,36 +36,20 @@
 
           <table class="table table-sm" style="margin-top:8px;">
             <thead>
-              <tr><th>Position</th><th>Status</th><th style="width:180px;">Action</th></tr>
+              <tr><th>Open Position</th><th style="width:180px;">Action</th></tr>
             </thead>
             <tbody>
               {% for pos in e.positions %}
                 <tr>
                   <td>{{ pos.name }}</td>
                   <td>
-                    {% if pos.state == 'open' %}
-                      <span style="color:#4caf50;">Open</span>
-                    {% elif pos.state == 'assigned_here' %}
-                      <span style="color:#2196f3;">Assigned to {{ person.name }}</span>
-                    {% else %}
-                      <span style="color:#e57373;">Full — {{ pos.holder }}</span>
-                    {% endif %}
-                  </td>
-                  <td>
-                    {% if pos.state == 'open' %}
-                      <form method="POST" style="margin:0;">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <input type="hidden" name="action" value="assign">
-                        <input type="hidden" name="event_id" value="{{ e.event.id }}">
-                        <input type="hidden" name="position_id" value="{{ pos.id }}">
-                        <button type="submit" class="btn btn-sm btn-primary">Assign here</button>
-                      </form>
-                    {% elif pos.state == 'assigned_here' %}
-                      <span style="color:#aaa;">—</span>
-                    {% else %}
-                      {# Position is full: offer to skip it for this city. #}
-                      <span style="color:#aaa;" title="This position is already filled; skipped for this city.">Skip (full)</span>
-                    {% endif %}
+                    <form method="POST" style="margin:0;">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <input type="hidden" name="action" value="assign">
+                      <input type="hidden" name="event_id" value="{{ e.event.id }}">
+                      <input type="hidden" name="position_id" value="{{ pos.id }}">
+                      <button type="submit" class="btn btn-sm btn-primary">Assign here</button>
+                    </form>
                   </td>
                 </tr>
               {% endfor %}

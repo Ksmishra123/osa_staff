@@ -1743,31 +1743,26 @@ def admin_person_availability(pid):
                           .filter(Assignment.event_id == ev.id)
                           .all()
             }
+            # Only surface OPEN positions here — once a position is filled
+            # (by this person or anyone else) it drops off the list so the
+            # admin sees only slots still needing assignment.
             pos_view = []
             for pos in positions:
-                a = existing.get(pos.id)
-                if a is None:
-                    state = "open"
-                    holder = None
-                elif a.person_id == pid:
-                    state = "assigned_here"
-                    holder = person.name
-                else:
-                    state = "full"
-                    holder_person = db.get(Person, a.person_id)
-                    holder = holder_person.name if holder_person else f"Person #{a.person_id}"
+                if pos.id in existing:
+                    continue
                 pos_view.append({
                     "id": pos.id,
                     "name": pos.name,
-                    "state": state,
-                    "holder": holder,
                 })
+            # Skip events that have no open positions left at all.
+            if not pos_view:
+                continue
             matched_events.append({
                 "event": ev,
                 "window_start": ev_start,
                 "window_end": ev_end,
                 "positions": pos_view,
-                "open_count": sum(1 for p in pos_view if p["state"] == "open"),
+                "open_count": len(pos_view),
             })
 
         cities.append({
