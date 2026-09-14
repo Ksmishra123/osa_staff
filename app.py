@@ -1,5 +1,7 @@
 import os
 import re
+import io
+import csv
 import json
 import threading
 import bcrypt
@@ -1626,7 +1628,47 @@ def admin_events():
             | (Event.event_end >= today)
         )
     events = query.order_by(Event.date.asc()).all()
-    return render_template('events.html', events=events, show_past=show_past)
+    # Distinct cities (for the venue-export picker), alphabetical.
+    cities = sorted({(e.city or "").strip() for e in db.query(Event).all() if (e.city or "").strip()})
+    return render_template('events.html', events=events, show_past=show_past, cities=cities)
+
+
+@app.route('/admin/venues/export.csv')
+@login_required
+def admin_venues_export():
+    """Export venues + hotel addresses in chronological order as CSV.
+    Optional ?city=<name> filters to a single city; 'all'/blank = every city."""
+    if not is_admin():
+        abort(403)
+    db = SessionLocal()
+
+    city_filter = (request.args.get('city') or '').strip()
+    query = db.query(Event).options(joinedload(Event.hotels))
+    if city_filter and city_filter.lower() != 'all':
+        query = query.filter(Event.city.ilike(city_filter))
+    # Chronological; events with no date sort last so the dated ones stay ordered.
+    events = query.order_by(Event.date.asc().nulls_last()).all()
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(['Date', 'City', 'Venue', 'Hotel', 'Hotel Address'])
+    for ev in events:
+        date_str = ev.date.strftime('%Y-%m-%d') if ev.date else ''
+        city = (ev.city or '').strip()
+        venue = (ev.venue or '').strip()
+        if ev.hotels:
+            # One row per hotel so each address is its own line.
+            for h in ev.hotels:
+                writer.writerow([date_str, city, venue,
+                                 (h.name or '').strip(), (h.address or '').strip()])
+        else:
+            writer.writerow([date_str, city, venue, '', ''])
+
+    fname_city = city_filter.lower().replace(' ', '_') if (city_filter and city_filter.lower() != 'all') else 'all_cities'
+    resp = make_response(buf.getvalue())
+    resp.headers['Content-Type'] = 'text/csv; charset=utf-8'
+    resp.headers['Content-Disposition'] = f'attachment; filename="venues_{fname_city}.csv"'
+    return resp
 
 
 @app.route('/admin/availability')

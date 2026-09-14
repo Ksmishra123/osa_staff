@@ -92,6 +92,18 @@
     <a href="{{ url_for('admin_events', show_past=1) }}" class="action-btn">📜 Show past events</a>
     <span style="font-size:12px;color:#9ca3af;">Past events are hidden</span>
   {% endif %}
+
+  <form method="GET" action="{{ url_for('admin_venues_export') }}"
+        style="display:inline-flex; gap:6px; align-items:center; margin-left:auto;">
+    <label style="font-size:12px;color:#9ca3af;">Export venues:</label>
+    <select name="city" class="form-control" style="width:auto; display:inline-block;">
+      <option value="all">All cities</option>
+      {% for c in cities %}
+        <option value="{{ c }}">{{ c }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="action-btn action-btn-success">⬇ Export CSV</button>
+  </form>
 </div>
 
 <div style="overflow-x: auto;">
