@@ -1,14 +1,16 @@
 """One-off: copy last year's (Legacy season) venue text into this year's
-(2026-2027) venue_address field, matched by explicit event-ID pairs.
+(2026-2027) events, matched by explicit event-ID pairs.
 
-Only venue_address is written; the venue name field is never touched.
+The full last-year "name, address" text is copied into BOTH this year's
+venue and venue_address fields. venue is only filled when it's currently
+empty, so any name you've already typed in (e.g. Voorhees) is preserved.
 
 Usage (on Render):
     python3 copy_venue_addresses.py            # dry-run: preview only, no changes
     python3 copy_venue_addresses.py --apply    # write the changes
 
-Re-running is safe: by default it skips any target whose venue_address is
-already set. Pass --force to overwrite those too.
+Re-running is safe: by default it skips writing a field that's already
+set. Pass --force to overwrite already-set fields too.
 
 The mapping is (this_year_event_id -> last_year_event_id), derived from the
 data dump. Event IDs are stable, so this is unambiguous even where the
@@ -61,23 +63,37 @@ def main():
                 problems += 1
                 continue
 
-            existing = (target.venue_address or "").strip()
-            if existing and not force:
-                print(f"-- SKIP (already set)  #{target_id} {target.city!r}: venue_address={existing!r}")
+            cur_addr = (target.venue_address or "").strip()
+            cur_venue = (target.venue or "").strip()
+
+            set_addr = force or not cur_addr
+            set_venue = force or not cur_venue
+
+            if not set_addr and not set_venue:
+                print(f"-- SKIP (both already set)  #{target_id} {target.city!r}")
                 skipped_existing += 1
                 continue
 
             print(f"** COPY  #{target_id} {target.city!r}  <-  #{source_id} {source.city!r}")
-            print(f"         venue_address = {src_text!r}")
-            if apply:
-                target.venue_address = src_text
+            if set_venue:
+                print(f"         venue         = {src_text!r}")
+                if apply:
+                    target.venue = src_text
+            else:
+                print(f"         venue         (kept existing {cur_venue!r})")
+            if set_addr:
+                print(f"         venue_address = {src_text!r}")
+                if apply:
+                    target.venue_address = src_text
+            else:
+                print(f"         venue_address (kept existing {cur_addr!r})")
             planned += 1
 
         if apply:
             db.commit()
-            print(f"\nAPPLIED. {planned} updated, {skipped_existing} skipped (already set), {problems} problems.")
+            print(f"\nAPPLIED. {planned} events updated, {skipped_existing} skipped (already set), {problems} problems.")
         else:
-            print(f"\nDRY-RUN. {planned} would be updated, {skipped_existing} skipped (already set), {problems} problems.")
+            print(f"\nDRY-RUN. {planned} events would be updated, {skipped_existing} skipped (already set), {problems} problems.")
             print("Re-run with --apply to write these changes.")
     finally:
         db.close()
