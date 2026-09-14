@@ -134,6 +134,7 @@
     <div class="label">Setup</div><div class="val">{{ ev.setup_start|dt_long if ev.setup_start else '—' }}</div>
     <div class="label">End</div><div class="val">{{ ev.event_end|dt_long if ev.event_end else '—' }}</div>
     <div class="label">Venue</div><div class="val">{{ ev.venue or '—' }}</div>
+    {% if ev.venue_address %}<div class="label">Venue Address</div><div class="val">{{ ev.venue_address }}</div>{% endif %}
     {% if ev.hotel %}<div class="label">Hotel</div><div class="val">{{ ev.hotel }}</div>{% endif %}
     <div class="label">Coordinator</div>
     <div class="val">

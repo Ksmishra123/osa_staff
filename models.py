@@ -101,6 +101,7 @@ class Event(Base):
     #setup_only = Column(Boolean, default=False)
     # Venues
     venue = Column(Text)
+    venue_address = Column(Text)
     hotel = Column(Text)
 
     # Relationships

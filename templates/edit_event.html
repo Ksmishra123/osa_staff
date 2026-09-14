@@ -83,6 +83,11 @@
   </div>
 
   <div class="field">
+    <label>Venue Address</label>
+    <textarea name="venue_address" rows="2" placeholder="Street, City, State ZIP">{{ ev.venue_address or '' }}</textarea>
+  </div>
+
+  <div class="field">
     <label>Hotel (notes)</label>
     <input name="hotel" value="{{ ev.hotel or '' }}">
   </div>

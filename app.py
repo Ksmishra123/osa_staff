@@ -188,6 +188,19 @@ def ensure_person_rating_columns():
 
 ensure_person_rating_columns()
 
+def ensure_event_venue_address_column():
+    """Compatibility migration for the dedicated venue address field."""
+    try:
+        with engine.begin() as conn:
+            rows = conn.exec_driver_sql("PRAGMA table_info(events)").fetchall()
+            existing = {r[1] for r in rows}
+            if "venue_address" not in existing:
+                conn.exec_driver_sql("ALTER TABLE events ADD COLUMN venue_address TEXT")
+    except Exception:
+        app.logger.exception("Could not auto-migrate event venue_address column.")
+
+ensure_event_venue_address_column()
+
 def ensure_seasons_support():
     """Compatibility migration for seasons + event.season_id and backfill."""
     try:
@@ -1651,18 +1664,19 @@ def admin_venues_export():
 
     buf = io.StringIO()
     writer = csv.writer(buf)
-    writer.writerow(['Date', 'City', 'Venue', 'Hotel', 'Hotel Address'])
+    writer.writerow(['Date', 'City', 'Venue', 'Venue Address', 'Hotel', 'Hotel Address'])
     for ev in events:
         date_str = ev.date.strftime('%Y-%m-%d') if ev.date else ''
         city = (ev.city or '').strip()
         venue = (ev.venue or '').strip()
+        venue_address = (ev.venue_address or '').strip()
         if ev.hotels:
             # One row per hotel so each address is its own line.
             for h in ev.hotels:
-                writer.writerow([date_str, city, venue,
+                writer.writerow([date_str, city, venue, venue_address,
                                  (h.name or '').strip(), (h.address or '').strip()])
         else:
-            writer.writerow([date_str, city, venue, '', ''])
+            writer.writerow([date_str, city, venue, venue_address, '', ''])
 
     fname_city = city_filter.lower().replace(' ', '_') if (city_filter and city_filter.lower() != 'all') else 'all_cities'
     resp = make_response(buf.getvalue())
@@ -1840,6 +1854,7 @@ def admin_new_event():
         event_start  = parse_dt(form.get('event_start'))
         event_end    = parse_dt(form.get('event_end'))
         venue        = (form.get('venue') or '').strip()
+        venue_address = (form.get('venue_address') or '').strip()
         hotel        = (form.get('hotel') or '').strip()
 
         # NEW/OPTIONAL FIELDS (make sure these columns exist on Event)
@@ -1876,6 +1891,7 @@ def admin_new_event():
             event_start=event_start,
             event_end=event_end,
             venue=venue,
+            venue_address=venue_address,
             hotel=hotel,
             # optional fields:
             call_sheet_published=call_sheet_published,
@@ -1909,6 +1925,7 @@ def admin_edit_event(eid):
         ev.event_start = parse_dt(request.form.get('event_start'))
         ev.event_end = parse_dt(request.form.get('event_end'))
         ev.venue = (request.form.get('venue') or '').strip()
+        ev.venue_address = (request.form.get('venue_address') or '').strip()
         ev.hotel = (request.form.get('hotel') or '').strip()
         # Optional extra admin-only notes/dress code if you have those fields:
         ev.dress_code = (request.form.get('dress_code') or '').strip()
