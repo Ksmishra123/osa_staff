@@ -208,6 +208,9 @@ a:hover {
    Nav Dropdowns (Admin / My Info) — desktop
    ============================================ */
 .nav-dropdown {
+  /* .nav-section sets display:contents, which would erase this element's box
+     and make the absolute menu anchor to the page — give it a real box. */
+  display: inline-flex;
   position: relative;
 }
 
@@ -720,6 +723,7 @@ button:active, .btn:active {
 
   .nav-dropdown {
     position: static;
+    display: block;
   }
 
   .nav-drop-menu {
