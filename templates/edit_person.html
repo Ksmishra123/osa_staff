@@ -140,7 +140,7 @@
       {% for a in person_assignments %}
       <tr>
         <td>{{ a.event.city if a.event else '—' }}</td>
-        <td>{{ a.event.date.strftime('%Y-%m-%d %I:%M %p') if a.event and a.event.date else '—' }}</td>
+        <td>{{ a.event.date.strftime('%m/%d/%Y %I:%M %p') if a.event and a.event.date else '—' }}</td>
         <td>{{ a.position.name if a.position else '—' }}</td>
         <td>
           <form method="post" style="display:flex; gap:8px; align-items:center;">
@@ -182,7 +182,7 @@
       <option value="">Select city/event</option>
       {% for ev in events %}
         <option value="{{ ev.id }}">
-          {{ ev.city }}{% if ev.date %} — {{ ev.date.strftime('%Y-%m-%d %I:%M %p') }}{% endif %}
+          {{ ev.city }}{% if ev.date %} — {{ ev.date.strftime('%m/%d/%Y %I:%M %p') }}{% endif %}
         </option>
       {% endfor %}
     </select>

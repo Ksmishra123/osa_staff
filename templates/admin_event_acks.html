@@ -45,21 +45,21 @@
           <td>{{ a.position.name if a.position else '' }}</td>
           <td>
             {% if a.notified_at %}
-              <span title="{{ a.notified_at }}">✉️ Sent {{ a.notified_at.strftime('%b %d, %Y') }}</span>
+              <span title="{{ a.notified_at }}">✉️ Sent {{ a.notified_at.strftime('%m/%d/%Y') }}</span>
             {% else %}
               <span style="color:#f5d080;">Not sent</span>
             {% endif %}
           </td>
           <td>
             {% if a.reminded_at %}
-              <span title="{{ a.reminded_at }}">{{ a.reminded_at.strftime('%b %d, %Y') }}</span>
+              <span title="{{ a.reminded_at }}">{{ a.reminded_at.strftime('%m/%d/%Y') }}</span>
             {% else %}
               —
             {% endif %}
           </td>
           <td>
             {% if a.seen_at %}
-              <span title="{{ a.seen_at }}">👁 {{ a.seen_at.strftime('%b %d') }}</span>
+              <span title="{{ a.seen_at }}">👁 {{ a.seen_at.strftime('%m/%d') }}</span>
             {% else %}
               —
             {% endif %}
@@ -67,7 +67,7 @@
           <td>
             {% if a.ack %}
               <span style="background:#10b981; color:#fff; border-radius:4px; padding:2px 8px; font-size:0.85em; font-weight:600;"
-                    title="{{ a.ack_at or '' }}">✓ Acknowledged{% if a.ack_at %} {{ a.ack_at.strftime('%b %d') }}{% endif %}</span>
+                    title="{{ a.ack_at or '' }}">✓ Acknowledged{% if a.ack_at %} {{ a.ack_at.strftime('%m/%d') }}{% endif %}</span>
             {% else %}
               <span style="background:#ef4444; color:#fff; border-radius:4px; padding:2px 8px; font-size:0.85em; font-weight:600;">Not acknowledged</span>
             {% endif %}

@@ -17,7 +17,7 @@
         {% for a in current_assignments %}
           <tr>
             <td>{{ a.event.city }}</td>
-            <td>{{ a.window_start }}{% if a.window_end != a.window_start %} → {{ a.window_end }}{% endif %}</td>
+            <td>{{ a.window_start | date_only }}{% if a.window_end != a.window_start %} → {{ a.window_end | date_only }}{% endif %}</td>
             <td>{{ a.position }}</td>
           </tr>
         {% endfor %}
@@ -41,7 +41,7 @@
       </span>
     </h3>
     <div style="color:#aaa; font-size:0.9em;">
-      Available {{ c.start_date }} → {{ c.end_date }}
+      Available {{ c.start_date | date_only }} → {{ c.end_date | date_only }}
       {% if c.notes %} · {{ c.notes }}{% endif %}
     </div>
 
@@ -51,7 +51,7 @@
       {% for e in c.events %}
         <div style="margin-top:14px; padding-top:12px; border-top:1px dashed #444;">
           <strong>{{ e.event.city }}</strong>
-          — {{ e.window_start }}{% if e.window_end != e.window_start %} → {{ e.window_end }}{% endif %}
+          — {{ e.window_start | date_only }}{% if e.window_end != e.window_start %} → {{ e.window_end | date_only }}{% endif %}
           <span style="color:#aaa; font-size:0.9em;">
             ({{ e.open_count }} open position{{ '' if e.open_count == 1 else 's' }})
           </span>

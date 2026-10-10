@@ -94,11 +94,11 @@
     <tbody>
       {% for d in days %}
       <tr>
-        <td>{{ d.start_dt.strftime('%B %d, %Y %I:%M %p') if d.start_dt else '' }}</td>
-        <td>{{ d.setup_dt.strftime('%B %d, %Y %I:%M %p') if d.setup_dt else '' }}</td>
-        <td>{{ d.setup_end_dt.strftime('%B %d, %Y %I:%M %p') if d.setup_end_dt else '' }}</td>
-        <td>{{ d.staff_arrival_dt.strftime('%B %d, %Y %I:%M %p') if d.staff_arrival_dt else '' }}</td>
-        <td>{{ d.judges_arrival_dt.strftime('%B %d, %Y %I:%M %p') if d.judges_arrival_dt else '' }}</td>
+        <td>{{ d.start_dt.strftime('%m/%d/%Y %I:%M %p') if d.start_dt else '' }}</td>
+        <td>{{ d.setup_dt.strftime('%m/%d/%Y %I:%M %p') if d.setup_dt else '' }}</td>
+        <td>{{ d.setup_end_dt.strftime('%m/%d/%Y %I:%M %p') if d.setup_end_dt else '' }}</td>
+        <td>{{ d.staff_arrival_dt.strftime('%m/%d/%Y %I:%M %p') if d.staff_arrival_dt else '' }}</td>
+        <td>{{ d.judges_arrival_dt.strftime('%m/%d/%Y %I:%M %p') if d.judges_arrival_dt else '' }}</td>
         <td>{% if d.setup_only %}✅{% else %}—{% endif %}</td>
         <td>{{ d.notes or '' }}</td>
         <td>

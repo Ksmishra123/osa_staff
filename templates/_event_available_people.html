@@ -1,5 +1,5 @@
 <div style="color:#aaa; font-size:0.9em; margin-bottom:10px;">
-  {{ ev_start }}{% if ev_end != ev_start %} → {{ ev_end }}{% endif %}
+  {{ ev_start | date_only }}{% if ev_end != ev_start %} → {{ ev_end | date_only }}{% endif %}
 </div>
 
 {% if assignments %}

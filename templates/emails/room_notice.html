@@ -3,7 +3,7 @@
 <p><strong>{{ hotel.name }}</strong><br>
 {{ hotel.address or '' }}{% if hotel.phone %}<br>Phone: {{ hotel.phone }}{% endif %}</p>
 <p>Room: <strong>{{ room.room_number or '-' }}</strong>
-{% if room.check_in %}<br>Check-in: {{ room.check_in.strftime('%Y-%m-%d') }}{% endif %}
-{% if room.check_out %}<br>Check-out: {{ room.check_out.strftime('%Y-%m-%d') }}{% endif %}
+{% if room.check_in %}<br>Check-in: {{ room.check_in.strftime('%m/%d/%Y') }}{% endif %}
+{% if room.check_out %}<br>Check-out: {{ room.check_out.strftime('%m/%d/%Y') }}{% endif %}
 {% if room.confirmation %}<br>Confirmation: {{ room.confirmation }}{% endif %}</p>
 <p>— On Stage America</p>

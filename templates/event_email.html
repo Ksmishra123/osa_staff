@@ -3,7 +3,7 @@
 
 <h2>Send Email — {{ ev.city }}</h2>
 <p><strong>{{ ev.city }}</strong>
-  {% if ev.event_start %} — {{ ev.event_start.strftime('%B %d, %Y') }}{% endif %}
+  {% if ev.event_start %} — {{ ev.event_start.strftime('%m/%d/%Y') }}{% endif %}
 </p>
 
 <form method="post">

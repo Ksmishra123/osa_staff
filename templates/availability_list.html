@@ -19,7 +19,7 @@
           <span class="city-box">{{ '✓' if c.checked else '' }}</span>
           <span class="city-info">
             <span class="city-name">{{ c.name }}</span>
-            <span class="city-dates">{{ c.start }}{% if c.end != c.start %} → {{ c.end }}{% endif %}</span>
+            <span class="city-dates">{{ c.start | date_only }}{% if c.end != c.start %} → {{ c.end | date_only }}{% endif %}</span>
             {% if c.checked %}
               <span class="city-status">Available</span>
             {% endif %}
@@ -43,7 +43,7 @@
     {% for r in rows %}
       <tr>
         <td>{{ r.city_name if r.city_name else 'Any' }}</td>
-        <td>{{ r.start_date }} → {{ r.end_date }}</td>
+        <td>{{ r.start_date | date_only }} → {{ r.end_date | date_only }}</td>
         <td>{{ r.status }}</td>
         <td>{{ r.notes or '' }}</td>
         <td>

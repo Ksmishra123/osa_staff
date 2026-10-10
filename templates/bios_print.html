@@ -14,7 +14,7 @@
 </style>
 
 <div class="no-print" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-  <h1 style="margin:0;">Bios — {{ ev.city }}{% if ev.date %} ({{ ev.date.strftime('%B %d, %Y') }}){% endif %}</h1>
+  <h1 style="margin:0;">Bios — {{ ev.city }}{% if ev.date %} ({{ ev.date.strftime('%m/%d/%Y') }}){% endif %}</h1>
   <button onclick="window.print()" class="btn btn-sm">Print</button>
 </div>
 

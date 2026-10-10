@@ -17,7 +17,7 @@
           {% set cities = entry.records | map(attribute='r.city_name') | map('default', 'Any', true) | unique | list %}
           {{ cities | join(', ') }}
         </td>
-        <td>{{ entry.records | map(attribute='r.updated_at') | max }}</td>
+        <td>{{ entry.records | map(attribute='r.updated_at') | max | date_only }}</td>
         <td><a href="{{ url_for('admin_person_availability', pid=p.id) }}">Assign &raquo;</a></td>
       </tr>
     {% else %}
@@ -69,8 +69,8 @@
               {% set r = item.r %}
               <tr>
                 <td>{{ r.city_name if r.city_name else 'Any' }}</td>
-                <td>{{ r.start_date }}</td>
-                <td>{{ r.end_date }}</td>
+                <td>{{ r.start_date | date_only }}</td>
+                <td>{{ r.end_date | date_only }}</td>
                 <td>
                   {% if item.display_status == 'assigned' %}
                     <span style="background:var(--osa-gold, #be9420); color:#000; border-radius:4px; padding:2px 8px; font-size:0.85em; font-weight:600;">assigned</span>

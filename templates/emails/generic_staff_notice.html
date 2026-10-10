@@ -10,7 +10,7 @@
 </head>
 <body>
   <h2>On Stage America — {{ ev.city }}</h2>
-  {% if ev.event_start %}<p><strong>{{ ev.event_start.strftime('%B %d, %Y') }}</strong></p>{% endif %}
+  {% if ev.event_start %}<p><strong>{{ ev.event_start.strftime('%m/%d/%Y') }}</strong></p>{% endif %}
   <hr>
   <div>{{ body|safe }}</div>
   <div class="footer">

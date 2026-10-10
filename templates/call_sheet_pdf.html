@@ -17,7 +17,7 @@
   <div class="header">
     <img class="logo" src="{{ url_for('static', filename='OSA_Logo_Silver_Gold.png') }}">
     <h1>Call Sheet</h1>
-    <div>{{ ev.city }}{% if ev.date %} — {{ ev.date.strftime('%B %d, %Y') }}{% endif %}</div>
+    <div>{{ ev.city }}{% if ev.date %} — {{ ev.date.strftime('%m/%d/%Y') }}{% endif %}</div>
   </div>
 
   <div class="section">
@@ -41,7 +41,7 @@
             <td>{{ a.person.email if a.person else '' }}</td>
             <td>
               {% if a.transport_mode %}{{ a.transport_mode }}{% endif %}
-              {% if a.arrival_ts %} | Arr: {{ a.arrival_ts.strftime('%Y-%m-%d %H:%M') }}{% endif %}
+              {% if a.arrival_ts %} | Arr: {{ a.arrival_ts.strftime('%m/%d/%Y %I:%M %p') }}{% endif %}
               {% if a.transport_booking %} | {{ a.transport_booking }}{% endif %}
               {% if a.transport_notes %} | {{ a.transport_notes }}{% endif %}
               {% set det = a.itinerary_details %}
@@ -73,8 +73,8 @@
                     {{ rm.person.name }}{% if not loop.last %}, {% endif %}
                   {% endfor %}
                 </td>
-                <td>{{ r.check_in.strftime('%Y-%m-%d') if r.check_in else '' }}</td>
-                <td>{{ r.check_out.strftime('%Y-%m-%d') if r.check_out else '' }}</td>
+                <td>{{ r.check_in.strftime('%m/%d/%Y') if r.check_in else '' }}</td>
+                <td>{{ r.check_out.strftime('%m/%d/%Y') if r.check_out else '' }}</td>
                 <td>{{ r.confirmation or '' }}</td>
               </tr>
             {% endfor %}

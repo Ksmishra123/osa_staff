@@ -120,15 +120,15 @@
             <tr style="border-bottom:1px solid #ddd;">
               <td style="padding:8px;">
                 {% if anyrow and anyrow.event %}
-                  {{ anyrow.event.city }}{% if anyrow.event.date %} — {{ anyrow.event.date.strftime('%Y-%m-%d') }}{% endif %}
+                  {{ anyrow.event.city }}{% if anyrow.event.date %} — {{ anyrow.event.date.strftime('%m/%d/%Y') }}{% endif %}
                 {% else %}
                   Event #{{ ev_id }}
                 {% endif %}
               </td>
               <td style="padding:8px;">{{ entry.hotel.name }}</td>
               <td style="padding:8px;">{{ entry.room.room_number or '-' }}</td>
-              <td style="padding:8px;">{{ entry.room.check_in.strftime('%Y-%m-%d') if entry.room.check_in else '' }}</td>
-              <td style="padding:8px;">{{ entry.room.check_out.strftime('%Y-%m-%d') if entry.room.check_out else '' }}</td>
+              <td style="padding:8px;">{{ entry.room.check_in.strftime('%m/%d/%Y') if entry.room.check_in else '' }}</td>
+              <td style="padding:8px;">{{ entry.room.check_out.strftime('%m/%d/%Y') if entry.room.check_out else '' }}</td>
               <td style="padding:8px;">{{ entry.room.confirmation or '' }}</td>
             </tr>
           {% endfor %}

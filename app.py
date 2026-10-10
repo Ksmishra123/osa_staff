@@ -749,29 +749,29 @@ def dt_long(v):
     if not v:
         return ''
     # Linux/Render supports %-d / %-I; on Windows use %#d / %#I
-    return v.strftime('%B %-d, %Y - %-I:%M %p')
+    return v.strftime('%m/%d/%Y - %-I:%M %p')
 
 @app.template_filter('dt_short')  # e.g., Nov 11, 2025 4:00 PM
 def dt_short(v):
     if not v:
         return ''
-    return v.strftime('%b %-d, %Y %-I:%M %p')
+    return v.strftime('%m/%d/%Y %-I:%M %p')
 
-@app.template_filter('date_only')  # e.g., Nov 11, 2025
+@app.template_filter('date_only')  # e.g., 11/11/2025
 def date_only(v):
     if not v:
         return ''
-    return v.strftime('%b %-d, %Y')
+    return v.strftime('%m/%d/%Y')
 
-@app.template_filter('date_range')  # e.g., Nov 11-14, 2025
+@app.template_filter('date_range')  # e.g., 11/11/2025 - 11/14/2025
 def date_range(start, end=None):
-    """Format a date range. If end is same month/year, show Nov 11-14, 2025"""
+    """Format a date range as mm/dd/yyyy (single date when start == end)."""
     if not start:
         return ''
 
     # If no end date, just format the start date
     if not end:
-        return start.strftime('%b %-d, %Y')
+        return start.strftime('%m/%d/%Y')
 
     # Convert to date objects if they're datetimes
     start_date = start.date() if hasattr(start, 'date') and callable(start.date) else start
@@ -779,17 +779,9 @@ def date_range(start, end=None):
 
     # Same date
     if start_date == end_date:
-        return start.strftime('%b %-d, %Y')
+        return start.strftime('%m/%d/%Y')
 
-    # Same month and year
-    if start.month == end.month and start.year == end.year:
-        return f"{start.strftime('%b %-d')}-{end.strftime('%-d, %Y')}"
-    # Same year, different month
-    elif start.year == end.year:
-        return f"{start.strftime('%b %-d')} - {end.strftime('%b %-d, %Y')}"
-    # Different years
-    else:
-        return f"{start.strftime('%b %-d, %Y')} - {end.strftime('%b %-d, %Y')}"
+    return f"{start.strftime('%m/%d/%Y')} - {end.strftime('%m/%d/%Y')}"
 
 @app.template_filter('t_short')  # e.g., 4:00 PM
 def t_short(v):
@@ -906,7 +898,7 @@ def send_new_account_notification(person: Person) -> bool:
                 </tr>
                 <tr>
                     <td>Date of Birth</td>
-                    <td>{person.dob.strftime('%B %d, %Y') if person.dob else 'Not provided'}</td>
+                    <td>{person.dob.strftime('%m/%d/%Y') if person.dob else 'Not provided'}</td>
                 </tr>
                 <tr>
                     <td>Preferred Airport</td>
@@ -950,7 +942,7 @@ def send_new_account_notification(person: Person) -> bool:
         </div>
         <div class="footer">
             <p>This is an automated notification from the OSA Staff Assignment system.</p>
-            <p>Registration timestamp: {datetime.utcnow().strftime('%B %d, %Y at %I:%M %p UTC')}</p>
+            <p>Registration timestamp: {datetime.utcnow().strftime('%m/%d/%Y at %I:%M %p UTC')}</p>
         </div>
     </body>
     </html>
@@ -981,7 +973,7 @@ def _get_gspread_client():
 
 def _event_col_title(ev: Event) -> str:
     if ev.date:
-        return f"{ev.date.strftime('%Y-%m-%d')} — {ev.city}"
+        return f"{ev.date.strftime('%m/%d/%Y')} — {ev.city}"
     return f"{ev.city or 'Event'}"
 
 def sync_assignments_sheet(db, only_event_id: int | None = None):
@@ -1844,7 +1836,7 @@ def admin_venues_export():
     writer = csv.writer(buf)
     writer.writerow(['Date', 'City', 'Venue', 'Venue Address', 'Hotel', 'Hotel Address'])
     for ev in events:
-        date_str = ev.date.strftime('%Y-%m-%d') if ev.date else ''
+        date_str = ev.date.strftime('%m/%d/%Y') if ev.date else ''
         city = (ev.city or '').strip()
         venue = (ev.venue or '').strip()
         venue_address = (ev.venue_address or '').strip()
@@ -4280,7 +4272,7 @@ def admin_call_sheet_pdf(eid):
     story.append(Spacer(1, 4))
     story.append(Paragraph(f"<b>Call Sheet — {ev.city or ''}</b>", styles["CenterTitle"]))
     if ev.date:
-        story.append(Paragraph(ev.date.strftime("%B %d, %Y - %I:%M %p"), styles["CenterSub"]))
+        story.append(Paragraph(ev.date.strftime("%m/%d/%Y - %I:%M %p"), styles["CenterSub"]))
     story.append(Spacer(1, 14))
 
     # -------------------------------------------------------------------
@@ -4289,9 +4281,9 @@ def admin_call_sheet_pdf(eid):
     story.append(Paragraph("Event Information", styles["SectionHeader"]))
     event_data = [
         ["City", ev.city or "—"],
-        ["Main Start", ev.event_start.strftime("%B %d, %Y - %I:%M %p") if ev.event_start else "—"],
-        ["Setup", ev.setup_start.strftime("%B %d, %Y - %I:%M %p") if ev.setup_start else "—"],
-        ["End", ev.event_end.strftime("%B %d, %Y - %I:%M %p") if ev.event_end else "—"],
+        ["Main Start", ev.event_start.strftime("%m/%d/%Y - %I:%M %p") if ev.event_start else "—"],
+        ["Setup", ev.setup_start.strftime("%m/%d/%Y - %I:%M %p") if ev.setup_start else "—"],
+        ["End", ev.event_end.strftime("%m/%d/%Y - %I:%M %p") if ev.event_end else "—"],
         ["Venue", ev.venue or "—"],
     ]
     if ev.hotel:
@@ -4329,7 +4321,7 @@ def admin_call_sheet_pdf(eid):
         sched_header = ["Day Start", "Setup", "Staff Arrival", "Judges Arrival", "Notes"]
         sched_rows = [sched_header]
         for d in days:
-            day_start = d.start_dt.strftime("%b %d, %Y - %I:%M %p") if d.start_dt else ""
+            day_start = d.start_dt.strftime("%m/%d/%Y - %I:%M %p") if d.start_dt else ""
             setup     = d.setup_dt.strftime("%I:%M %p") if d.setup_dt else ""
             staff     = d.staff_arrival_dt.strftime("%I:%M %p") if d.staff_arrival_dt else ""
             judges    = "Setup Only - Judges Are Not Needed" if getattr(d, "setup_only", False) else (
@@ -4449,8 +4441,8 @@ def admin_call_sheet_pdf(eid):
                     room_rows.append([
                         PH(r.room_number or "-"),
                         PH(names),
-                        PH(r.check_in.strftime("%b %d, %Y") if r.check_in else ""),
-                        PH(r.check_out.strftime("%b %d, %Y") if r.check_out else ""),
+                        PH(r.check_in.strftime("%m/%d/%Y") if r.check_in else ""),
+                        PH(r.check_out.strftime("%m/%d/%Y") if r.check_out else ""),
                         PH(r.confirmation or ""),
                     ])
 

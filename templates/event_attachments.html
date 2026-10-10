@@ -25,7 +25,7 @@
       <td><a href="{{ url_for('download_attachment', aid=att.id) }}">{{ att.filename }}</a></td>
       <td>{{ att.description }}</td>
       <td>{{ att.visibility }}</td>
-      <td>{{ att.uploaded_at.strftime('%Y-%m-%d') }}</td>
+      <td>{{ att.uploaded_at.strftime('%m/%d/%Y') }}</td>
       <td>
         <form method="post" action="{{ url_for('admin_delete_attachment', aid=att.id) }}"
               onsubmit="return confirm('Delete {{ att.filename }}?');">

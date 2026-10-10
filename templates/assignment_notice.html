@@ -5,14 +5,14 @@
     <p>
       You’ve been assigned as <b>{{ position }}</b> for
       <b>{{ ev.city or 'Event' }}</b>
-      {% if ev.date %} on <b>{{ ev.date.strftime('%B %d, %Y - %I:%M %p') }}</b>{% endif %}.
+      {% if ev.date %} on <b>{{ ev.date.strftime('%m/%d/%Y - %I:%M %p') }}</b>{% endif %}.
     </p>
 
     <p>
       Venue: {{ ev.venue or 'TBA' }}<br>
-      Setup: {{ ev.setup_start.strftime('%B %d, %Y - %I:%M %p') if ev.setup_start else '—' }}<br>
-      Start: {{ ev.event_start.strftime('%B %d, %Y - %I:%M %p') if ev.event_start else '—' }}<br>
-      End:&nbsp;&nbsp; {{ ev.event_end.strftime('%B %d, %Y - %I:%M %p') if ev.event_end else '—' }}
+      Setup: {{ ev.setup_start.strftime('%m/%d/%Y - %I:%M %p') if ev.setup_start else '—' }}<br>
+      Start: {{ ev.event_start.strftime('%m/%d/%Y - %I:%M %p') if ev.event_start else '—' }}<br>
+      End:&nbsp;&nbsp; {{ ev.event_end.strftime('%m/%d/%Y - %I:%M %p') if ev.event_end else '—' }}
     </p>
 
     <p>Please log in to your portal to review details and acknowledge your assignment.</p>

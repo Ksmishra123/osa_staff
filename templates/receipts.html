@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 {% block content %}
-<h1>Receipts — {{ ev.city }}{% if ev.date %} ({{ ev.date.strftime('%Y-%m-%d') }}){% endif %}</h1>
+<h1>Receipts — {{ ev.city }}{% if ev.date %} ({{ ev.date.strftime('%m/%d/%Y') }}){% endif %}</h1>
 
 <div class="table-responsive">
   <table class="table table-sm">
@@ -21,10 +21,10 @@
         <td>{{ a.id }}</td>
         <td>{{ a.position.name if a.position else '' }}</td>
         <td>{{ a.person.name if a.person else '' }}</td>
-        <td>{{ a.seen_at.strftime('%Y-%m-%d %H:%M') if a.seen_at else '—' }}</td>
+        <td>{{ a.seen_at.strftime('%m/%d/%Y %I:%M %p') if a.seen_at else '—' }}</td>
         <td>
           {% if a.ack_at %}
-            {{ a.ack_at.strftime('%Y-%m-%d %H:%M') }}
+            {{ a.ack_at.strftime('%m/%d/%Y %I:%M %p') }}
           {% elif a.ack %}
             (legacy: acknowledged)
           {% else %}
@@ -32,7 +32,7 @@
           {% endif %}
         </td>
         <td>{{ a.ack_ip or '—' }}</td>
-        <td>{{ a.callsheet_seen_at.strftime('%Y-%m-%d %H:%M') if a.callsheet_seen_at else '—' }}</td>
+        <td>{{ a.callsheet_seen_at.strftime('%m/%d/%Y %I:%M %p') if a.callsheet_seen_at else '—' }}</td>
       </tr>
       {% endfor %}
     </tbody>

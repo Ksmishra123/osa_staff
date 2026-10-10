@@ -533,7 +533,7 @@
       <dt>Email</dt><dd><a href="mailto:{{ p.email }}">{{ p.email }}</a></dd>
       <dt>Phone</dt><dd>{% if p.phone %}<a href="tel:{{ p.phone }}">{{ p.phone }}</a>{% else %}<span class="muted">—</span>{% endif %}</dd>
       <dt>Address</dt><dd>{{ p.address or '—' }}</dd>
-      <dt>Date of Birth</dt><dd>{{ p.dob.strftime('%Y-%m-%d') if p.dob else '—' }}</dd>
+      <dt>Date of Birth</dt><dd>{{ p.dob.strftime('%m/%d/%Y') if p.dob else '—' }}</dd>
       <dt>Preferred Airport</dt><dd>{{ p.preferred_airport or '—' }}</dd>
       <dt>Willing to Drive</dt><dd>{{ 'Yes' if p.willing_to_drive else 'No' }}{% if p.willing_to_drive and p.car_or_rental %} ({{ p.car_or_rental }}){% endif %}</dd>
       <dt>Dietary</dt><dd>{{ p.dietary_preference or '—' }}</dd>
