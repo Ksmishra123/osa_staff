@@ -1,26 +1,164 @@
 {% extends 'base.html' %}
 {% block content %}
 <h2>My Availability</h2>
-<p><a class="btn btn-primary btn-sm" href="{{ url_for('availability_new') }}">Add Availability</a></p>
+
+<h3 style="margin-top:16px;">This Season's Cities</h3>
+<p style="color:var(--osa-text-dim, #aaa); margin-top:4px;">
+  Click the checkbox to mark yourself available for a city. Click again to remove your availability.
+</p>
+
+{% if cities %}
+  <div class="city-grid">
+    {% for c in cities %}
+      <form method="post" action="{{ url_for('availability_toggle_city') }}" class="city-card{{ ' is-checked' if c.checked }}"
+            {% if c.checked and c.assigned %}data-assigned-city="{{ c.name }}"{% endif %}>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="city" value="{{ c.name }}">
+        <input type="hidden" name="action" value="{{ 'uncheck' if c.checked else 'check' }}">
+        <button type="submit" class="city-toggle" aria-pressed="{{ 'true' if c.checked else 'false' }}">
+          <span class="city-box">{{ '✓' if c.checked else '' }}</span>
+          <span class="city-info">
+            <span class="city-name">{{ c.name }}</span>
+            <span class="city-dates">{{ c.start }}{% if c.end != c.start %} → {{ c.end }}{% endif %}</span>
+            {% if c.checked %}
+              <span class="city-status">Available</span>
+            {% endif %}
+            {% if c.assigned %}
+              <span class="city-assigned">Assigned</span>
+            {% endif %}
+          </span>
+        </button>
+      </form>
+    {% endfor %}
+  </div>
+{% else %}
+  <p style="color:var(--osa-text-dim, #aaa);">No upcoming cities on the schedule yet. Check back soon.</p>
+{% endif %}
+
+<h3 style="margin-top:28px;">My Entries</h3>
+<p><a class="btn btn-primary btn-sm" href="{{ url_for('availability_new') }}">Add Custom Availability</a></p>
 <table class="table table-striped">
-  <thead><tr><th>City</th><th>Status</th><th>Notes</th><th></th></tr></thead>
+  <thead><tr><th>City</th><th>Dates</th><th>Status</th><th>Notes</th><th></th></tr></thead>
   <tbody>
     {% for r in rows %}
       <tr>
         <td>{{ r.city_name if r.city_name else 'Any' }}</td>
+        <td>{{ r.start_date }} → {{ r.end_date }}</td>
         <td>{{ r.status }}</td>
         <td>{{ r.notes or '' }}</td>
         <td>
           <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('availability_edit', aid=r.id) }}">Edit</a>
           <form method="post" action="{{ url_for('availability_delete', aid=r.id) }}" style="display:inline">
-<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button class="btn btn-outline-danger btn-sm" type="submit">Delete</button>
           </form>
         </td>
       </tr>
     {% else %}
-      <tr><td colspan="4">No availability entries yet.</td></tr>
+      <tr><td colspan="5">No availability entries yet.</td></tr>
     {% endfor %}
   </tbody>
 </table>
+
+<!-- Popup shown when unchecking a city the person is assigned to -->
+<div class="locked-modal-overlay" id="lockedModal" hidden>
+  <div class="locked-modal" role="alertdialog" aria-modal="true" aria-labelledby="lockedModalTitle">
+    <h3 id="lockedModalTitle" style="margin:0 0 10px;">You're assigned to <span id="lockedCity"></span></h3>
+    <p style="margin:0 0 16px; color:var(--osa-text, #ddd);">
+      You already have an event assignment in this city, so you can't mark yourself
+      unavailable here. Please contact us to be removed from the event first.
+    </p>
+    <div style="text-align:right;">
+      <button type="button" class="btn btn-sm btn-warning locked-modal-close">OK</button>
+    </div>
+  </div>
+</div>
+
+<style>
+  .city-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 12px;
+    margin-top: 12px;
+  }
+  .city-card { margin: 0; }
+  .city-toggle {
+    display: flex; align-items: center; gap: 12px;
+    width: 100%; text-align: left;
+    background: var(--osa-card, #0a0a0d);
+    border: 1px solid var(--osa-border, #1f1f27);
+    border-radius: 10px;
+    padding: 12px 14px;
+    color: var(--osa-text, #ddd);
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+  }
+  .city-toggle:hover { border-color: var(--osa-gold, #be9420); }
+  .is-checked .city-toggle {
+    border-color: var(--osa-gold, #be9420);
+    background: var(--osa-card-2, #101015);
+  }
+  .city-box {
+    flex: 0 0 auto;
+    width: 26px; height: 26px;
+    border: 2px solid var(--osa-gold, #be9420);
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 1rem;
+    color: #000; background: transparent;
+  }
+  .is-checked .city-box { background: var(--osa-gold, #be9420); }
+  .city-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .city-name { font-weight: 600; color: var(--osa-text-strong, #fff); }
+  .city-dates { font-size: 0.8em; color: var(--osa-text-dim, #999); }
+  .city-status {
+    font-size: 0.75em; font-weight: 600;
+    color: var(--osa-gold-b, #f5d080);
+    text-transform: uppercase; letter-spacing: .04em;
+  }
+  .city-assigned {
+    align-self: flex-start;
+    font-size: 0.75em; font-weight: 600;
+    background: var(--osa-gold, #be9420); color: #000;
+    border-radius: 4px; padding: 1px 7px;
+  }
+  .locked-modal-overlay {
+    position: fixed; inset: 0; z-index: 1050;
+    background: rgba(0, 0, 0, .7);
+    display: flex; align-items: center; justify-content: center;
+    padding: 16px;
+  }
+  .locked-modal {
+    background: var(--osa-card, #0a0a0d);
+    border: 1px solid var(--osa-gold, #be9420);
+    border-radius: 10px;
+    max-width: 440px; width: 100%;
+    padding: 18px 20px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, .6);
+  }
+</style>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    var modal = document.getElementById('lockedModal');
+    var cityLabel = document.getElementById('lockedCity');
+
+    document.querySelectorAll('form[data-assigned-city]').forEach(function (form) {
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        cityLabel.textContent = form.dataset.assignedCity;
+        modal.hidden = false;
+      });
+    });
+
+    function closeModal() { modal.hidden = true; }
+    modal.querySelector('.locked-modal-close').addEventListener('click', closeModal);
+    modal.addEventListener('click', function (e) {
+      if (e.target === modal) closeModal();
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') closeModal();
+    });
+  });
+</script>
 {% endblock %}

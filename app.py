@@ -1524,17 +1524,154 @@ def me():
     return render_template('me.html', rows=rows, lodging_by_event=lodging_by_event, show_past=show_past)
 
 
+def _season_city_windows(db):
+    """Cities with upcoming events in the active season (all upcoming events
+    when no season is active), each with its overall date window."""
+    today = date.today()
+    season = db.query(Season).filter(Season.is_active.is_(True)).first()
+    q = db.query(Event).filter(Event.city.isnot(None), Event.city != "")
+    if season:
+        q = q.filter(Event.season_id == season.id)
+    windows = {}
+    for ev in q.all():
+        ev_start, ev_end = _event_window_for_matching(db, ev)
+        if ev_end < today:
+            continue
+        key = ev.city.strip().lower()
+        w = windows.get(key)
+        if w is None:
+            windows[key] = {"city": ev.city.strip(), "start": ev_start, "end": ev_end}
+        else:
+            w["start"] = min(w["start"], ev_start)
+            w["end"] = max(w["end"], ev_end)
+    return sorted(windows.values(), key=lambda w: (w["start"], w["city"].lower()))
+
+
+def _has_upcoming_assignment_in_city(db, pid: int, city_key: str) -> bool:
+    """True when the person holds an assignment to an upcoming event in the
+    given city (lowercased). Used to block self-service unavailability."""
+    today = date.today()
+    rows = (
+        db.query(Assignment)
+        .options(joinedload(Assignment.event))
+        .filter(Assignment.person_id == pid)
+        .all()
+    )
+    for a in rows:
+        ev = a.event
+        if not ev or (ev.city or '').strip().lower() != city_key:
+            continue
+        _, ev_end = _event_window_for_matching(db, ev)
+        if ev_end >= today:
+            return True
+    return False
+
+
 @app.route('/availability')
 @login_required
 def availability_list():
     db = SessionLocal()
+    pid = int(current_user.id)
     rows = (
         db.query(Availability)
-        .filter(Availability.person_id == int(current_user.id))
+        .filter(Availability.person_id == pid)
         .order_by(Availability.start_date.desc(), Availability.id.desc())
         .all()
     )
-    return render_template('availability_list.html', rows=rows)
+
+    today = date.today()
+    # Which cities already have a live "available" record for this person.
+    available_city_keys = {
+        (r.city_name or '').strip().lower()
+        for r in rows
+        if (r.city_name or '').strip()
+        and (r.status or '').strip().lower() == 'available'
+        and (not r.end_date or r.end_date >= today)
+    }
+    # Cities where they hold an upcoming assignment (unchecking is blocked).
+    assigned_city_keys = set()
+    for a in (
+        db.query(Assignment)
+        .options(joinedload(Assignment.event))
+        .filter(Assignment.person_id == pid)
+        .all()
+    ):
+        ev = a.event
+        if not ev or not (ev.city or '').strip():
+            continue
+        _, ev_end = _event_window_for_matching(db, ev)
+        if ev_end >= today:
+            assigned_city_keys.add(ev.city.strip().lower())
+
+    cities = [
+        {
+            "name": w["city"],
+            "start": w["start"],
+            "end": w["end"],
+            "checked": w["city"].lower() in available_city_keys,
+            "assigned": w["city"].lower() in assigned_city_keys,
+        }
+        for w in _season_city_windows(db)
+    ]
+    return render_template('availability_list.html', rows=rows, cities=cities)
+
+
+@app.route('/availability/toggle-city', methods=['POST'])
+@login_required
+def availability_toggle_city():
+    """Check/uncheck a season city on the staff availability page."""
+    db = SessionLocal()
+    pid = int(current_user.id)
+    city = (request.form.get('city') or '').strip()
+    action = (request.form.get('action') or '').strip()
+    if not city or action not in ('check', 'uncheck'):
+        flash("Invalid availability request.")
+        return redirect(url_for('availability_list'))
+    today = date.today()
+    key = city.lower()
+
+    if action == 'uncheck':
+        if _has_upcoming_assignment_in_city(db, pid, key):
+            flash(f"You're assigned to an event in {city}. Please contact us to be "
+                  f"removed from that event before marking yourself unavailable.")
+            return redirect(url_for('availability_list'))
+        removed = 0
+        for r in db.query(Availability).filter(Availability.person_id == pid).all():
+            if (r.city_name or '').strip().lower() != key:
+                continue
+            if (r.status or '').strip().lower() != 'available':
+                continue
+            if r.end_date and r.end_date < today:
+                continue
+            db.delete(r)
+            removed += 1
+        db.commit()
+        if removed:
+            flash(f"You're no longer marked available for {city}.")
+        else:
+            flash(f"You had no availability on file for {city}.")
+        return redirect(url_for('availability_list'))
+
+    # action == 'check'
+    window = next((w for w in _season_city_windows(db) if w["city"].lower() == key), None)
+    if window is None:
+        flash(f"{city} has no upcoming events this season.")
+        return redirect(url_for('availability_list'))
+    already = any(
+        (r.city_name or '').strip().lower() == key
+        and (r.status or '').strip().lower() == 'available'
+        and (not r.end_date or r.end_date >= today)
+        for r in db.query(Availability).filter(Availability.person_id == pid).all()
+    )
+    if not already:
+        db.add(Availability(
+            person_id=pid, city_name=window["city"],
+            start_date=window["start"], end_date=window["end"],
+            status='available',
+        ))
+        db.commit()
+    flash(f"You're marked available for {city}.")
+    return redirect(url_for('availability_list'))
 
 
 @app.route('/availability/new', methods=['GET', 'POST'])
@@ -1602,6 +1739,11 @@ def availability_delete(aid):
     row = db.get(Availability, aid)
     if not row or row.person_id != int(current_user.id):
         abort(403)
+    city_key = (row.city_name or '').strip().lower()
+    if city_key and _has_upcoming_assignment_in_city(db, int(current_user.id), city_key):
+        flash(f"You're assigned to an event in {row.city_name}. Please contact us to be "
+              f"removed from that event before deleting this availability.")
+        return redirect(url_for('availability_list'))
     db.delete(row)
     db.commit()
     flash("Availability deleted.")
