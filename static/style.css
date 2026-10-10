@@ -17,6 +17,10 @@
   --osa-gold-b: #f5d080;
   --osa-gold-d: #8a6010;
   --osa-cream: #f5efe0;
+  --osa-neon: #e100ff;
+  /* Signature gradients from www.onstageamerica.com */
+  --osa-gold-grad: linear-gradient(135deg, var(--osa-gold) 0%, var(--osa-gold-l) 55%, var(--osa-gold-b) 100%);
+  --osa-gold-text: linear-gradient(170deg, #fff8dc 5%, var(--osa-gold-b) 45%, var(--osa-gold-l) 90%);
   --font-body: "Inter", "Inter Fallback", -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --font-display: "League Spartan", "League Spartan Fallback", var(--font-body);
 }
@@ -32,6 +36,9 @@ body {
   font-family: var(--font-body);
   margin: 0;
   background: var(--osa-black);
+  /* faint gold stage-light ambience, like the main site's hero */
+  background-image: radial-gradient(1200px 420px at 50% -120px, rgba(190, 148, 32, 0.08), transparent 70%);
+  background-repeat: no-repeat;
   color: var(--osa-text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -41,6 +48,15 @@ h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-display);
   color: var(--osa-text-strong);
   letter-spacing: 0.01em;
+}
+
+h1, h2 {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+h1 {
+  color: var(--osa-gold-b);
 }
 
 a {
@@ -61,25 +77,44 @@ a:hover {
    Top Navigation Bar
    ============================================ */
 .topbar {
-  background: linear-gradient(135deg, #bfa34d 0%, #f0e3a3 100%);
-  border-bottom: 2px solid #a08c3a;
-  padding: 14px 16px;
+  background: rgba(5, 5, 9, 0.94);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--osa-gold-d);
+  padding: 10px 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   position: sticky;
   top: 0;
   z-index: 1000;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+  box-shadow: 0 2px 16px rgba(0,0,0,0.6);
 }
 
 .topbar .brand {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 1.25rem;
-  text-transform: uppercase;
-  color: #000;
+  display: flex;
+  align-items: center;
+  gap: 12px;
   white-space: nowrap;
+}
+
+.brand-logo {
+  height: 40px;
+  width: auto;
+  display: block;
+}
+
+.brand-text {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  background: var(--osa-gold-text);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: var(--osa-gold-b);
 }
 
 /* ============================================
@@ -99,7 +134,7 @@ a:hover {
 .menu-toggle span {
   width: 25px;
   height: 3px;
-  background: #000;
+  background: var(--osa-gold-b);
   margin: 3px 0;
   transition: 0.3s;
   border-radius: 2px;
@@ -133,17 +168,20 @@ a:hover {
 
 .nav-menu a {
   text-decoration: none;
-  color: #000;
-  font-weight: 500;
+  color: var(--osa-text);
+  font-weight: 600;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
   padding: 8px 12px;
   border-radius: 6px;
-  transition: background 0.2s;
+  transition: background 0.2s, color 0.2s;
   display: inline-block;
 }
 
 .nav-menu a:hover {
-  background: rgba(0, 0, 0, 0.12);
-  color: #000;
+  background: rgba(190, 148, 32, 0.14);
+  color: var(--osa-gold-b);
 }
 
 .nav-icon {
@@ -179,6 +217,35 @@ a:hover {
   margin-bottom: 16px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.4);
   color: var(--osa-text);
+  position: relative;
+}
+
+/* Gold corner accents — the main site's gold-corner motif */
+.card::before,
+.card::after {
+  content: "";
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  pointer-events: none;
+  border: 2px solid var(--osa-gold);
+  opacity: 0.85;
+}
+
+.card::before {
+  top: -1px;
+  left: -1px;
+  border-right: none;
+  border-bottom: none;
+  border-top-left-radius: 12px;
+}
+
+.card::after {
+  bottom: -1px;
+  right: -1px;
+  border-left: none;
+  border-top: none;
+  border-bottom-right-radius: 12px;
 }
 
 label {
@@ -211,7 +278,7 @@ input:focus, select:focus, textarea:focus {
 }
 
 button, .btn {
-  background: linear-gradient(180deg, var(--osa-gold-l) 0%, var(--osa-gold) 100%);
+  background: var(--osa-gold-grad);
   color: #1a1206;
   border: none;
   border-radius: 10px;
@@ -260,8 +327,8 @@ button:active, .btn:active {
   font-weight: 600;
   color: var(--osa-gold-b);
   text-transform: uppercase;
-  font-size: 12px;
-  letter-spacing: 0.04em;
+  font-size: 11px;
+  letter-spacing: 0.16em;
 }
 
 .table tbody tr:hover {
@@ -300,12 +367,12 @@ button:active, .btn:active {
    Bootstrap component overrides (Bootstrap loads before this file)
    ============================================ */
 .btn-primary, .btn-success {
-  background: linear-gradient(180deg, var(--osa-gold-l), var(--osa-gold));
+  background: var(--osa-gold-grad);
   border-color: var(--osa-gold);
   color: #1a1206;
 }
 .btn-primary:hover, .btn-success:hover {
-  background: linear-gradient(180deg, var(--osa-gold-b), var(--osa-gold-l));
+  background: linear-gradient(135deg, var(--osa-gold-l), var(--osa-gold-b));
   border-color: var(--osa-gold-l);
   color: #1a1206;
 }
@@ -490,15 +557,17 @@ button:active, .btn:active {
     justify-content: space-between;
     align-items: center;
     padding: 16px 20px;
-    background: linear-gradient(135deg, #bfa34d 0%, #f0e3a3 100%);
-    border-bottom: 2px solid #a08c3a;
+    background: var(--osa-black-s);
+    border-bottom: 1px solid var(--osa-gold-d);
   }
 
   .nav-title {
     font-family: var(--font-display);
-    font-weight: 700;
-    font-size: 1.2rem;
-    color: #000;
+    font-weight: 600;
+    font-size: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--osa-gold-b);
   }
 
   .menu-close {
@@ -507,7 +576,7 @@ button:active, .btn:active {
     font-size: 32px;
     line-height: 1;
     cursor: pointer;
-    color: #000;
+    color: var(--osa-gold-b);
     padding: 0;
     width: 32px;
     height: 32px;
