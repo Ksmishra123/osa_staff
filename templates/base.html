@@ -23,7 +23,9 @@
 <body>
   <header class='topbar'>
     <div class='brand'>
-      <img src="{{ url_for('static', filename='osa-logo-nobg.png') }}" alt="On Stage America" class="brand-logo">
+      <span class='brand-logo-wrap'>
+        <img src="{{ url_for('static', filename='osa-logo-nobg.png') }}" alt="On Stage America" class="brand-logo">
+      </span>
       <span class="brand-text">Staff Portal</span>
     </div>
 
@@ -46,47 +48,55 @@
 
       {% if current_user.is_authenticated %}
         <div class='nav-section'>
-          <div class='nav-section-title'>My Account</div>
+          <div class='nav-section-title'>Quick Links</div>
           <a href='{{ url_for('me') }}'>
             <span class='nav-icon'>📋</span> My Assignments
           </a>
           <a href='{{ url_for('availability_list') }}'>
             <span class='nav-icon'>📅</span> My Availability
           </a>
-          <a href='{{ url_for('account_profile') }}'>
-            <span class='nav-icon'>👤</span> My Profile
-          </a>
-          <a href='{{ url_for('change_password') }}'>
-            <span class='nav-icon'>🔒</span> Change Password
-          </a>
+          {% if not is_admin() %}
+            <a href="{{ url_for('events_list') }}">
+              <span class='nav-icon'>🎭</span> Events
+            </a>
+          {% endif %}
         </div>
 
         {% if is_admin() %}
-        <div class='nav-section'>
+        <div class='nav-section nav-dropdown'>
+          <button type='button' class='nav-drop-btn'>⚙️ Admin <span class='drop-caret'>▾</span></button>
           <div class='nav-section-title'>Administration</div>
-          <a href='{{ url_for('admin_events') }}'>
-            <span class='nav-icon'>⚙️</span> Admin Events
-          </a>
-          <a href='{{ url_for('admin_people') }}'>
-            <span class='nav-icon'>👥</span> People
-          </a>
-          <a href='{{ url_for('admin_seasons') }}'>
-            <span class='nav-icon'>🗓️</span> Seasons
-          </a>
-          <a href='{{ url_for('admin_availability') }}'>
-            <span class='nav-icon'>📊</span> Availability
-          </a>
+          <div class='nav-drop-menu'>
+            <a href='{{ url_for('admin_events') }}'>
+              <span class='nav-icon'>⚙️</span> Admin Events
+            </a>
+            <a href='{{ url_for('admin_people') }}'>
+              <span class='nav-icon'>👥</span> People
+            </a>
+            <a href='{{ url_for('admin_seasons') }}'>
+              <span class='nav-icon'>🗓️</span> Seasons
+            </a>
+            <a href='{{ url_for('admin_availability') }}'>
+              <span class='nav-icon'>📊</span> Availability
+            </a>
+          </div>
         </div>
-        {% else %}
-          <a href="{{ url_for('events_list') }}">
-            <span class='nav-icon'>🎭</span> Events
-          </a>
         {% endif %}
 
-        <div class='nav-section'>
-          <a href='{{ url_for('logout') }}' class='logout-link'>
-            <span class='nav-icon'>🚪</span> Logout
-          </a>
+        <div class='nav-section nav-dropdown nav-dropdown-right'>
+          <button type='button' class='nav-drop-btn' title='My Information'>👤 My Info <span class='drop-caret'>▾</span></button>
+          <div class='nav-section-title'>My Information</div>
+          <div class='nav-drop-menu'>
+            <a href='{{ url_for('account_profile') }}'>
+              <span class='nav-icon'>👤</span> My Profile
+            </a>
+            <a href='{{ url_for('change_password') }}'>
+              <span class='nav-icon'>🔒</span> Change Password
+            </a>
+            <a href='{{ url_for('logout') }}' class='logout-link'>
+              <span class='nav-icon'>🚪</span> Logout
+            </a>
+          </div>
         </div>
       {% else %}
         <a href='{{ url_for('login') }}'>
@@ -153,6 +163,21 @@
       const navLinks = navMenu.querySelectorAll('a');
       navLinks.forEach(link => {
         link.addEventListener('click', closeMenu);
+      });
+
+      // Desktop dropdown menus (Admin / My Info)
+      document.querySelectorAll('.nav-drop-btn').forEach(btn => {
+        btn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          const dd = btn.closest('.nav-dropdown');
+          document.querySelectorAll('.nav-dropdown.open').forEach(o => {
+            if (o !== dd) o.classList.remove('open');
+          });
+          dd.classList.toggle('open');
+        });
+      });
+      document.addEventListener('click', function () {
+        document.querySelectorAll('.nav-dropdown.open').forEach(o => o.classList.remove('open'));
       });
     });
   </script>

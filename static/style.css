@@ -98,8 +98,24 @@ a:hover {
   white-space: nowrap;
 }
 
+/* Soft white spotlight behind the logo so it reads on the dark header,
+   fading out so there's no hard-edged patch. */
+.brand-logo-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 18px;
+  border-radius: 999px;
+  background: radial-gradient(
+    ellipse 100% 100% at center,
+    rgba(255, 255, 255, 0.96) 35%,
+    rgba(255, 255, 255, 0.7) 60%,
+    rgba(255, 255, 255, 0) 100%
+  );
+}
+
 .brand-logo {
-  height: 40px;
+  height: 38px;
   width: auto;
   display: block;
 }
@@ -186,6 +202,72 @@ a:hover {
 
 .nav-icon {
   display: none;
+}
+
+/* ============================================
+   Nav Dropdowns (Admin / My Info) — desktop
+   ============================================ */
+.nav-dropdown {
+  position: relative;
+}
+
+.nav-drop-btn {
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--osa-text);
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 8px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.2s, color 0.2s;
+}
+
+.nav-drop-btn:hover,
+.nav-dropdown.open .nav-drop-btn {
+  background: rgba(190, 148, 32, 0.14);
+  color: var(--osa-gold-b);
+  transform: none;
+  box-shadow: none;
+  filter: none;
+}
+
+.drop-caret {
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+.nav-drop-menu {
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  background: var(--osa-black-s);
+  border: 1px solid var(--osa-border);
+  border-radius: 10px;
+  min-width: 210px;
+  padding: 6px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+  z-index: 1100;
+}
+
+.nav-dropdown.open .nav-drop-menu {
+  display: block;
+}
+
+.nav-dropdown-right .nav-drop-menu {
+  left: auto;
+  right: 0;
+}
+
+.nav-drop-menu a {
+  display: block;
 }
 
 .mobile-menu-overlay {
@@ -629,6 +711,40 @@ button:active, .btn:active {
     font-size: 20px;
     width: 24px;
     text-align: center;
+  }
+
+  /* Dropdowns flatten into the drawer's grouped sections on mobile */
+  .nav-drop-btn {
+    display: none;
+  }
+
+  .nav-dropdown {
+    position: static;
+  }
+
+  .nav-drop-menu {
+    display: block;
+    position: static;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 0;
+    min-width: 0;
+  }
+
+  /* Slightly smaller logo spotlight on phones */
+  .brand-logo-wrap {
+    padding: 4px 12px;
+  }
+
+  .brand-logo {
+    height: 30px;
+  }
+
+  .brand-text {
+    font-size: 0.75rem;
+    letter-spacing: 0.16em;
   }
 
   .logout-link {
