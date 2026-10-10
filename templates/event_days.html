@@ -107,35 +107,81 @@
           {% if d.dinner_details %}<div><strong>Dinner:</strong> {{ d.dinner_details }}</div>{% endif %}
         </td>
         <td>
-          <!-- Edit form toggle -->
-          <details>
-            <summary style="cursor:pointer;">Edit</summary>
-            <form method="post" style="margin-top:6px;">
-<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <input type="hidden" name="action" value="edit_day">
-              <input type="hidden" name="day_id" value="{{ d.id }}">
-              <div style="display:flex; flex-wrap:wrap; gap:6px;">
-                <input type="datetime-local" name="start_dt" value="{{ d.start_dt|datetime_local }}">
-                <input type="datetime-local" name="setup_dt" value="{{ d.setup_dt|datetime_local }}">
-                <input type="datetime-local" name="setup_end_dt" value="{{ d.setup_end_dt|datetime_local }}">
-                <input type="datetime-local" name="staff_arrival_dt" value="{{ d.staff_arrival_dt|datetime_local }}">
-                <input type="datetime-local" name="judges_arrival_dt" value="{{ d.judges_arrival_dt|datetime_local }}">
-                <label><input type="checkbox" name="setup_only" value="1" {% if d.setup_only %}checked{% endif %}> Setup Only</label>
-                <input type="text" name="notes" value="{{ d.notes or '' }}" placeholder="Notes" style="flex:1;">
-                <input type="text" name="day_link" value="{{ d.day_link or '' }}" placeholder="Day link" style="flex:1;">
-                <input type="text" name="lunch_details" value="{{ d.lunch_details or '' }}" placeholder="Lunch details" style="flex:1;">
-                <input type="text" name="dinner_details" value="{{ d.dinner_details or '' }}" placeholder="Dinner details" style="flex:1;">
-                <button class="btn btn-outline-primary btn-sm">Save</button>
-              </div>
-            </form>
-          </details>
+          <button type="button" class="btn btn-outline-primary btn-sm"
+                  onclick="toggleDayEdit({{ d.id }})">✏️ Edit</button>
 
           <!-- Delete -->
-          <form method="post" style="margin-top:4px;" onsubmit="return confirm('Delete this day?');">
+          <form method="post" style="margin-top:4px; display:inline-block;" onsubmit="return confirm('Delete this day?');">
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="action" value="delete_day">
             <input type="hidden" name="day_id" value="{{ d.id }}">
             <button class="btn btn-outline-danger btn-sm">Delete</button>
+          </form>
+        </td>
+      </tr>
+
+      <!-- Full-width edit row (hidden until Edit is clicked) -->
+      <tr id="edit-day-{{ d.id }}" class="day-edit-row" style="display:none;">
+        <td colspan="9" style="background:var(--osa-card-2, #101015); padding:16px 20px;">
+          <form method="post">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="edit_day">
+            <input type="hidden" name="day_id" value="{{ d.id }}">
+
+            <h5 style="margin:0 0 12px;">Edit Day — {{ d.start_dt.strftime('%m/%d/%Y') if d.start_dt else 'Unscheduled' }}</h5>
+
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(230px, 1fr)); gap:12px 16px;">
+              <div>
+                <label style="margin-bottom:4px;">Day Start (competition start)</label>
+                <input type="datetime-local" name="start_dt" value="{{ d.start_dt|datetime_local }}">
+              </div>
+              <div>
+                <label style="margin-bottom:4px;">Setup Start</label>
+                <input type="datetime-local" name="setup_dt" value="{{ d.setup_dt|datetime_local }}">
+              </div>
+              <div>
+                <label style="margin-bottom:4px;">Setup End</label>
+                <input type="datetime-local" name="setup_end_dt" value="{{ d.setup_end_dt|datetime_local }}">
+              </div>
+              <div>
+                <label style="margin-bottom:4px;">Staff Arrival</label>
+                <input type="datetime-local" name="staff_arrival_dt" value="{{ d.staff_arrival_dt|datetime_local }}">
+              </div>
+              <div>
+                <label style="margin-bottom:4px;">Judges Arrival</label>
+                <input type="datetime-local" name="judges_arrival_dt" value="{{ d.judges_arrival_dt|datetime_local }}">
+              </div>
+              <div style="display:flex; align-items:flex-end; padding-bottom:8px;">
+                <label style="margin:0; display:inline-flex; align-items:center; gap:8px; font-weight:500;">
+                  <input type="checkbox" name="setup_only" value="1" style="width:auto;" {% if d.setup_only %}checked{% endif %}>
+                  Setup Only (staff-only day, no competition)
+                </label>
+              </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(230px, 1fr)); gap:12px 16px; margin-top:12px;">
+              <div>
+                <label style="margin-bottom:4px;">Notes</label>
+                <input type="text" name="notes" value="{{ d.notes or '' }}" placeholder="Optional notes shown on the call sheet">
+              </div>
+              <div>
+                <label style="margin-bottom:4px;">Day Link(s)</label>
+                <input type="text" name="day_link" value="{{ d.day_link or '' }}" placeholder="https://...">
+              </div>
+              <div>
+                <label style="margin-bottom:4px;">Lunch Details</label>
+                <input type="text" name="lunch_details" value="{{ d.lunch_details or '' }}" placeholder="Optional lunch plan">
+              </div>
+              <div>
+                <label style="margin-bottom:4px;">Dinner Details</label>
+                <input type="text" name="dinner_details" value="{{ d.dinner_details or '' }}" placeholder="Optional dinner plan">
+              </div>
+            </div>
+
+            <div style="margin-top:14px; display:flex; gap:8px;">
+              <button class="btn btn-primary btn-sm" type="submit">Save Changes</button>
+              <button class="btn btn-secondary btn-sm" type="button" onclick="toggleDayEdit({{ d.id }})">Cancel</button>
+            </div>
           </form>
         </td>
       </tr>
@@ -147,6 +193,16 @@
 {% endif %}
 
 <script>
+  function toggleDayEdit(dayId) {
+    const row = document.getElementById('edit-day-' + dayId);
+    if (!row) return;
+    const isHidden = row.style.display === 'none';
+    // Close any other open edit rows first so only one is open at a time.
+    document.querySelectorAll('.day-edit-row').forEach(r => r.style.display = 'none');
+    row.style.display = isHidden ? '' : 'none';
+    if (isHidden) row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
   (function() {
     const dayMode = document.getElementById('day_mode');
     const firstDayFields = document.getElementById('first-day-fields');
