@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+{% block content %}
+<div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+  <h2 style="margin:0;">{{ ev.city }} — Emails &amp; Acknowledgments</h2>
+  <a href="{{ url_for('admin_events') }}" class="btn btn-sm btn-secondary">← Back to events</a>
+</div>
+<p style="color:#aaa; margin-top:4px;">
+  {{ ev.date|dt_short if ev.date else 'Date TBA' }}
+</p>
+
+{% if unacked_count %}
+  <form method="post" action="{{ url_for('admin_event_send_ack_reminders', eid=ev.id) }}" style="margin:16px 0;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" class="btn btn-warning"
+            onclick="return confirm('Send a reminder email to all {{ unacked_count }} unacknowledged staff member(s)?');">
+      ✉️ Remind all unacknowledged ({{ unacked_count }})
+    </button>
+  </form>
+{% else %}
+  <p style="color:#6ee7a0; margin:16px 0;">✅ Everyone with an email address has acknowledged.</p>
+{% endif %}
+
+<div style="overflow-x:auto;">
+  <table class="table table-striped">
+    <thead>
+      <tr>
+        <th>Staff</th>
+        <th>Position</th>
+        <th>Assignment Email</th>
+        <th>Last Reminder</th>
+        <th>Seen</th>
+        <th>Acknowledged</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for a in assignments %}
+        <tr>
+          <td>
+            {{ a.person.name if a.person else 'Person #' ~ a.person_id }}
+            {% if a.person and not a.person.email %}
+              <div style="color:#f88; font-size:0.8em;">No email on file</div>
+            {% endif %}
+          </td>
+          <td>{{ a.position.name if a.position else '' }}</td>
+          <td>
+            {% if a.notified_at %}
+              <span title="{{ a.notified_at }}">✉️ Sent {{ a.notified_at.strftime('%b %d, %Y') }}</span>
+            {% else %}
+              <span style="color:#f5d080;">Not sent</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if a.reminded_at %}
+              <span title="{{ a.reminded_at }}">{{ a.reminded_at.strftime('%b %d, %Y') }}</span>
+            {% else %}
+              —
+            {% endif %}
+          </td>
+          <td>
+            {% if a.seen_at %}
+              <span title="{{ a.seen_at }}">👁 {{ a.seen_at.strftime('%b %d') }}</span>
+            {% else %}
+              —
+            {% endif %}
+          </td>
+          <td>
+            {% if a.ack %}
+              <span style="background:#10b981; color:#fff; border-radius:4px; padding:2px 8px; font-size:0.85em; font-weight:600;"
+                    title="{{ a.ack_at or '' }}">✓ Acknowledged{% if a.ack_at %} {{ a.ack_at.strftime('%b %d') }}{% endif %}</span>
+            {% else %}
+              <span style="background:#ef4444; color:#fff; border-radius:4px; padding:2px 8px; font-size:0.85em; font-weight:600;">Not acknowledged</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if not a.ack and a.person and a.person.email %}
+              <form method="post" action="{{ url_for('admin_event_send_ack_reminders', eid=ev.id) }}" style="margin:0;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="assignment_id" value="{{ a.id }}">
+                <button type="submit" class="btn btn-sm btn-outline-warning">Send reminder</button>
+              </form>
+            {% endif %}
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="7">No assignments for this event yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

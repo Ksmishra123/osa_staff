@@ -163,6 +163,10 @@ class Assignment(Base):
     ack_ip        = Column(String(45), nullable=True) # IP that acknowledged (optional)
     callsheet_seen_at = Column(DateTime, nullable=True)  # when user opened call sheet (optional)
 
+    # Email tracking
+    notified_at = Column(DateTime, nullable=True)   # when the assignment email was sent
+    reminded_at = Column(DateTime, nullable=True)   # when the last ack reminder was sent
+
     # Transportation fields (optional)
     transport_mode = Column(String)       # e.g., "flight", "drive"
     transport_booking = Column(Text)      # PNR / booking ref

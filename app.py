@@ -135,6 +135,26 @@ def ensure_assignment_itinerary_columns():
 
 ensure_assignment_itinerary_columns()
 
+def ensure_assignment_notification_columns():
+    """Compatibility migration for assignment email tracking.
+
+    TIMESTAMP is valid as an ADD COLUMN type on SQLite, MySQL and Postgres.
+    """
+    try:
+        from sqlalchemy import inspect as sa_inspect
+        inspector = sa_inspect(engine)
+        if "assignments" not in inspector.get_table_names():
+            return
+        existing = {col["name"] for col in inspector.get_columns("assignments")}
+        with engine.begin() as conn:
+            for col in ("notified_at", "reminded_at"):
+                if col not in existing:
+                    conn.exec_driver_sql(f"ALTER TABLE assignments ADD COLUMN {col} TIMESTAMP")
+    except Exception:
+        app.logger.exception("Could not auto-migrate assignment notification columns.")
+
+ensure_assignment_notification_columns()
+
 def ensure_person_approval_column():
     """Add people.is_approved for the admin-approval gate.
 
@@ -1924,6 +1944,81 @@ def admin_event_quick_assign(eid):
     return redirect(url_for('admin_events'))
 
 
+@app.route('/admin/events/<int:eid>/acks')
+@login_required
+def admin_event_acks(eid):
+    """Per-event tracking of assignment emails and acknowledgments."""
+    if not is_admin():
+        abort(403)
+    db = SessionLocal()
+    ev = db.get(Event, eid)
+    if not ev:
+        abort(404)
+    assignments = (
+        db.query(Assignment)
+        .filter(Assignment.event_id == eid)
+        .options(joinedload(Assignment.person), joinedload(Assignment.position))
+        .all()
+    )
+    assignments.sort(key=lambda a: (a.position.display_order if a.position else 0, a.id))
+    unacked = [a for a in assignments if not a.ack and a.person and a.person.email]
+    return render_template(
+        'admin_event_acks.html',
+        ev=ev, assignments=assignments, unacked_count=len(unacked),
+    )
+
+
+@app.route('/admin/events/<int:eid>/acks/remind', methods=['POST'])
+@login_required
+def admin_event_send_ack_reminders(eid):
+    """Email an acknowledgment reminder to unacknowledged assignees — all of
+    them, or a single assignment when assignment_id is posted."""
+    if not is_admin():
+        abort(403)
+    db = SessionLocal()
+    ev = db.get(Event, eid)
+    if not ev:
+        abort(404)
+    q = (
+        db.query(Assignment)
+        .filter(Assignment.event_id == eid, Assignment.ack.isnot(True))
+        .options(joinedload(Assignment.person), joinedload(Assignment.position))
+    )
+    target = request.form.get('assignment_id')
+    if target:
+        try:
+            q = q.filter(Assignment.id == int(target))
+        except ValueError:
+            abort(400)
+    sent = 0
+    skipped = 0
+    now = datetime.utcnow()
+    for a in q.all():
+        person = a.person
+        pos_name = a.position.name if a.position else "your position"
+        if not person or not person.email:
+            skipped += 1
+            continue
+        html = render_template(
+            'emails/ack_reminder.html',
+            person=person, ev=ev, position=pos_name, first_notice=a.notified_at,
+        )
+        subject = f"Reminder: please acknowledge your assignment – {ev.city or 'Event'}"
+        if send_email_async(person.email, subject, html):
+            a.reminded_at = now
+            if a.notified_at is None:
+                a.notified_at = now
+            sent += 1
+    db.commit()
+    msg = f"Reminder sent to {sent} staff member(s)."
+    if skipped:
+        msg += f" {skipped} skipped (no email address)."
+    if not sent and not skipped:
+        msg = "Nothing to remind — everyone has acknowledged."
+    flash(msg)
+    return redirect(url_for('admin_event_acks', eid=eid))
+
+
 @app.route('/admin/availability')
 @login_required
 def admin_availability():
@@ -2573,6 +2668,7 @@ def admin_assign(eid):
         # Send emails to only changed staff
         notified = 0
         if send_emails and changed_people:
+            now = datetime.utcnow()
             for pid, pos_name in changed_people:
                 person = db.get(Person, pid)
                 if person and person.email:
@@ -2581,8 +2677,16 @@ def admin_assign(eid):
                         person=person, ev=ev, position=pos_name
                     )
                     subject = f"Assignment Update: {ev.city or 'Event'} – {pos_name}"
-                    send_email_async(person.email, subject, html)
+                    if send_email_async(person.email, subject, html):
+                        # Record that the assignment notice went out.
+                        for a in (
+                            db.query(Assignment)
+                              .filter(Assignment.event_id == eid, Assignment.person_id == pid)
+                              .all()
+                        ):
+                            a.notified_at = now
                     notified += 1
+            db.commit()
 
         if send_emails:
             flash(f"Assignments saved. {notified} staff notified.")

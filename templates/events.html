@@ -151,6 +151,7 @@
 
             <!-- Communication -->
             <a href="{{ url_for('admin_event_email', eid=e.id) }}" class="action-btn">✉️ Email</a>
+            <a href="{{ url_for('admin_event_acks', eid=e.id) }}" class="action-btn">✅ Acks</a>
             <a href="{{ url_for('admin_event_attachments', eid=e.id) }}" class="action-btn">📎 Files</a>
 
             <div class="action-divider"></div>
