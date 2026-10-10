@@ -6,6 +6,28 @@
 </div>
 <p style="color:#aaa; margin-top:4px;">{{ person.email }}</p>
 
+<div style="border:1px solid #be9420; border-radius:8px; padding:16px; margin:16px 0;">
+  <h3 style="margin:0 0 8px;">Current Assignments</h3>
+  {% if current_assignments %}
+    <table class="table table-sm" style="margin:0;">
+      <thead>
+        <tr><th>City</th><th>Dates</th><th>Position</th></tr>
+      </thead>
+      <tbody>
+        {% for a in current_assignments %}
+          <tr>
+            <td>{{ a.event.city }}</td>
+            <td>{{ a.window_start }}{% if a.window_end != a.window_start %} → {{ a.window_end }}{% endif %}</td>
+            <td>{{ a.position }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p style="margin:0; color:#aaa;">No upcoming assignments — this person is unassigned.</p>
+  {% endif %}
+</div>
+
 {% if not cities %}
   <p>No availability records for this staff member.</p>
 {% endif %}
@@ -33,7 +55,21 @@
           <span style="color:#aaa; font-size:0.9em;">
             ({{ e.open_count }} open position{{ '' if e.open_count == 1 else 's' }})
           </span>
+          {% if e.already_assigned %}
+            <span style="background:#be9420; color:#000; border-radius:4px; padding:2px 8px; font-size:0.8em; font-weight:600;">Already assigned</span>
+          {% endif %}
 
+          {% if e.filled %}
+            <div style="margin-top:8px; color:#aaa; font-size:0.9em;">
+              Assigned so far:
+              {% for f in e.filled %}
+                <span style="white-space:nowrap;">
+                  {{ f.name }}: <strong style="color:{{ '#f5d080' if f.is_this_person else '#ddd' }};">{{ f.person_name }}</strong>{% if f.is_this_person %} (this person){% endif %}</span>{{ ' · ' if not loop.last }}
+              {% endfor %}
+            </div>
+          {% endif %}
+
+          {% if e.positions %}
           <table class="table table-sm" style="margin-top:8px;">
             <thead>
               <tr><th>Open Position</th><th style="width:180px;">Action</th></tr>
@@ -55,6 +91,9 @@
               {% endfor %}
             </tbody>
           </table>
+          {% else %}
+            <p style="margin-top:8px; color:#aaa;">All positions are filled for this event.</p>
+          {% endif %}
         </div>
       {% endfor %}
     {% endif %}

@@ -1786,6 +1786,27 @@ def admin_person_availability(pid):
         .all()
     )
 
+    # Events this person is already assigned to (upcoming only), surfaced at
+    # the top of the page so the admin can spot double-booking.
+    current_assignments = []
+    for a in (
+        db.query(Assignment)
+        .join(Event, Assignment.event_id == Event.id)
+        .options(joinedload(Assignment.event), joinedload(Assignment.position))
+        .filter(Assignment.person_id == pid)
+        .order_by(Event.date.asc(), Assignment.id.asc())
+        .all()
+    ):
+        ev_start, ev_end = _event_window_for_matching(db, a.event)
+        if ev_end < today:
+            continue
+        current_assignments.append({
+            "event": a.event,
+            "position": a.position.name if a.position else f"Position #{a.position_id}",
+            "window_start": ev_start,
+            "window_end": ev_end,
+        })
+
     # For each availability record, find the matching upcoming events. A blank
     # city_name means "available anywhere", so it matches every city.
     cities = []
@@ -1807,21 +1828,31 @@ def admin_person_availability(pid):
                 a.position_id: a
                 for a in db.query(Assignment)
                           .filter(Assignment.event_id == ev.id)
+                          .options(joinedload(Assignment.person))
                           .all()
             }
-            # Only surface OPEN positions here — once a position is filled
-            # (by this person or anyone else) it drops off the list so the
-            # admin sees only slots still needing assignment.
+            # Split positions into open slots (assignable) and filled slots,
+            # shown with the assignee so the admin can see the full roster
+            # instead of accidentally targeting a closed position.
             pos_view = []
+            filled_view = []
             for pos in positions:
-                if pos.id in existing:
-                    continue
-                pos_view.append({
-                    "id": pos.id,
-                    "name": pos.name,
-                })
-            # Skip events that have no open positions left at all.
-            if not pos_view:
+                a = existing.get(pos.id)
+                if a is not None:
+                    filled_view.append({
+                        "name": pos.name,
+                        "person_name": a.person.name if a.person else f"Person #{a.person_id}",
+                        "is_this_person": a.person_id == pid,
+                    })
+                else:
+                    pos_view.append({
+                        "id": pos.id,
+                        "name": pos.name,
+                    })
+            already_assigned = any(f["is_this_person"] for f in filled_view)
+            # Skip fully-staffed events, unless this person is on the roster
+            # (worth surfacing so the admin sees the existing assignment).
+            if not pos_view and not already_assigned:
                 continue
             matched_events.append({
                 "event": ev,
@@ -1829,6 +1860,8 @@ def admin_person_availability(pid):
                 "window_end": ev_end,
                 "positions": pos_view,
                 "open_count": len(pos_view),
+                "filled": filled_view,
+                "already_assigned": already_assigned,
             })
 
         cities.append({
@@ -1844,6 +1877,7 @@ def admin_person_availability(pid):
         'admin_person_availability.html',
         person=person,
         cities=cities,
+        current_assignments=current_assignments,
     )
 
 
