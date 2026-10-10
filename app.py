@@ -1685,6 +1685,103 @@ def admin_venues_export():
     return resp
 
 
+@app.route('/admin/events/<int:eid>/available-people')
+@login_required
+def admin_event_available_people(eid):
+    """HTML fragment for the events-page popup: people whose availability
+    matches this event's city and dates, with a dropdown of open positions."""
+    if not is_admin():
+        abort(403)
+    db = SessionLocal()
+    ev = db.get(Event, eid)
+    if not ev:
+        abort(404)
+    ev_start, ev_end = _event_window_for_matching(db, ev)
+    ev_city = (ev.city or "").strip().lower()
+
+    assignments = (
+        db.query(Assignment)
+        .filter(Assignment.event_id == eid)
+        .options(joinedload(Assignment.person), joinedload(Assignment.position))
+        .all()
+    )
+    assigned_pos_ids = {a.position_id for a in assignments}
+    assigned_person_ids = {a.person_id for a in assignments}
+
+    positions = db.query(Position).order_by(Position.display_order.asc()).all()
+    open_positions = [p for p in positions if p.id not in assigned_pos_ids]
+
+    # People with an availability window overlapping this event whose city
+    # matches (blank availability city = anywhere), not already on the roster.
+    avail_rows = (
+        db.query(Availability)
+        .join(Person, Availability.person_id == Person.id)
+        .options(joinedload(Availability.person))
+        .filter(Availability.start_date <= ev_end, Availability.end_date >= ev_start)
+        .order_by(Person.name.asc())
+        .all()
+    )
+    seen = set()
+    available_people = []
+    for r in avail_rows:
+        if (r.status or 'available').strip().lower() != 'available':
+            continue
+        r_city = (r.city_name or "").strip().lower()
+        if r_city and r_city != ev_city:
+            continue
+        if r.person_id in seen or r.person_id in assigned_person_ids:
+            continue
+        seen.add(r.person_id)
+        available_people.append(r.person)
+
+    return render_template(
+        '_event_available_people.html',
+        ev=ev, ev_start=ev_start, ev_end=ev_end,
+        assignments=assignments,
+        open_positions=open_positions,
+        available_people=available_people,
+    )
+
+
+@app.route('/admin/events/<int:eid>/quick-assign', methods=['POST'])
+@login_required
+def admin_event_quick_assign(eid):
+    """Assign a person to an open position from the events-page popup."""
+    if not is_admin():
+        abort(403)
+    db = SessionLocal()
+    ev = db.get(Event, eid)
+    if not ev:
+        abort(404)
+    try:
+        person_id = int(request.form.get('person_id') or 0)
+        position_id = int(request.form.get('position_id') or 0)
+    except ValueError:
+        person_id = position_id = 0
+    person = db.get(Person, person_id) if person_id else None
+    position = db.get(Position, position_id) if position_id else None
+    if not person or not position:
+        flash("Pick a position before assigning.")
+        return redirect(url_for('admin_events'))
+
+    occupied = (
+        db.query(Assignment)
+          .filter(Assignment.event_id == eid, Assignment.position_id == position_id)
+          .first()
+    )
+    if occupied:
+        other = db.get(Person, occupied.person_id)
+        other_name = other.name if other else f"Person #{occupied.person_id}"
+        flash(f"{position.name} in {ev.city} is already filled by {other_name}. Not assigned.")
+        return redirect(url_for('admin_events'))
+
+    db.add(Assignment(event_id=eid, position_id=position_id, person_id=person_id))
+    db.commit()
+    _sync_event_assignments_to_sheet(db, eid, ev)
+    flash(f"Assigned {person.name} to {position.name} for {ev.city}.")
+    return redirect(url_for('admin_events'))
+
+
 @app.route('/admin/availability')
 @login_required
 def admin_availability():
@@ -1698,6 +1795,32 @@ def admin_availability():
         .order_by(Person.name.asc(), Availability.start_date.asc(), Availability.id.asc())
         .all()
     )
+    # All assignments with their events, so availability rows that overlap an
+    # existing assignment can display "assigned" instead of "available".
+    assign_rows = (
+        db.query(Assignment)
+        .join(Event, Assignment.event_id == Event.id)
+        .options(joinedload(Assignment.event))
+        .all()
+    )
+    window_cache = {}
+    assigned_events_by_person = {}
+    for a in assign_rows:
+        if a.event_id not in window_cache:
+            window_cache[a.event_id] = _event_window_for_matching(db, a.event)
+        assigned_events_by_person.setdefault(a.person_id, []).append(a.event)
+
+    def _display_status(r):
+        r_city = (r.city_name or '').strip().lower()
+        for ev in assigned_events_by_person.get(r.person_id, []):
+            ev_start, ev_end = window_cache[ev.id]
+            if ev_start > r.end_date or ev_end < r.start_date:
+                continue
+            if r_city and (ev.city or '').strip().lower() != r_city:
+                continue
+            return 'assigned'
+        return r.status or 'available'
+
     # Group records by person so the page lists each staff member once.
     people = []
     by_person = {}
@@ -1707,7 +1830,7 @@ def admin_availability():
             entry = {'person': r.person, 'records': []}
             by_person[r.person_id] = entry
             people.append(entry)
-        entry['records'].append(r)
+        entry['records'].append({'r': r, 'display_status': _display_status(r)})
     return render_template('admin_availability.html', people=people)
 
 

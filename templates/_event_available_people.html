@@ -1,0 +1,51 @@
+<div style="color:#aaa; font-size:0.9em; margin-bottom:10px;">
+  {{ ev_start }}{% if ev_end != ev_start %} → {{ ev_end }}{% endif %}
+</div>
+
+{% if assignments %}
+  <div style="color:#aaa; font-size:0.9em; margin-bottom:12px;">
+    Assigned so far:
+    {% for a in assignments %}
+      <span style="white-space:nowrap;">{{ a.position.name if a.position else '?' }}: <strong style="color:#ddd;">{{ a.person.name if a.person else '?' }}</strong></span>{{ ' · ' if not loop.last }}
+    {% endfor %}
+  </div>
+{% endif %}
+
+{% if not open_positions %}
+  <p style="color:#aaa; margin:0;">All positions are filled for this event.</p>
+{% elif not available_people %}
+  <p style="color:#aaa; margin:0;">No one has marked themselves available for this city and these dates.</p>
+{% else %}
+  <table class="table table-sm" style="margin:0;">
+    <thead>
+      <tr><th>Available Staff</th><th style="width:220px;">Position</th><th style="width:110px;"></th></tr>
+    </thead>
+    <tbody>
+      {% for p in available_people %}
+        <tr>
+          <td>
+            {{ p.name }}
+            <div style="color:#888; font-size:0.85em;">
+              {% if p.willing_to_drive %}Drives{% if p.car_or_rental %} ({{ p.car_or_rental }}){% endif %}{% endif %}
+              {% if p.willing_to_drive and p.preferred_airport %} · {% endif %}
+              {% if p.preferred_airport %}Flies from {{ p.preferred_airport }}{% endif %}
+            </div>
+          </td>
+          <td colspan="2">
+            <form method="POST" action="{{ url_for('admin_event_quick_assign', eid=ev.id) }}" style="display:flex; gap:8px; margin:0; align-items:center;">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="person_id" value="{{ p.id }}">
+              <select name="position_id" class="form-control form-select form-select-sm" required style="flex:1;">
+                <option value="" selected disabled>Choose position…</option>
+                {% for pos in open_positions %}
+                  <option value="{{ pos.id }}">{{ pos.name }}</option>
+                {% endfor %}
+              </select>
+              <button type="submit" class="btn btn-sm btn-primary">Assign</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endif %}

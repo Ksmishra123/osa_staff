@@ -14,10 +14,10 @@
         </td>
         <td>{{ p.email }}</td>
         <td>
-          {% set cities = entry.records | map(attribute='city_name') | map('default', 'Any', true) | unique | list %}
+          {% set cities = entry.records | map(attribute='r.city_name') | map('default', 'Any', true) | unique | list %}
           {{ cities | join(', ') }}
         </td>
-        <td>{{ entry.records | map(attribute='updated_at') | max }}</td>
+        <td>{{ entry.records | map(attribute='r.updated_at') | max }}</td>
         <td><a href="{{ url_for('admin_person_availability', pid=p.id) }}">Assign &raquo;</a></td>
       </tr>
     {% else %}
@@ -65,12 +65,19 @@
         <table class="table">
           <thead><tr><th>City</th><th>From</th><th>To</th><th>Status</th><th>Notes</th></tr></thead>
           <tbody>
-            {% for r in entry.records %}
+            {% for item in entry.records %}
+              {% set r = item.r %}
               <tr>
                 <td>{{ r.city_name if r.city_name else 'Any' }}</td>
                 <td>{{ r.start_date }}</td>
                 <td>{{ r.end_date }}</td>
-                <td>{{ r.status }}</td>
+                <td>
+                  {% if item.display_status == 'assigned' %}
+                    <span style="background:var(--osa-gold, #be9420); color:#000; border-radius:4px; padding:2px 8px; font-size:0.85em; font-weight:600;">assigned</span>
+                  {% else %}
+                    {{ item.display_status }}
+                  {% endif %}
+                </td>
                 <td>{{ r.notes or '' }}</td>
               </tr>
             {% endfor %}

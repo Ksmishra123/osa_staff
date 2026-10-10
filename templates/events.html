@@ -128,7 +128,11 @@
           </div>
           {% endif %}
         </td>
-        <td><strong>{{ e.city }}</strong></td>
+        <td>
+          <a href="#" class="city-pop" data-eid="{{ e.id }}" data-city="{{ e.city }}" title="Show available staff for this city">
+            <strong>{{ e.city }}</strong>
+          </a>
+        </td>
         <td>
           <div class="event-actions">
             <!-- Primary Actions -->
@@ -176,4 +180,88 @@
   </table>
 </div>
 
+<!-- Available-staff popup (content fetched per event) -->
+<div class="city-modal-overlay" id="cityModal" hidden>
+  <div class="city-modal" role="dialog" aria-modal="true" aria-labelledby="cityModalTitle">
+    <div class="city-modal-header">
+      <h3 id="cityModalTitle" style="margin:0;">Available Staff</h3>
+      <button type="button" class="city-modal-close" aria-label="Close">&times;</button>
+    </div>
+    <div class="city-modal-body" id="cityModalBody">
+      <p style="color:#aaa;">Loading…</p>
+    </div>
+  </div>
+</div>
+
+<style>
+  .city-pop { text-decoration: none; }
+  .city-pop:hover strong { color: var(--osa-gold-b, #f5d080); }
+  .city-modal-overlay {
+    position: fixed; inset: 0; z-index: 1050;
+    background: rgba(0, 0, 0, .7);
+    display: flex; align-items: center; justify-content: center;
+    padding: 16px;
+  }
+  .city-modal {
+    background: var(--osa-card, #0a0a0d);
+    border: 1px solid var(--osa-border, #1f1f27);
+    border-radius: 10px;
+    max-width: 680px; width: 100%;
+    max-height: 85vh; overflow-y: auto;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, .6);
+  }
+  .city-modal-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--osa-border, #1f1f27);
+  }
+  .city-modal-close {
+    background: none; border: none;
+    color: var(--osa-text, #fff); font-size: 1.6rem; line-height: 1;
+    cursor: pointer; padding: 0 4px;
+  }
+  .city-modal-close:hover { color: var(--osa-gold-b, #f5d080); }
+  .city-modal-body { padding: 14px 18px; }
+</style>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    var overlay = document.getElementById('cityModal');
+    var body = document.getElementById('cityModalBody');
+    var title = document.getElementById('cityModalTitle');
+    var fragmentUrl = {{ url_for('admin_event_available_people', eid=0) | tojson }};
+
+    function closeModal() {
+      overlay.hidden = true;
+      document.body.style.overflow = '';
+    }
+
+    document.querySelectorAll('.city-pop').forEach(function (link) {
+      link.addEventListener('click', function (e) {
+        e.preventDefault();
+        title.textContent = 'Available Staff — ' + link.dataset.city;
+        body.innerHTML = '<p style="color:#aaa;">Loading…</p>';
+        overlay.hidden = false;
+        document.body.style.overflow = 'hidden';
+        fetch(fragmentUrl.replace('/events/0/', '/events/' + link.dataset.eid + '/'))
+          .then(function (r) {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.text();
+          })
+          .then(function (html) { body.innerHTML = html; })
+          .catch(function () {
+            body.innerHTML = '<p style="color:#f88;">Could not load available staff. Please try again.</p>';
+          });
+      });
+    });
+
+    overlay.addEventListener('click', function (e) {
+      if (e.target === overlay) closeModal();
+    });
+    overlay.querySelector('.city-modal-close').addEventListener('click', closeModal);
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') closeModal();
+    });
+  });
+</script>
 {% endblock %}
