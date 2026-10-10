@@ -20,6 +20,27 @@
     <textarea id="body" name="body" rows="10" placeholder="Write your message here..."></textarea>
   </div>
 
+  <div class="field" style="margin-top:12px;">
+    <label>Send to groups</label>
+    <div id="group-boxes" style="display:flex; gap:14px; flex-wrap:wrap; margin-top:4px;">
+      {% set group_counts = {} %}
+      {% for p in people %}
+        {% set gkey = p.staff_group if p.staff_group in staff_group_labels else 'unassigned' %}
+        {% if group_counts.update({gkey: group_counts.get(gkey, 0) + 1}) %}{% endif %}
+      {% endfor %}
+      {% for gkey, glabel in staff_groups %}
+        <label style="display:inline-flex; align-items:center; gap:6px; font-weight:normal;">
+          <input type="checkbox" name="groups" value="{{ gkey }}" checked data-group-box="{{ gkey }}">
+          {{ glabel }} ({{ group_counts.get(gkey, 0) }})
+        </label>
+      {% endfor %}
+      <label style="display:inline-flex; align-items:center; gap:6px; font-weight:normal;">
+        <input type="checkbox" name="groups" value="unassigned" checked data-group-box="unassigned">
+        No group set ({{ group_counts.get('unassigned', 0) }})
+      </label>
+    </div>
+  </div>
+
   <div style="margin-top:12px;">
     <button class="btn btn-primary" type="submit">Send from App</button>
     <button class="btn btn-outline-secondary" type="button" id="send-test">Send Test to Myself</button>
@@ -29,18 +50,22 @@
 
 <hr>
 
-<h4>Recipients ({{ people|length }})</h4>
+<h4>Recipients (<span id="recipient-count">{{ people|length }}</span>)</h4>
 {% if people and people|length %}
   {% set all_emails = people | map(attribute='email') | select('string') | join(',') %}
   <div style="margin-bottom:10px;">
     <a href="mailto:?bcc={{ all_emails | urlencode }}"
-       class="btn btn-outline-primary btn-sm">
-       ✉️ Open in My Email App (BCC all staff)
+       class="btn btn-outline-primary btn-sm" id="bcc-link">
+       ✉️ Open in My Email App (BCC selected groups)
     </a>
   </div>
-  <ul>
+  <ul id="recipient-list">
     {% for p in people %}
-      <li>{{ p.name }} — {{ p.email }}</li>
+      <li data-group="{{ p.staff_group if p.staff_group in staff_group_labels else 'unassigned' }}"
+          data-email="{{ p.email or '' }}">
+        {{ p.name }} — {{ p.email or 'no email' }}
+        <span style="color:#9ca3af;">({{ staff_group_labels.get(p.staff_group) or 'no group' }})</span>
+      </li>
     {% endfor %}
   </ul>
 {% else %}
@@ -94,6 +119,32 @@
       $('#send_mode').val('test');
       $(this).closest('form').submit();
     });
+
+    // Live-update the recipient list and BCC link as groups are toggled
+    function refreshRecipients() {
+      var checked = {};
+      document.querySelectorAll('[data-group-box]').forEach(function (box) {
+        checked[box.dataset.groupBox] = box.checked;
+      });
+      var count = 0;
+      var emails = [];
+      document.querySelectorAll('#recipient-list li').forEach(function (li) {
+        var show = !!checked[li.dataset.group];
+        li.style.display = show ? '' : 'none';
+        if (show) {
+          count++;
+          if (li.dataset.email) emails.push(li.dataset.email);
+        }
+      });
+      var countEl = document.getElementById('recipient-count');
+      if (countEl) countEl.textContent = count;
+      var bcc = document.getElementById('bcc-link');
+      if (bcc) bcc.href = 'mailto:?bcc=' + encodeURIComponent(emails.join(','));
+    }
+    document.querySelectorAll('[data-group-box]').forEach(function (box) {
+      box.addEventListener('change', refreshRecipients);
+    });
+    refreshRecipients();
   });
 </script>
 

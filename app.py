@@ -180,6 +180,22 @@ def ensure_person_approval_column():
 
 ensure_person_approval_column()
 
+def ensure_person_group_column():
+    """Compatibility migration for the staff_group communication field."""
+    try:
+        from sqlalchemy import inspect as sa_inspect
+        inspector = sa_inspect(engine)
+        if "people" not in inspector.get_table_names():
+            return
+        existing = {col["name"] for col in inspector.get_columns("people")}
+        if "staff_group" not in existing:
+            with engine.begin() as conn:
+                conn.exec_driver_sql("ALTER TABLE people ADD COLUMN staff_group VARCHAR(20)")
+    except Exception:
+        app.logger.exception("Could not auto-migrate people.staff_group column.")
+
+ensure_person_group_column()
+
 def ensure_availability_columns():
     """Compatibility migration for availability city-name support."""
     try:
@@ -2931,6 +2947,38 @@ def apply_role_filter(query, role):
     return query
 
 
+# Organizational groups used to target communication (emails now, texts later).
+# Kept separate from `role`, which controls app permissions.
+STAFF_GROUPS = [
+    ('osa_staff',  'OSA Staff'),
+    ('osa_judge',  'OSA Judges'),
+    ('ida',        'IDA Contractors'),
+    ('production', 'Production (Gary Antle)'),
+]
+STAFF_GROUP_LABELS = dict(STAFF_GROUPS)
+
+
+@app.context_processor
+def inject_staff_groups():
+    return {'staff_groups': STAFF_GROUPS, 'staff_group_labels': STAFF_GROUP_LABELS}
+
+
+def apply_group_filter(query, group):
+    """Narrow a Person query by the `group` query-string value.
+    'unassigned' finds people not yet placed in a group; unknown values are ignored."""
+    if group in STAFF_GROUP_LABELS:
+        return query.filter(Person.staff_group == group)
+    if group == 'unassigned':
+        return query.filter((Person.staff_group.is_(None)) | (Person.staff_group == ''))
+    return query
+
+
+def person_group_key(p):
+    """Canonical group for a person ('unassigned' when unset/unknown)."""
+    g = (p.staff_group or '').strip().lower()
+    return g if g in STAFF_GROUP_LABELS else 'unassigned'
+
+
 @app.route('/admin/people')
 @login_required
 def admin_people():
@@ -2940,6 +2988,7 @@ def admin_people():
     q = (request.args.get('q') or '').strip()
     pending_only = (request.args.get('pending') == '1')
     role = (request.args.get('role') or '').strip()
+    group = (request.args.get('group') or '').strip()
     query = db.query(Person)
     if q:
         like = f"%{q}%"
@@ -2952,9 +3001,10 @@ def admin_people():
     if pending_only:
         query = query.filter(Person.is_approved.is_(False))
     query = apply_role_filter(query, role)
+    query = apply_group_filter(query, group)
     people = query.order_by(Person.name.asc()).all()
     pending_count = db.query(Person).filter(Person.is_approved.is_(False)).count()
-    return render_template('people.html', people=people, q=q, role=role,
+    return render_template('people.html', people=people, q=q, role=role, group=group,
                            pending_count=pending_count, pending_only=pending_only)
 
 
@@ -2978,13 +3028,14 @@ def admin_people_email():
     db = SessionLocal()
     q = (request.form.get('q') or '').strip()
     role = (request.form.get('role') or '').strip()
+    group = (request.form.get('group') or '').strip()
 
     people = _selected_people(db, request.form)
     if not people:
         flash("No people selected — tick the checkbox next to each recipient first.")
-        return redirect(url_for('admin_people', q=q, role=role))
+        return redirect(url_for('admin_people', q=q, role=role, group=group))
 
-    return render_template('people_email.html', people=people, q=q, role=role)
+    return render_template('people_email.html', people=people, q=q, role=role, group=group)
 
 
 @app.route('/admin/people/email/send', methods=['POST'])
@@ -2996,6 +3047,7 @@ def admin_people_email_send():
     db = SessionLocal()
     q = (request.form.get('q') or '').strip()
     role = (request.form.get('role') or '').strip()
+    group = (request.form.get('group') or '').strip()
 
     subject = (request.form.get('subject') or '').strip()
     body = (request.form.get('body') or '').strip()
@@ -3004,11 +3056,11 @@ def admin_people_email_send():
     people = _selected_people(db, request.form)
     if not people:
         flash("No people selected.")
-        return redirect(url_for('admin_people', q=q, role=role))
+        return redirect(url_for('admin_people', q=q, role=role, group=group))
 
     if not subject or not body:
         flash("Subject and message are required.")
-        return render_template('people_email.html', people=people, q=q, role=role,
+        return render_template('people_email.html', people=people, q=q, role=role, group=group,
                                subject=subject, body=body)
 
     if send_mode == 'test':
@@ -3020,7 +3072,7 @@ def admin_people_email_send():
                                     person=admin_person or people[0], body=body)
         send_email_async(test_email, subject, html_body)
         flash(f"✅ Test email sent to {test_email}.")
-        return render_template('people_email.html', people=people, q=q, role=role,
+        return render_template('people_email.html', people=people, q=q, role=role, group=group,
                                subject=subject, body=body)
 
     sent, skipped = 0, []
@@ -3035,7 +3087,7 @@ def admin_people_email_send():
     flash(f"✅ Email sent to {sent} recipient{'s' if sent != 1 else ''}.")
     if skipped:
         flash(f"⚠ Skipped {len(skipped)} with no email address: {', '.join(skipped)}")
-    return redirect(url_for('admin_people', q=q, role=role))
+    return redirect(url_for('admin_people', q=q, role=role, group=group))
 
 
 @app.route('/admin/people/<int:pid>/approve', methods=['POST'])
@@ -3052,8 +3104,29 @@ def admin_approve_person(pid):
     flash(f"Approved {p.name}. They can now log in.")
     q = (request.form.get('q') or '').strip()
     role = (request.form.get('role') or '').strip()
+    group = (request.form.get('group') or '').strip()
     pending = request.form.get('pending')
-    return redirect(url_for('admin_people', q=q, role=role, pending=pending))
+    return redirect(url_for('admin_people', q=q, role=role, group=group, pending=pending))
+
+
+@app.route('/admin/people/<int:pid>/set-group', methods=['POST'])
+@login_required
+def admin_set_person_group(pid):
+    """Inline group change from the people page."""
+    if not is_admin():
+        abort(403)
+    db = SessionLocal()
+    p = db.get(Person, pid)
+    if not p:
+        abort(404)
+    new_group = (request.form.get('staff_group') or '').strip().lower()
+    p.staff_group = new_group if new_group in STAFF_GROUP_LABELS else None
+    db.commit()
+    flash(f"{p.name} → {STAFF_GROUP_LABELS.get(new_group, 'no group')}.")
+    q = (request.form.get('q') or '').strip()
+    role = (request.form.get('role') or '').strip()
+    group = (request.form.get('group') or '').strip()
+    return redirect(url_for('admin_people', q=q, role=role, group=group))
 
 
 @app.route('/admin/people/<int:pid>/rate', methods=['POST'])
@@ -3068,6 +3141,7 @@ def admin_quick_rate_person(pid):
 
     q = (request.form.get('q') or '').strip()
     role = (request.form.get('role') or '').strip()
+    group = (request.form.get('group') or '').strip()
     rating_raw = (request.form.get('rating') or '').strip()
     reason_val = (request.form.get('rating_reason') or '').strip()
 
@@ -3079,19 +3153,19 @@ def admin_quick_rate_person(pid):
             rating_val = int(rating_raw)
             if not (1 <= rating_val <= 5):
                 flash("Rating must be between 1 and 5.")
-                return redirect(url_for('admin_people', q=q, role=role))
+                return redirect(url_for('admin_people', q=q, role=role, group=group))
             if rating_val <= 3 and not reason_val:
                 flash(f"Please provide a reason for the low rating for {p.name}.")
-                return redirect(url_for('admin_people', q=q, role=role))
+                return redirect(url_for('admin_people', q=q, role=role, group=group))
             p.rating = rating_val
             p.rating_reason = reason_val if rating_val <= 3 else None
         except ValueError:
             flash("Invalid rating value.")
-            return redirect(url_for('admin_people', q=q, role=role))
+            return redirect(url_for('admin_people', q=q, role=role, group=group))
 
     db.commit()
     flash(f"Rating updated for {p.name}.")
-    return redirect(url_for('admin_people', q=q, role=role))
+    return redirect(url_for('admin_people', q=q, role=role, group=group))
 
 
 @app.route('/admin/people/new', methods=['GET', 'POST'])
@@ -3122,10 +3196,14 @@ def admin_new_person():
         role = (request.form.get('role') or 'user').strip().lower()
         if role not in ('user', 'viewer', 'admin'):
             role = 'user'
+        staff_group = (request.form.get('staff_group') or '').strip().lower()
+        if staff_group not in STAFF_GROUP_LABELS:
+            staff_group = None
 
         pwd_hash = bcrypt.hashpw(b'changeme', bcrypt.gensalt()).decode()
         person = Person(name=name, email=email, phone=phone, address=address,
-                        password_hash=pwd_hash, role=role, is_approved=True)
+                        password_hash=pwd_hash, role=role, is_approved=True,
+                        staff_group=staff_group)
         db.add(person)
         db.commit()
 
@@ -3354,6 +3432,8 @@ def admin_edit_person(pid):
             flash("You can’t change your own role away from admin while logged in.")
         else:
             p.role = new_role
+        new_group = (request.form.get('staff_group') or '').strip().lower()
+        p.staff_group = new_group if new_group in STAFF_GROUP_LABELS else None
         db.commit()
         flash("Person updated.")
         return redirect(url_for('admin_edit_person', pid=p.id))
@@ -3440,7 +3520,9 @@ def admin_delete_person_v2(pid):
     flash(msg)
     # preserve search query if present
     q = request.args.get('q') or ''
-    return redirect(url_for('admin_people', q=q))
+    role = request.args.get('role') or ''
+    group = request.args.get('group') or ''
+    return redirect(url_for('admin_people', q=q, role=role, group=group))
 
 
 @app.route('/admin/people/bulk-delete', methods=['POST'], endpoint='admin_bulk_delete_people_v2')
@@ -3466,7 +3548,8 @@ def admin_bulk_delete_people_v2():
     flash(f"Bulk delete complete: {successes} deleted, {errors} errors.")
     q = request.args.get('q') or ''
     role = request.args.get('role') or ''
-    return redirect(url_for('admin_people', q=q, role=role))
+    group = request.args.get('group') or ''
+    return redirect(url_for('admin_people', q=q, role=role, group=group))
 
 # -----------------------------------------------------------------------------
 # Admin: Lodging
@@ -4042,6 +4125,7 @@ def admin_event_email(eid):
         .distinct()
         .all()
     )
+    group_keys = [g for g, _ in STAFF_GROUPS] + ['unassigned']
 
     if request.method == 'POST':
         subject = (request.form.get('subject') or '').strip()
@@ -4052,6 +4136,12 @@ def admin_event_email(eid):
             flash("Subject and message are required.")
             return redirect(url_for('admin_event_email', eid=eid))
 
+        # Only email the groups the admin ticked (default: everyone).
+        selected_groups = [g for g in request.form.getlist('groups') if g in group_keys]
+        if not selected_groups:
+            selected_groups = group_keys
+        targeted = [p for p in people if person_group_key(p) in selected_groups]
+
         # Determine recipient list
         if send_mode == 'test':
             # Try to find admin's person email; fallback to FROM_EMAIL
@@ -4060,14 +4150,18 @@ def admin_event_email(eid):
             recipient_list = [test_email]
             flash_target = f"✅ Test email sent to {test_email}."
         else:
-            recipient_list = [p.email for p in people if p.email]
-            flash_target = f"✅ Email sent to {len(recipient_list)} staff."
+            recipient_list = [p.email for p in targeted if p.email]
+            group_names = (
+                "all groups" if set(selected_groups) == set(group_keys)
+                else ", ".join(STAFF_GROUP_LABELS.get(g, 'Unassigned') for g in selected_groups)
+            )
+            flash_target = f"✅ Email sent to {len(recipient_list)} staff ({group_names})."
 
         # Send emails via SendGrid async
         for email in recipient_list:
             person = (
                 current_user if send_mode == 'test'
-                else next((p for p in people if p.email == email), None)
+                else next((p for p in targeted if p.email == email), None)
             )
             html_body = render_template(
                 'emails/generic_staff_notice.html',

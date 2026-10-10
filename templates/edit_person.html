@@ -75,6 +75,15 @@
         <option value="admin"  {% if person.role=='admin' %}selected{% endif %}>Admin</option>
       </select>
     </div>
+    <div class="field">
+    <label>Group</label>
+      <select name="staff_group">
+        <option value="" {% if not person.staff_group %}selected{% endif %}>— No group —</option>
+        {% for gkey, glabel in staff_groups %}
+          <option value="{{ gkey }}" {% if person.staff_group == gkey %}selected{% endif %}>{{ glabel }}</option>
+        {% endfor %}
+      </select>
+    </div>
     <div>
       <label>Headshot (png/jpg/jpeg/gif)<br>
         <input type="file" name="headshot" accept=".png,.jpg,.jpeg,.gif">

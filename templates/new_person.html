@@ -15,6 +15,15 @@
       <option value="admin">Admin</option>
     </select>
   </div>
+  <div class="field">
+    <label>Group</label>
+    <select name="staff_group">
+      <option value="" selected>— No group —</option>
+      {% for gkey, glabel in staff_groups %}
+        <option value="{{ gkey }}">{{ glabel }}</option>
+      {% endfor %}
+    </select>
+  </div>
 
   <button type="submit">Create</button>
   <a href="{{ url_for('admin_people') }}" style="margin-left:8px;">Cancel</a>

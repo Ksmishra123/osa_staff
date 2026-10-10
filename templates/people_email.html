@@ -11,6 +11,7 @@
   <input type="hidden" id="send_mode" name="send_mode" value="all">
   <input type="hidden" name="q" value="{{ q or '' }}">
   <input type="hidden" name="role" value="{{ role or '' }}">
+  <input type="hidden" name="group" value="{{ group or '' }}">
   {# Carry the selection forward so the send step hits exactly who was checked #}
   {% for p in people %}
     <input type="hidden" name="ids" value="{{ p.id }}">
@@ -34,7 +35,7 @@
       Send to {{ with_email|length }} Recipient{{ 's' if with_email|length != 1 else '' }}
     </button>
     <button class="btn btn-outline-secondary" type="button" id="send-test">Send Test to Myself</button>
-    <a href="{{ url_for('admin_people', q=q, role=role) }}" class="btn btn-secondary">Cancel</a>
+    <a href="{{ url_for('admin_people', q=q, role=role, group=group) }}" class="btn btn-secondary">Cancel</a>
   </div>
 </form>
 
@@ -50,7 +51,7 @@
   </div>
   <ul>
     {% for p in with_email %}
-      <li>{{ p.name }} — {{ p.email }} <span class="muted">({{ p.role or 'user' }})</span></li>
+      <li>{{ p.name }} — {{ p.email }} <span class="muted">({{ staff_group_labels.get(p.staff_group) or 'no group' }})</span></li>
     {% endfor %}
   </ul>
 {% else %}

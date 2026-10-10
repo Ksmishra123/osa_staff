@@ -327,9 +327,16 @@
     <option value="admin"     {% if role == 'admin' %}selected{% endif %}>Admins only</option>
     <option value="not_admin" {% if role == 'not_admin' %}selected{% endif %}>Exclude admins</option>
   </select>
+  <select name="group" onchange="this.form.submit();">
+    <option value="" {% if not group %}selected{% endif %}>All groups</option>
+    {% for gkey, glabel in staff_groups %}
+      <option value="{{ gkey }}" {% if group == gkey %}selected{% endif %}>{{ glabel }}</option>
+    {% endfor %}
+    <option value="unassigned" {% if group == 'unassigned' %}selected{% endif %}>No group set</option>
+  </select>
   {% if pending_only %}<input type="hidden" name="pending" value="1">{% endif %}
   <button class="btn-search" type="submit">Search</button>
-  {% if q or role %}
+  {% if q or role or group %}
     <a class="btn-clear" href="{{ url_for('admin_people', pending='1' if pending_only else None) }}">Clear</a>
   {% endif %}
   <a class="btn-new" href="{{ url_for('admin_new_person') }}">+ New Person</a>
@@ -338,10 +345,11 @@
 <!-- Bulk actions form. The confirm lives on the delete buttons, NOT on the form,
      so the Email Selected button (which reuses this same selection via formaction)
      doesn't pop a delete warning. -->
-<form id="bulk-delete" method="post" action="{{ url_for('admin_bulk_delete_people_v2', q=q, role=role) }}">
+<form id="bulk-delete" method="post" action="{{ url_for('admin_bulk_delete_people_v2', q=q, role=role, group=group) }}">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <input type="hidden" name="q" value="{{ q or '' }}">
   <input type="hidden" name="role" value="{{ role or '' }}">
+  <input type="hidden" name="group" value="{{ group or '' }}">
 
   <div style="margin: 6px 0 10px 0;">
     <button class="btn-bulk-email" type="submit"
@@ -361,6 +369,7 @@
           <th>Email</th>
           <th>Phone</th>
           <th>Role</th>
+          <th>Group</th>
           <th>Airport</th>
           <th>Drive</th>
           <th style="width:240px;">Rating</th>
@@ -383,6 +392,15 @@
             <td>{{ p.email }}</td>
             <td>{% if p.phone %}{{ p.phone }}{% else %}<span class="muted">—</span>{% endif %}</td>
             <td>{{ p.role or 'user' }}</td>
+            <td>
+              <select name="staff_group" form="group-person-{{ p.id }}" class="rating-select"
+                      onchange="document.getElementById('group-person-{{ p.id }}').submit();">
+                <option value="" {% if not p.staff_group %}selected{% endif %}>— No group —</option>
+                {% for gkey, glabel in staff_groups %}
+                  <option value="{{ gkey }}" {% if p.staff_group == gkey %}selected{% endif %}>{{ glabel }}</option>
+                {% endfor %}
+              </select>
+            </td>
             <td>{% if p.preferred_airport %}{{ p.preferred_airport }}{% else %}<span class="muted">—</span>{% endif %}</td>
             <td>{{ 'Yes' if p.willing_to_drive else 'No' }}</td>
             <td>
@@ -415,7 +433,7 @@
           </tr>
           <!-- Hidden quick-rate row -->
           <tr id="rating-row-{{ p.id }}" style="display:none; background:#101015; color:#ffffffb8;">
-            <td colspan="9" style="padding:10px 16px;">
+            <td colspan="10" style="padding:10px 16px;">
               <span class="rating-form">
                 <strong style="margin-right:8px;">Rate {{ p.name }}:</strong>
                 <select name="rating" class="rating-select" form="rate-person-{{ p.id }}"
@@ -438,7 +456,7 @@
           {% endfor %}
         {% else %}
           <tr>
-            <td colspan="9" style="padding:16px; text-align:center; color:#9ca3af;">
+            <td colspan="10" style="padding:16px; text-align:center; color:#9ca3af;">
               No people found.
             </td>
           </tr>
@@ -460,10 +478,20 @@
 {% for p in people %}
 <form id="delete-person-{{ p.id }}"
       method="post"
-      action="{{ url_for('admin_delete_person_v2', pid=p.id, q=q, role=role) }}"
+      action="{{ url_for('admin_delete_person_v2', pid=p.id, q=q, role=role, group=group) }}"
       onsubmit="return confirm('Delete {{ p.name }}? This cannot be undone.');"
       style="display:none;">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+</form>
+
+<form id="group-person-{{ p.id }}"
+      method="post"
+      action="{{ url_for('admin_set_person_group', pid=p.id) }}"
+      style="display:none;">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="q" value="{{ q or '' }}">
+  <input type="hidden" name="role" value="{{ role or '' }}">
+  <input type="hidden" name="group" value="{{ group or '' }}">
 </form>
 
 {% if not p.is_approved %}
@@ -474,6 +502,7 @@
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <input type="hidden" name="q" value="{{ q or '' }}">
   <input type="hidden" name="role" value="{{ role or '' }}">
+  <input type="hidden" name="group" value="{{ group or '' }}">
   <input type="hidden" name="pending" value="{{ '1' if pending_only else '' }}">
 </form>
 {% endif %}
@@ -485,6 +514,7 @@
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <input type="hidden" name="q" value="{{ q or '' }}">
   <input type="hidden" name="role" value="{{ role or '' }}">
+  <input type="hidden" name="group" value="{{ group or '' }}">
 </form>
 {% endfor %}
 
@@ -497,7 +527,7 @@
       <img src="{{ p.headshot_path }}" alt="{{ p.name }}" class="modal-headshot">
     {% endif %}
     <h2>{{ p.name }}</h2>
-    <div class="subtitle">{{ p.role or 'user' }}</div>
+    <div class="subtitle">{{ p.role or 'user' }}{% if p.staff_group %} · {{ staff_group_labels.get(p.staff_group, p.staff_group) }}{% endif %}</div>
 
     <dl>
       <dt>Email</dt><dd><a href="mailto:{{ p.email }}">{{ p.email }}</a></dd>
