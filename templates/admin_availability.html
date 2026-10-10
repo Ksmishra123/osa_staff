@@ -1,27 +1,160 @@
 {% extends 'base.html' %}
 {% block content %}
 <h2>Staff Availability (Read-only)</h2>
+<p class="text-muted" style="color:var(--osa-text-dim);">Click a staff member's name to see their available cities and travel details.</p>
+
 <table class="table table-striped">
-  <thead><tr><th>Staff</th><th>Email</th><th>City</th><th>Status</th><th>Notes</th><th>Updated</th></tr></thead>
+  <thead><tr><th>Staff</th><th>Email</th><th>Cities</th><th>Last Updated</th><th></th></tr></thead>
   <tbody>
-    {% for r in rows %}
+    {% for entry in people %}
+      {% set p = entry.person %}
       <tr>
         <td>
-          {% if r.person %}
-            <a href="{{ url_for('admin_person_availability', pid=r.person.id) }}">{{ r.person.name }}</a>
-          {% else %}
-            {{ r.person_id }}
-          {% endif %}
+          <a href="#" class="avail-name" data-target="avail-modal-{{ p.id }}">{{ p.name }}</a>
         </td>
-        <td>{{ r.person.email if r.person else '' }}</td>
-        <td>{{ r.city_name if r.city_name else 'Any' }}</td>
-        <td>{{ r.status }}</td>
-        <td>{{ r.notes or '' }}</td>
-        <td>{{ r.updated_at }}</td>
+        <td>{{ p.email }}</td>
+        <td>
+          {% set cities = entry.records | map(attribute='city_name') | map('default', 'Any', true) | unique | list %}
+          {{ cities | join(', ') }}
+        </td>
+        <td>{{ entry.records | map(attribute='updated_at') | max }}</td>
+        <td><a href="{{ url_for('admin_person_availability', pid=p.id) }}">Assign &raquo;</a></td>
       </tr>
     {% else %}
-      <tr><td colspan="6">No availability records.</td></tr>
+      <tr><td colspan="5">No availability records.</td></tr>
     {% endfor %}
   </tbody>
 </table>
+
+{% for entry in people %}
+  {% set p = entry.person %}
+  <div class="avail-modal-overlay" id="avail-modal-{{ p.id }}" hidden>
+    <div class="avail-modal" role="dialog" aria-modal="true" aria-labelledby="avail-modal-title-{{ p.id }}">
+      <div class="avail-modal-header">
+        <h3 id="avail-modal-title-{{ p.id }}">{{ p.name }}</h3>
+        <button type="button" class="avail-modal-close" aria-label="Close">&times;</button>
+      </div>
+
+      <div class="avail-modal-body">
+        <div class="avail-travel">
+          <div>
+            <span class="avail-label">Willing to drive:</span>
+            {% if p.willing_to_drive %}
+              Yes{% if p.car_or_rental %} ({{ p.car_or_rental }}){% endif %}
+            {% elif p.willing_to_drive is sameas false %}
+              No
+            {% else %}
+              Not provided
+            {% endif %}
+          </div>
+          <div>
+            <span class="avail-label">Flying:</span>
+            {% if p.preferred_airport %}
+              Yes &mdash; closest airport: <strong>{{ p.preferred_airport }}</strong>
+            {% else %}
+              Airport not provided
+            {% endif %}
+          </div>
+          {% if p.phone %}
+          <div><span class="avail-label">Phone:</span> {{ p.phone }}</div>
+          {% endif %}
+          <div><span class="avail-label">Email:</span> {{ p.email }}</div>
+        </div>
+
+        <h4>Available Cities</h4>
+        <table class="table">
+          <thead><tr><th>City</th><th>From</th><th>To</th><th>Status</th><th>Notes</th></tr></thead>
+          <tbody>
+            {% for r in entry.records %}
+              <tr>
+                <td>{{ r.city_name if r.city_name else 'Any' }}</td>
+                <td>{{ r.start_date }}</td>
+                <td>{{ r.end_date }}</td>
+                <td>{{ r.status }}</td>
+                <td>{{ r.notes or '' }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="avail-modal-footer">
+        <a class="btn btn-sm btn-outline-warning" href="{{ url_for('admin_person_availability', pid=p.id) }}">Open assignment page &raquo;</a>
+      </div>
+    </div>
+  </div>
+{% endfor %}
+
+<style>
+  .avail-name { cursor: pointer; }
+  .avail-modal-overlay {
+    position: fixed; inset: 0; z-index: 1050;
+    background: rgba(0, 0, 0, .7);
+    display: flex; align-items: center; justify-content: center;
+    padding: 16px;
+  }
+  .avail-modal {
+    background: var(--osa-card, #0a0a0d);
+    border: 1px solid var(--osa-border, #1f1f27);
+    border-radius: 10px;
+    max-width: 640px; width: 100%;
+    max-height: 85vh; overflow-y: auto;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, .6);
+  }
+  .avail-modal-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--osa-border, #1f1f27);
+  }
+  .avail-modal-header h3 { margin: 0; }
+  .avail-modal-close {
+    background: none; border: none;
+    color: var(--osa-text, #fff); font-size: 1.6rem; line-height: 1;
+    cursor: pointer; padding: 0 4px;
+  }
+  .avail-modal-close:hover { color: var(--osa-gold-b, #f5d080); }
+  .avail-modal-body { padding: 14px 18px; }
+  .avail-modal-body h4 { margin: 14px 0 8px; }
+  .avail-modal-footer {
+    padding: 12px 18px;
+    border-top: 1px solid var(--osa-border, #1f1f27);
+    text-align: right;
+  }
+  .avail-travel { display: grid; gap: 4px; margin-bottom: 6px; }
+  .avail-label { color: var(--osa-gold-b, #f5d080); font-weight: 600; }
+</style>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    function closeAll() {
+      document.querySelectorAll('.avail-modal-overlay').forEach(function (m) {
+        m.hidden = true;
+      });
+      document.body.style.overflow = '';
+    }
+
+    document.querySelectorAll('.avail-name').forEach(function (link) {
+      link.addEventListener('click', function (e) {
+        e.preventDefault();
+        closeAll();
+        var modal = document.getElementById(link.dataset.target);
+        if (modal) {
+          modal.hidden = false;
+          document.body.style.overflow = 'hidden';
+        }
+      });
+    });
+
+    document.querySelectorAll('.avail-modal-overlay').forEach(function (overlay) {
+      overlay.addEventListener('click', function (e) {
+        if (e.target === overlay) closeAll();
+      });
+      overlay.querySelector('.avail-modal-close').addEventListener('click', closeAll);
+    });
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') closeAll();
+    });
+  });
+</script>
 {% endblock %}

@@ -1695,10 +1695,20 @@ def admin_availability():
         db.query(Availability)
         .join(Person, Availability.person_id == Person.id)
         .options(joinedload(Availability.person))
-        .order_by(Availability.start_date.desc(), Availability.id.desc())
+        .order_by(Person.name.asc(), Availability.start_date.asc(), Availability.id.asc())
         .all()
     )
-    return render_template('admin_availability.html', rows=rows)
+    # Group records by person so the page lists each staff member once.
+    people = []
+    by_person = {}
+    for r in rows:
+        entry = by_person.get(r.person_id)
+        if entry is None:
+            entry = {'person': r.person, 'records': []}
+            by_person[r.person_id] = entry
+            people.append(entry)
+        entry['records'].append(r)
+    return render_template('admin_availability.html', people=people)
 
 
 @app.route('/admin/availability/person/<int:pid>', methods=['GET', 'POST'])
