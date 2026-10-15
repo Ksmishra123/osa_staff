@@ -3950,67 +3950,6 @@ def events_list():
     evs = query.order_by(Event.date.asc()).all()
     return render_template('events_public.html', events=evs, show_past=show_past)
 
-@app.route('/callsheet/<int:eid>')
-@login_required
-def public_call_sheet(eid):
-    db = SessionLocal()
-    try:
-        ev = db.get(Event, eid)
-        if not ev or not ev.call_sheet_published:
-            abort(403)
-
-        Pos = aliased(Position)
-        rows = (
-            db.query(Assignment)
-              .join(Pos, Assignment.position_id == Pos.id)
-              .options(joinedload(Assignment.person), joinedload(Assignment.position))
-              .filter(Assignment.event_id == eid)
-              .order_by(Pos.display_order.asc())
-              .all()
-        )
-
-        hotels = (
-            db.query(Hotel)
-              .options(
-                  joinedload(Hotel.rooms)
-                  .joinedload(Room.occupants)
-                  .joinedload(Roommate.person)
-              )
-              .filter(Hotel.event_id == eid)
-              .all()
-        )
-
-        days = (
-            db.query(EventDay)
-              .filter(EventDay.event_id == eid)
-              .order_by(EventDay.start_dt.asc())
-              .all()
-        )
-        day_rows = []
-        for d in days:
-            staff_dt = d.staff_arrival_dt or (
-                d.start_dt - timedelta(minutes=60) if d.start_dt else None
-            )
-            judges_dt = None if d.setup_only else (
-                d.judges_arrival_dt or (d.start_dt - timedelta(minutes=30) if d.start_dt else None)
-            )
-            day_rows.append({
-                "start": d.start_dt,
-                "setup": d.setup_dt,
-                "setup_end": d.setup_end_dt,
-                "staff": staff_dt,
-                "judges": judges_dt,
-                "notes": d.notes or '',
-                "day_link": d.day_link or '',
-                "lunch_details": d.lunch_details or '',
-                "dinner_details": d.dinner_details or '',
-                "setup_only": d.setup_only or False
-            })
-
-        return render_template('call_sheet.html', ev=ev, rows=rows, hotels=hotels, day_rows=day_rows)
-    finally:
-        db.close()
-
 # -----------------------------------------------------------------------------
 # Who has seen and acknowledged
 # -----------------------------------------------------------------------------
