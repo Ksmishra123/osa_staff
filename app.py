@@ -3942,6 +3942,20 @@ def events_list():
     show_past = request.args.get('show_past') == '1'
     today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
     query = db.query(Event)
+
+    # Admins and viewers see every event; everyone else sees only the events
+    # they are assigned to.
+    if not (is_admin() or is_viewer()):
+        person = getattr(current_user, "person", None)
+        if not person:
+            abort(403)
+        query = query.filter(
+            Event.id.in_(
+                db.query(Assignment.event_id)
+                  .filter(Assignment.person_id == person.id)
+            )
+        )
+
     if not show_past:
         query = query.filter(
             (Event.event_end.is_(None) & (Event.date.is_(None) | (Event.date >= today)))
