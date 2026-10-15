@@ -3951,6 +3951,7 @@ def events_list():
     return render_template('events_public.html', events=evs, show_past=show_past)
 
 @app.route('/callsheet/<int:eid>')
+@login_required
 def public_call_sheet(eid):
     db = SessionLocal()
     try:
