@@ -4189,29 +4189,26 @@ def admin_call_sheet_pdf(eid):
         abort(404)
 
     # -------------------------------------------------------------------
-    # Access control (viewer-friendly)
+    # Access control (mirrors the HTML call sheet route)
     # -------------------------------------------------------------------
     person = getattr(current_user, "person", None)
-    role = getattr(current_user, "role", "")
-    is_viewer = (
-        str(role).lower() == "viewer"
-        or getattr(current_user, "is_viewer", False)
-        or getattr(person, "is_viewer", False)
-        or (not is_admin() and not role)
-    )
-    if not is_viewer and getattr(current_user, "is_authenticated", False) and not is_admin():
-        is_viewer = True
 
-    assigned_count = db.query(Assignment).filter(
-        Assignment.event_id == eid,
-        Assignment.person_id == int(getattr(current_user, "id", 0))
-    ).count()
+    is_admin_user = is_admin()
+    is_viewer_user = is_viewer()
 
-    allowed = is_admin() or assigned_count > 0 or is_viewer
+    assigned_count = 0
+    if person:
+        assigned_count = db.query(Assignment).filter(
+            Assignment.event_id == eid,
+            Assignment.person_id == person.id
+        ).count()
+
+    allowed = is_admin_user or is_viewer_user or assigned_count > 0
     if not allowed:
         abort(403)
 
-    if not ev.call_sheet_published and not (is_admin() or is_viewer):
+    # Unpublished call sheets are visible to admins and viewers only
+    if not ev.call_sheet_published and not (is_admin_user or is_viewer_user):
         abort(403)
 
     # -------------------------------------------------------------------

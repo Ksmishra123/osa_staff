@@ -29,9 +29,13 @@
         <td style="padding:8px;"><strong>{{ ev.city or '—' }}</strong></td>
         <td style="padding:8px;">{{ ev.venue or '—' }}</td>
         <td style="padding:8px;">
-          <a class="btn btn-sm btn-outline-primary" href="{{ url_for('call_sheet', eid=ev.id) }}" target="_blank">Open</a>
-          {% if not ev.call_sheet_published %}
-            <span style="margin-left:8px; color:#b45309;">(Unpublished)</span>
+          {% if ev.call_sheet_published or is_admin() or is_viewer() %}
+            <a class="btn btn-sm btn-outline-primary" href="{{ url_for('call_sheet', eid=ev.id) }}" target="_blank">Open</a>
+            {% if not ev.call_sheet_published %}
+              <span style="margin-left:8px; color:#b45309;">(Unpublished)</span>
+            {% endif %}
+          {% else %}
+            <span style="color:#9ca3af;">Not yet published</span>
           {% endif %}
         </td>
       </tr>

@@ -82,7 +82,7 @@
         </td>
 
        <td style="padding:8px; text-align:center;">
-          {% if a.event.call_sheet_published or is_admin() %}
+          {% if a.event.call_sheet_published or is_admin() or is_viewer() %}
             <a href="{{ url_for('call_sheet', eid=a.event_id) }}" target="_blank">Open</a>
           {% else %}
             <span style="opacity:0.6;">Not published</span>
