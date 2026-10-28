@@ -3062,12 +3062,15 @@ def admin_people_email_send():
                       or os.getenv('FROM_EMAIL', 'no-reply@onstageamerica.com'))
         html_body = render_template('emails/general_notice.html',
                                     person=admin_person or people[0], body=body)
-        send_email_async(test_email, subject, html_body)
-        flash(f"✅ Test email sent to {test_email}.")
+        if send_email_async(test_email, subject, html_body):
+            flash(f"✅ Test email sent to {test_email}.")
+        else:
+            flash("❌ Test email was NOT sent — email is not configured on this "
+                  "server (SENDGRID_API_KEY missing). Nothing was delivered.")
         return render_template('people_email.html', people=people, q=q, role=role, group=group,
                                subject=subject, body=body)
 
-    sent, skipped = 0, []
+    sent, skipped, failed = 0, [], 0
     for p in people:
         if not p.email:
             skipped.append(p.name)
@@ -3075,8 +3078,14 @@ def admin_people_email_send():
         html_body = render_template('emails/general_notice.html', person=p, body=body)
         if send_email_async(p.email, subject, html_body):
             sent += 1
+        else:
+            failed += 1
 
-    flash(f"✅ Email sent to {sent} recipient{'s' if sent != 1 else ''}.")
+    if sent:
+        flash(f"✅ Email sent to {sent} recipient{'s' if sent != 1 else ''}.")
+    if failed:
+        flash(f"❌ {failed} email{'s' if failed != 1 else ''} could NOT be sent — "
+              "email is not configured on this server (SENDGRID_API_KEY missing).")
     if skipped:
         flash(f"⚠ Skipped {len(skipped)} with no email address: {', '.join(skipped)}")
     return redirect(url_for('admin_people', q=q, role=role, group=group))
@@ -4104,6 +4113,7 @@ def admin_event_email(eid):
             flash_target = f"✅ Email sent to {len(recipient_list)} staff ({group_names})."
 
         # Send emails via SendGrid async
+        failed = 0
         for email in recipient_list:
             person = (
                 current_user if send_mode == 'test'
@@ -4115,9 +4125,15 @@ def admin_event_email(eid):
                 ev=ev,
                 body=body
             )
-            send_email_async(email, subject, html_body)
+            if not send_email_async(email, subject, html_body):
+                failed += 1
 
-        flash(flash_target)
+        if failed:
+            flash(f"❌ {failed} of {len(recipient_list)} email"
+                  f"{'s' if len(recipient_list) != 1 else ''} could NOT be sent — "
+                  "email is not configured on this server (SENDGRID_API_KEY missing).")
+        else:
+            flash(flash_target)
         return redirect(url_for('admin_event_email', eid=eid))
 
     return render_template('event_email.html', ev=ev, people=people)
