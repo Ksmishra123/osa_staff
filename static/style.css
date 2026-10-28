@@ -23,6 +23,24 @@
   --osa-gold-text: linear-gradient(170deg, #fff8dc 5%, var(--osa-gold-b) 45%, var(--osa-gold-l) 90%);
   --font-body: "Inter", "Inter Fallback", -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --font-display: "League Spartan", "League Spartan Fallback", var(--font-body);
+
+  /* Form fields. Text is always the contrast partner of --osa-field-bg, so
+     changing the field background here keeps every input readable. */
+  --osa-field-bg: var(--osa-card-2);
+  --osa-field-text: #ffffff;
+  --osa-field-placeholder: #ffffff80;
+
+  /* This theme is dark. Declaring it stops browsers (and Bootstrap's own
+     dark-mode handling) from applying light-mode defaults to form controls,
+     which is what rendered dark text on these dark fields. */
+  color-scheme: dark;
+}
+
+/* Neutralize the Bootstrap body token our fields would otherwise inherit:
+   it ships near-black (#212529) and is the source of dark-on-dark text. */
+:root, [data-bs-theme="light"], [data-bs-theme="dark"] {
+  --bs-body-color: var(--osa-text);
+  --bs-body-bg: var(--osa-bg);
 }
 
 /* ============================================
@@ -347,19 +365,38 @@ input, select, textarea {
   border-radius: 8px;
   font-size: 16px;
   font-family: inherit;
-  background: var(--osa-card-2);
-  color: var(--osa-text-strong);
+  background: var(--osa-field-bg);
+  color: var(--osa-field-text);
   transition: border-color 0.2s;
 }
 
 input::placeholder, textarea::placeholder {
-  color: #ffffff55;
+  color: var(--osa-field-placeholder);
 }
 
+/* Keep the field readable while typing. Bootstrap's .form-control sets
+   color/background from --bs-* tokens (--bs-body-color is near-black), which
+   otherwise lands dark-on-dark on our dark fields. Pin both together so the
+   text is always the opposite of the field it sits on, and repeat them for
+   :focus and autofill, which browsers restyle on their own. */
 input:focus, select:focus, textarea:focus {
   outline: none;
+  background: var(--osa-field-bg);
+  color: var(--osa-field-text);
   border-color: var(--osa-gold);
   box-shadow: 0 0 0 3px rgba(190, 148, 32, 0.25);
+}
+
+/* Chrome/Safari paint autofilled fields with their own colors; the huge
+   inset shadow is the only way to repaint the background. */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+  -webkit-text-fill-color: var(--osa-field-text);
+  -webkit-box-shadow: 0 0 0 1000px var(--osa-field-bg) inset;
+  caret-color: var(--osa-field-text);
 }
 
 button, .btn {
@@ -529,18 +566,21 @@ button:active, .btn:active {
   color: var(--osa-text);
 }
 
-.form-control, .form-select {
-  background: var(--osa-card-2);
+/* Mirror the bare-element rules above so a field styled either way reads the
+   same. Bootstrap resolves these from --bs-* tokens, so set them outright. */
+.form-control, .form-select, .form-control:disabled, .form-select:disabled {
+  background-color: var(--osa-field-bg);
   border-color: var(--osa-border);
-  color: var(--osa-text-strong);
+  color: var(--osa-field-text);
 }
 .form-control:focus, .form-select:focus {
-  background: var(--osa-card-2);
+  background-color: var(--osa-field-bg);
   border-color: var(--osa-gold);
-  color: var(--osa-text-strong);
+  color: var(--osa-field-text);
   box-shadow: 0 0 0 0.2rem rgba(190, 148, 32, 0.25);
 }
-.form-control::placeholder { color: #ffffff55; }
+.form-control::placeholder,
+.form-select::placeholder { color: var(--osa-field-placeholder); }
 
 /* ============================================
    Print Styles
