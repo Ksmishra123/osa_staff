@@ -744,6 +744,26 @@ def inject_now():
 def inject_helpers():
     return {"is_admin": is_admin, "is_viewer": is_viewer}
 
+def room_sort_key(room):
+    """Natural sort key for rooms: "2" < "9" < "10" < "10A" < "101".
+
+    Room numbers are free text, so split into digit / non-digit runs and
+    compare digits numerically. Rooms without a number go last.
+    """
+    num = (getattr(room, 'room_number', None) or '').strip()
+    if not num:
+        return (1, [], getattr(room, 'id', 0) or 0)
+    parts = [(0, int(t), '') if t.isdigit() else (1, 0, t.lower())
+             for t in re.findall(r'\d+|\D+', num)]
+    return (0, parts, getattr(room, 'id', 0) or 0)
+
+def sort_rooms(rooms):
+    return sorted(rooms or [], key=room_sort_key)
+
+@app.template_filter('room_order')
+def room_order_filter(rooms):
+    return sort_rooms(rooms)
+
 @app.template_filter('dt_long')  # e.g., November 11, 2025 - 4:00 PM
 def dt_long(v):
     if not v:
@@ -3969,6 +3989,99 @@ def admin_delete_room(rid):
     return redirect(url_for('admin_event_lodging', eid=event_id))
 
 # -----------------------------------------------------------------------------
+# Admin: Rooming list export (Excel) to send to the hotel
+# -----------------------------------------------------------------------------
+@app.route('/admin/hotel/<int:hid>/rooming-list.xlsx')
+@login_required
+def admin_hotel_rooming_list(hid):
+    if not is_admin():
+        abort(403)
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+    from openpyxl.utils import get_column_letter
+
+    db = SessionLocal()
+    hotel = (
+        db.query(Hotel)
+          .options(joinedload(Hotel.rooms).joinedload(Room.occupants).joinedload(Roommate.person),
+                   joinedload(Hotel.event))
+          .filter(Hotel.id == hid)
+          .first()
+    )
+    if not hotel:
+        abort(404)
+    ev = hotel.event
+    rooms = sort_rooms(hotel.rooms)
+
+    guest_cols = max([2] + [len(r.occupants) for r in rooms])
+    headers = (["Room #"] + [f"Guest {i + 1}" for i in range(guest_cols)]
+               + ["Check-in", "Check-out", "Nights", "Confirmation #", "Notes"])
+    ncols = len(headers)
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Rooming List"
+
+    # Header block
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=ncols)
+    ws.cell(row=1, column=1, value=f"On Stage America Rooming List for {hotel.name}")
+    ws.cell(row=1, column=1).font = Font(bold=True, size=14)
+    ws.cell(row=1, column=1).alignment = Alignment(horizontal='center')
+    info = []
+    if ev:
+        when = ev.date.strftime('%m/%d/%Y') if ev.date else ''
+        info.append(f"Event: {ev.city}{' — ' + when if when else ''}")
+    hotel_line = " | ".join(x for x in [hotel.address, hotel.phone] if x)
+    if hotel_line:
+        info.append(hotel_line)
+    info.append(f"Generated {datetime.now().strftime('%m/%d/%Y')}")
+    for i, line in enumerate(info, start=2):
+        ws.merge_cells(start_row=i, start_column=1, end_row=i, end_column=ncols)
+        ws.cell(row=i, column=1, value=line).alignment = Alignment(horizontal='center')
+
+    header_row = len(info) + 3
+    thin = Side(style='thin', color='999999')
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    for c, title in enumerate(headers, start=1):
+        cell = ws.cell(row=header_row, column=c, value=title)
+        cell.font = Font(bold=True)
+        cell.fill = PatternFill('solid', fgColor='F0E3A3')
+        cell.border = border
+
+    for r_i, room in enumerate(rooms, start=header_row + 1):
+        names = [rm.person.name for rm in room.occupants if rm.person]
+        nights = ((room.check_out - room.check_in).days
+                  if room.check_in and room.check_out else None)
+        row = ([room.room_number or ''] + names + [''] * (guest_cols - len(names))
+               + [room.check_in, room.check_out, nights, room.confirmation or '', ''])
+        for c, val in enumerate(row, start=1):
+            cell = ws.cell(row=r_i, column=c, value=val)
+            cell.border = border
+            if isinstance(val, date):
+                cell.number_format = 'mm/dd/yyyy'
+
+    widths = [10] + [24] * guest_cols + [12, 12, 8, 18, 30]
+    for c, w in enumerate(widths, start=1):
+        ws.column_dimensions[get_column_letter(c)].width = w
+    ws.freeze_panes = ws.cell(row=header_row + 1, column=1)
+    ws.print_title_rows = f"{header_row}:{header_row}"
+    ws.page_setup.orientation = 'landscape'
+    ws.page_setup.fitToWidth = 1
+    ws.page_setup.fitToHeight = 0
+    ws.sheet_properties.pageSetUpPr.fitToPage = True
+
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    slug = re.sub(r'[^A-Za-z0-9]+', '_', f"{hotel.name} {ev.city if ev else ''}").strip('_')
+    return send_file(
+        buf,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=f"Rooming_List_{slug or hotel.id}.xlsx",
+    )
+
+# -----------------------------------------------------------------------------
 # Call Sheet (HTML)
 # -----------------------------------------------------------------------------
 from datetime import timedelta
@@ -4546,7 +4659,7 @@ def admin_call_sheet_pdf(eid):
                 ]
 
                 room_rows = [["Room", "Occupants", "Check-in", "Check-out", "Confirmation"]]
-                for r in h.rooms:
+                for r in sort_rooms(h.rooms):
                     names = ", ".join([rm.person.name for rm in r.occupants if rm.person]) or "—"
                     room_rows.append([
                         PH(r.room_number or "-"),

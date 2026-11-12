@@ -65,7 +65,7 @@
           <table>
             <thead><tr><th>Room</th><th>Occupants</th><th>Check-in</th><th>Check-out</th><th>Conf#</th></tr></thead>
             <tbody>
-            {% for r in h.rooms %}
+            {% for r in h.rooms | room_order %}
               <tr>
                 <td>{{ r.room_number or '-' }}</td>
                 <td>

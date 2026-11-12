@@ -34,7 +34,7 @@
 <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
   <h3 style="margin:0;">Hotels for this event</h3>
   {% set all_rooms = [] %}
-  {% for h in hotels %}{% for r in h.rooms %}{% set _ = all_rooms.append(r) %}{% endfor %}{% endfor %}
+  {% for h in hotels %}{% for r in h.rooms | room_order %}{% set _ = all_rooms.append(r) %}{% endfor %}{% endfor %}
   {% if all_rooms %}
     <button type="button" class="btn btn-primary btn-sm" id="open-assign-rooms">Assign Rooms</button>
   {% endif %}
@@ -50,6 +50,10 @@
 <div style="margin-top:6px;">
   <a href="{{ url_for('admin_edit_hotel', hid=h.id, eid=ev.id) }}" 
      class="btn btn-sm btn-outline-primary">Edit</a>
+  {% if h.rooms %}
+  <a href="{{ url_for('admin_hotel_rooming_list', hid=h.id) }}"
+     class="btn btn-sm btn-outline-success">Download Rooming List (Excel)</a>
+  {% endif %}
 
   <form method="post" 
         action="{{ url_for('admin_delete_hotel', hid=h.id) }}" 
@@ -66,7 +70,7 @@
       <table class="table table-sm">
         <thead><tr><th>Room</th><th>Check-in</th><th>Check-out</th><th>Conf #</th><th>Occupants</th><th>Actions</th></tr></thead>
         <tbody>
-          {% for r in h.rooms %}
+          {% for r in h.rooms | room_order %}
             <tr>
                 <td>
                   <input form="room-edit-{{ r.id }}" name="room_number" value="{{ r.room_number or '' }}" placeholder="Room #">
@@ -156,7 +160,7 @@
             <table class="table table-sm rooms-assign-table">
               <thead><tr><th>Room</th><th>Check-in</th><th>Check-out</th><th>Occupants</th></tr></thead>
               <tbody>
-                {% for r in h.rooms %}
+                {% for r in h.rooms | room_order %}
                   {% set current = r.occupants | map(attribute='person_id') | list %}
                   {% set slots = [2, current|length] | max %}
                   <tr>
