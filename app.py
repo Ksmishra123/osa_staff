@@ -816,7 +816,20 @@ def t_short(v):
 from zoneinfo import ZoneInfo
 from datetime import timezone as _tz
 
-DISPLAY_TIMEZONE = os.getenv("DISPLAY_TIMEZONE", "America/New_York")
+# Friendly aliases so DISPLAY_TIMEZONE=US_Eastern (or Eastern, EST, ...) works
+# as well as the canonical IANA names like America/New_York.
+_TZ_ALIASES = {
+    'us_eastern': 'America/New_York', 'us/eastern': 'America/New_York',
+    'eastern': 'America/New_York', 'est': 'America/New_York', 'edt': 'America/New_York',
+    'us_central': 'America/Chicago', 'us/central': 'America/Chicago',
+    'central': 'America/Chicago', 'cst': 'America/Chicago', 'cdt': 'America/Chicago',
+    'us_mountain': 'America/Denver', 'us/mountain': 'America/Denver',
+    'mountain': 'America/Denver', 'mst': 'America/Denver', 'mdt': 'America/Denver',
+    'us_pacific': 'America/Los_Angeles', 'us/pacific': 'America/Los_Angeles',
+    'pacific': 'America/Los_Angeles', 'pst': 'America/Los_Angeles', 'pdt': 'America/Los_Angeles',
+}
+_raw_tz = (os.getenv("DISPLAY_TIMEZONE") or "America/New_York").strip()
+DISPLAY_TIMEZONE = _TZ_ALIASES.get(_raw_tz.lower(), _raw_tz)
 try:
     DISPLAY_TZ = ZoneInfo(DISPLAY_TIMEZONE)
 except Exception:
