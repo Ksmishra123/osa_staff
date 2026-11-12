@@ -31,7 +31,14 @@
   <button class="btn btn-primary btn-sm">Add Hotel</button>
 </form>
 
-<h3>Hotels for this event</h3>
+<div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+  <h3 style="margin:0;">Hotels for this event</h3>
+  {% set all_rooms = [] %}
+  {% for h in hotels %}{% for r in h.rooms %}{% set _ = all_rooms.append(r) %}{% endfor %}{% endfor %}
+  {% if all_rooms %}
+    <button type="button" class="btn btn-primary btn-sm" id="open-assign-rooms">Assign Rooms</button>
+  {% endif %}
+</div>
 {% for h in hotels %}
   <div class="card" style="padding:12px; margin-bottom:12px;">
     <div><strong>{{ h.name }}</strong>{% if h.state %} ({{ h.state }}){% endif %}</div>
@@ -121,34 +128,152 @@
       </div>
     </form>
 
-    <form method="post" class="mt-2">
-<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="hidden" name="action" value="assign_roommates">
-      <div style="display:flex; gap:8px; flex-wrap:wrap;">
-        <select name="room_id" required>
-          <option value="">— Select room —</option>
-          {% for r in h.rooms %}
-            <option value="{{ r.id }}">Room {{ r.room_number or r.id }}</option>
-          {% endfor %}
-        </select>
-
-        <select name="person1">
-          <option value="">— Person 1 —</option>
-          {% for p in people %}
-            <option value="{{ p.id }}">{{ p.name }}</option>
-          {% endfor %}
-        </select>
-
-        <select name="person2">
-          <option value="">— Person 2 —</option>
-          {% for p in people %}
-            <option value="{{ p.id }}">{{ p.name }}</option>
-          {% endfor %}
-        </select>
-
-        <button class="btn btn-outline-secondary btn-sm">Save Occupants</button>
+  </div>
+{% endfor %}
+{% if all_rooms %}
+<div class="rooms-modal-overlay" id="assign-rooms-modal" hidden>
+  <div class="rooms-modal" role="dialog" aria-modal="true" aria-labelledby="assign-rooms-title">
+    <form method="post" id="assign-rooms-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="assign_rooms">
+      <div class="rooms-modal-header">
+        <h3 id="assign-rooms-title">Assign Rooms — {{ ev.city }}</h3>
+        <button type="button" class="rooms-modal-close" aria-label="Close">&times;</button>
+      </div>
+      <div class="rooms-modal-body">
+        {% if not people %}
+          <p><em>No staff are assigned to this event yet, so there is nobody to place in rooms.</em></p>
+        {% else %}
+          <p class="hint" style="margin-top:0;">
+            Each person can be in only one room. Once someone is picked for a room,
+            they disappear from the other rooms' lists.
+            <span id="rooms-unplaced-count"></span>
+          </p>
+        {% endif %}
+        {% for h in hotels %}
+          {% if h.rooms %}
+            <h4>{{ h.name }}</h4>
+            <table class="table table-sm rooms-assign-table">
+              <thead><tr><th>Room</th><th>Check-in</th><th>Check-out</th><th>Occupants</th></tr></thead>
+              <tbody>
+                {% for r in h.rooms %}
+                  {% set current = r.occupants | map(attribute='person_id') | list %}
+                  {% set slots = [2, current|length] | max %}
+                  <tr>
+                    <td>{{ r.room_number or ('#' ~ r.id) }}</td>
+                    <td>{{ r.check_in.strftime('%m/%d/%Y') if r.check_in else '—' }}</td>
+                    <td>{{ r.check_out.strftime('%m/%d/%Y') if r.check_out else '—' }}</td>
+                    <td>
+                      {% for i in range(slots) %}
+                        <select name="room_{{ r.id }}" class="room-person-select" aria-label="Room {{ r.room_number or r.id }} person {{ i + 1 }}">
+                          <option value="">— Person {{ i + 1 }} —</option>
+                          {% for p in people %}
+                            <option value="{{ p.id }}" {% if current|length > i and current[i] == p.id %}selected{% endif %}>{{ p.name }}</option>
+                          {% endfor %}
+                        </select>
+                      {% endfor %}
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          {% endif %}
+        {% endfor %}
+      </div>
+      <div class="rooms-modal-footer">
+        <button type="button" class="btn btn-sm btn-outline-secondary rooms-modal-cancel">Cancel</button>
+        <button type="submit" class="btn btn-sm btn-primary">Save Room Assignments</button>
       </div>
     </form>
   </div>
-{% endfor %}
+</div>
+
+<style>
+  .rooms-modal-overlay {
+    position: fixed; inset: 0; z-index: 1050;
+    background: rgba(0, 0, 0, .7);
+    display: flex; align-items: center; justify-content: center;
+    padding: 16px;
+  }
+  .rooms-modal {
+    background: var(--osa-card, #0a0a0d);
+    border: 1px solid var(--osa-border, #1f1f27);
+    border-radius: 10px;
+    max-width: 860px; width: 100%;
+    max-height: 88vh; overflow-y: auto;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, .6);
+  }
+  .rooms-modal-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--osa-border, #1f1f27);
+    position: sticky; top: 0; background: inherit; z-index: 1;
+  }
+  .rooms-modal-header h3 { margin: 0; }
+  .rooms-modal-close {
+    background: none; border: none;
+    color: var(--osa-text, #fff); font-size: 1.6rem; line-height: 1;
+    cursor: pointer; padding: 0 4px;
+  }
+  .rooms-modal-close:hover { color: var(--osa-gold-b, #f5d080); }
+  .rooms-modal-body { padding: 14px 18px; }
+  .rooms-modal-body h4 { margin: 14px 0 8px; }
+  .rooms-assign-table td { vertical-align: middle; }
+  .rooms-assign-table select { margin: 2px 4px 2px 0; min-width: 160px; max-width: 100%; }
+  .rooms-modal-footer {
+    padding: 12px 18px;
+    border-top: 1px solid var(--osa-border, #1f1f27);
+    display: flex; justify-content: flex-end; gap: 8px;
+    position: sticky; bottom: 0; background: inherit;
+  }
+</style>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    var modal = document.getElementById('assign-rooms-modal');
+    var form = document.getElementById('assign-rooms-form');
+    var openBtn = document.getElementById('open-assign-rooms');
+    var selects = Array.prototype.slice.call(modal.querySelectorAll('.room-person-select'));
+    var countEl = document.getElementById('rooms-unplaced-count');
+    var totalPeople = {{ people | length }};
+
+    // Hide anyone already chosen in another slot, so a person can't be put in two rooms.
+    function refresh() {
+      var taken = {};
+      selects.forEach(function (s) { if (s.value) taken[s.value] = s; });
+      selects.forEach(function (s) {
+        Array.prototype.forEach.call(s.options, function (opt) {
+          if (!opt.value) return;
+          var hide = taken[opt.value] && taken[opt.value] !== s;
+          opt.hidden = !!hide;
+          opt.disabled = !!hide;
+        });
+      });
+      if (countEl) {
+        var left = totalPeople - Object.keys(taken).length;
+        countEl.textContent = left > 0 ? (left + ' of ' + totalPeople + ' people still need a room.')
+                                       : 'Everyone has a room.';
+      }
+    }
+
+    function open() {
+      form.reset();   // discard unsaved picks from a previous open
+      refresh();
+      modal.hidden = false;
+      document.body.style.overflow = 'hidden';
+    }
+    function close() {
+      modal.hidden = true;
+      document.body.style.overflow = '';
+    }
+
+    selects.forEach(function (s) { s.addEventListener('change', refresh); });
+    openBtn.addEventListener('click', open);
+    modal.querySelector('.rooms-modal-close').addEventListener('click', close);
+    modal.querySelector('.rooms-modal-cancel').addEventListener('click', close);
+    modal.addEventListener('click', function (e) { if (e.target === modal) close(); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !modal.hidden) close(); });
+  });
+</script>
+{% endif %}
 {% endblock %}

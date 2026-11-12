@@ -1130,7 +1130,7 @@ def login():
             if not p.password_hash:
                 # SECURITY: Do not auto-set password on login attempt
                 # Instead, require proper registration or password reset flow
-                flash('Account not initialized. Please contact administrator.')
+                flash('Account not initialized. Use "Forgot your password?" to set one, or contact an administrator.')
                 app.logger.warning(f"Login attempt for uninitialized account: {email}")
                 return redirect(url_for('login'))
             if bcrypt.checkpw(password.encode(), p.password_hash.encode()):
@@ -1149,6 +1149,104 @@ def login():
             flash('An error occurred during login. Please try again.')
             return redirect(url_for('login')), 500
     return render_template('login.html')
+
+# -----------------------------------------------------------------------------
+# Forgot / reset password
+# -----------------------------------------------------------------------------
+from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
+
+PASSWORD_RESET_MAX_AGE = 60 * 60  # reset links are valid for 1 hour
+PASSWORD_MIN_LENGTH = 8
+
+def _reset_serializer() -> URLSafeTimedSerializer:
+    return URLSafeTimedSerializer(app.secret_key, salt='password-reset')
+
+def _password_fingerprint(person: Person) -> str:
+    # Tie the token to the current hash so a link stops working once the
+    # password has been changed (single use) or changed some other way.
+    return (person.password_hash or '')[-16:]
+
+def make_password_reset_token(person: Person) -> str:
+    return _reset_serializer().dumps({'pid': person.id, 'fp': _password_fingerprint(person)})
+
+def load_password_reset_token(db, token: str):
+    """Return the Person for a valid, unexpired, unused token, else None."""
+    try:
+        data = _reset_serializer().loads(token, max_age=PASSWORD_RESET_MAX_AGE)
+    except (SignatureExpired, BadSignature):
+        return None
+    person = db.get(Person, int(data.get('pid') or 0))
+    if not person or data.get('fp') != _password_fingerprint(person):
+        return None
+    return person
+
+def _external_base_url() -> str:
+    base_url = (os.getenv('APP_BASE_URL') or '').rstrip('/')
+    if not base_url:
+        try:
+            base_url = request.url_root.rstrip('/')
+        except Exception:
+            base_url = ''
+    return base_url
+
+@app.route('/forgot-password', methods=['GET', 'POST'])
+@limiter.limit("5 per hour; 2 per minute", methods=["POST"])
+def forgot_password():
+    if request.method == 'POST':
+        db = SessionLocal()
+        email = (request.form.get('email') or '').strip().lower()
+        person = db.query(Person).filter(Person.email == email).first() if email else None
+        if person:
+            token = make_password_reset_token(person)
+            reset_url = f"{_external_base_url()}{url_for('reset_password', token=token)}"
+            html = render_template('emails/password_reset.html', person=person,
+                                   reset_url=reset_url,
+                                   minutes=PASSWORD_RESET_MAX_AGE // 60)
+            if not send_email_async(person.email, "Reset your OSA Staff password", html):
+                app.logger.error("Password reset email could not be scheduled for %s", email)
+            else:
+                app.logger.info("Password reset email scheduled for %s", email)
+        else:
+            app.logger.info("Password reset requested for unknown email %s", email)
+        # Same response either way so the form can't be used to discover accounts.
+        flash("If an account exists for that email, a password reset link has been sent. "
+              "Please check your inbox (and spam folder).")
+        return redirect(url_for('login'))
+    return render_template('forgot_password.html')
+
+@app.route('/reset-password/<token>', methods=['GET', 'POST'])
+@limiter.limit("10 per hour", methods=["POST"])
+def reset_password(token):
+    db = SessionLocal()
+    person = load_password_reset_token(db, token)
+    if not person:
+        flash("That password reset link is invalid or has expired. Please request a new one.")
+        return redirect(url_for('forgot_password'))
+
+    if request.method == 'POST':
+        new = request.form.get('new', '')
+        confirm = request.form.get('confirm', '')
+        errors = []
+        if len(new) < PASSWORD_MIN_LENGTH:
+            errors.append(f"Password must be at least {PASSWORD_MIN_LENGTH} characters.")
+        if new != confirm:
+            errors.append("Passwords do not match.")
+        if errors:
+            for e in errors:
+                flash(e)
+            return render_template('reset_password.html', token=token, min_length=PASSWORD_MIN_LENGTH)
+
+        person.password_hash = bcrypt.hashpw(new.encode(), bcrypt.gensalt()).decode()
+        db.commit()
+        app.logger.info("Password reset completed for %s", person.email)
+        if getattr(person, 'is_approved', True):
+            flash("Your password has been reset. You can now log in.")
+        else:
+            flash("Your password has been reset. Your account is still pending administrator "
+                  "approval; you will be able to log in once it is approved.")
+        return redirect(url_for('login'))
+
+    return render_template('reset_password.html', token=token, min_length=PASSWORD_MIN_LENGTH)
 
 @app.route('/logout')
 @login_required
@@ -3644,42 +3742,86 @@ def admin_event_lodging(eid):
         return redirect(url_for('admin_event_lodging', eid=eid))
 
     # -----------------------------
-    # POST: assign roommates
+    # POST: assign rooms (bulk, from the "Assign Rooms" pop-up)
     # -----------------------------
-    if request.method == 'POST' and request.form.get('action') == 'assign_roommates':
-        room_id = int(request.form.get('room_id') or 0)
-        p1 = request.form.get('person1')
-        p2 = request.form.get('person2')
+    # The pop-up submits one or more `room_<id>` fields per room (one per
+    # occupant slot). Every room of the event is submitted, so the whole
+    # event's lodging is replaced in one go. A person may occupy only one room
+    # per event; duplicates are rejected outright rather than silently dropped.
+    if request.method == 'POST' and request.form.get('action') == 'assign_rooms':
+        event_rooms = (
+            db.query(Room)
+              .join(Hotel, Room.hotel_id == Hotel.id)
+              .options(joinedload(Room.occupants), joinedload(Room.hotel))
+              .filter(Hotel.event_id == eid)
+              .all()
+        )
+        eligible_ids = {
+            pid for (pid,) in db.query(Assignment.person_id)
+                                .filter(Assignment.event_id == eid).distinct()
+        }
 
-        if not room_id:
-            flash("Choose a room.")
-            return redirect(url_for('admin_event_lodging', eid=eid))
+        requested = {}   # room_id -> [person_id, ...]
+        seen = {}        # person_id -> room_id
+        for room in event_rooms:
+            pids = []
+            for raw in request.form.getlist(f'room_{room.id}'):
+                raw = (raw or '').strip()
+                if not raw:
+                    continue
+                try:
+                    pid = int(raw)
+                except ValueError:
+                    continue
+                if pid not in eligible_ids:
+                    flash("One of the selected people is not assigned to this event.")
+                    return redirect(url_for('admin_event_lodging', eid=eid))
+                if pid in seen:
+                    person = db.get(Person, pid)
+                    flash(f"{person.name if person else 'A person'} was selected for more than one room. "
+                          "Each person can only be assigned to one room.")
+                    return redirect(url_for('admin_event_lodging', eid=eid))
+                seen[pid] = room.id
+                pids.append(pid)
+            requested[room.id] = pids
 
-        db.query(Roommate).filter(Roommate.room_id == room_id).delete()
+        # Who needs a notification: anyone whose room is new or changed.
+        previous = {rm.person_id: room.id for room in event_rooms for rm in room.occupants}
+        to_notify = [(pid, rid) for pid, rid in seen.items() if previous.get(pid) != rid]
 
-        for pid in [p1, p2]:
-            if pid:
-                db.add(Roommate(room_id=room_id, person_id=int(pid)))
-
+        for room in event_rooms:
+            db.query(Roommate).filter(Roommate.room_id == room.id).delete()
+            for pid in requested.get(room.id, []):
+                db.add(Roommate(room_id=room.id, person_id=pid))
         db.commit()
-        flash("Roommates saved.")
 
-        # notify by email, but don't block UI
-        try:
-            room = db.get(Room, room_id)
-            if room and room.occupants:
-                occ_people = [rm.person for rm in room.occupants if rm.person and rm.person.email]
-                for person in occ_people:
-                    html = render_template('emails/room_notice.html',
-                                           person=person, room=room, hotel=room.hotel, ev=ev)
-                    send_email_async(
-                        person.email,
-                        f"Lodging Assigned: {room.hotel.name} / Room {room.room_number or ''}",
-                        html
-                    )
-        except Exception:
-            app.logger.exception("Roommate email notify failed")
+        rooms_by_id = {room.id: room for room in event_rooms}
+        failed = []
+        for pid, rid in to_notify:
+            person = db.get(Person, pid)
+            room = rooms_by_id.get(rid)
+            if not person or not person.email or not room:
+                continue
+            try:
+                html = render_template('emails/room_notice.html',
+                                       person=person, room=room, hotel=room.hotel, ev=ev)
+                ok = send_email_async(
+                    person.email,
+                    f"Lodging Assigned: {room.hotel.name} / Room {room.room_number or ''}",
+                    html
+                )
+            except Exception:
+                app.logger.exception("Room notice render/send failed for %s", person.email)
+                ok = False
+            if not ok:
+                failed.append(person.name)
 
+        msg = f"Room assignments saved ({len(seen)} people in rooms)."
+        if to_notify:
+            msg += f" Lodging emails sent to {len(to_notify) - len(failed)} newly assigned people."
+        flash(msg)
+        if failed:
+            flash("Could not send lodging email to: " + ", ".join(failed))
         return redirect(url_for('admin_event_lodging', eid=eid))
 
     # -----------------------------
@@ -3718,6 +3860,7 @@ def admin_event_lodging(eid):
         db.query(Person)
           .join(Assignment, Assignment.person_id == Person.id)
           .filter(Assignment.event_id == eid)
+          .distinct()
           .order_by(Person.name.asc())
           .all()
     )
