@@ -102,9 +102,9 @@
 <div class="cs-container">
   <div class="no-print" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
     <div>
-      <a href="{{ url_for('admin_call_sheet_pdf', eid=ev.id) }}"
+      <a href="{{ url_for('admin_call_sheet_pdf', eid=ev.id, download=1) }}"
          class="btn btn-sm btn-outline-primary"
-         target="_blank">
+         download>
         📄 Download PDF
       </a>
     </div>

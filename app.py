@@ -4448,6 +4448,17 @@ def admin_call_sheet_pdf(eid):
     )
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 
+    from html import escape as _html_escape
+
+    def X(txt):
+        """Escape user text for ReportLab Paragraph markup.
+
+        Paragraph parses its input as mini-HTML, so a stray "<br>" or "<b"
+        in a note used to crash the whole PDF. Escape everything and turn
+        newlines into real line breaks.
+        """
+        return _html_escape(str(txt or ''), quote=False).replace('\r\n', '\n').replace('\n', '<br/>')
+
     db = SessionLocal()
     ev = db.get(Event, eid)
     if not ev:
@@ -4532,7 +4543,7 @@ def admin_call_sheet_pdf(eid):
         img.hAlign = "CENTER"
         story.append(img)
     story.append(Spacer(1, 4))
-    story.append(Paragraph(f"<b>Call Sheet — {ev.city or ''}</b>", styles["CenterTitle"]))
+    story.append(Paragraph(f"<b>Call Sheet — {X(ev.city)}</b>", styles["CenterTitle"]))
     if ev.date:
         story.append(Paragraph(ev.date.strftime("%m/%d/%Y - %I:%M %p"), styles["CenterSub"]))
     story.append(Spacer(1, 14))
@@ -4573,7 +4584,7 @@ def admin_call_sheet_pdf(eid):
         story.append(Paragraph("Daily Schedule", styles["SectionHeader"]))
 
         def P(txt):
-            return Paragraph(txt or "", ParagraphStyle(
+            return Paragraph(X(txt), ParagraphStyle(
                 name="SchedCell", fontSize=9, leading=11,
                 wordWrap="CJK",  # robust wrapping
                 splitLongWords=True,
@@ -4636,7 +4647,7 @@ def admin_call_sheet_pdf(eid):
         if a.transport_notes:
             lines.append(a.transport_notes)
 
-        notes_paragraph = Paragraph("<br/>".join(lines), ParagraphStyle(
+        notes_paragraph = Paragraph("<br/>".join(X(l) for l in lines), ParagraphStyle(
             name="NotesCell",
             fontSize=9,
             leading=11,
@@ -4644,10 +4655,10 @@ def admin_call_sheet_pdf(eid):
         ))
 
         assign_data.append([
-            Paragraph(a.position.name or "", styles["BodyText"]),
-            Paragraph(a.person.name or "", styles["BodyText"]),
-            Paragraph(a.person.phone or "", styles["BodyText"]),
-            Paragraph(a.person.email or "", styles["BodyText"]),
+            Paragraph(X(a.position.name if a.position else ""), styles["BodyText"]),
+            Paragraph(X(a.person.name if a.person else ""), styles["BodyText"]),
+            Paragraph(X(a.person.phone if a.person else ""), styles["BodyText"]),
+            Paragraph(X(a.person.email if a.person else ""), styles["BodyText"]),
             notes_paragraph
         ])
 
@@ -4670,7 +4681,7 @@ def admin_call_sheet_pdf(eid):
 
         def PH(txt, italic=False):
             return Paragraph(
-                f"<i>{txt}</i>" if italic else (txt or ""),
+                f"<i>{X(txt)}</i>" if italic else X(txt),
                 ParagraphStyle(
                     name="HotelCell", fontSize=9, leading=11,
                     wordWrap="CJK", splitLongWords=True,
@@ -4678,12 +4689,12 @@ def admin_call_sheet_pdf(eid):
             )
 
         for h in hotels:
-            story.append(Paragraph(f"<b>{h.name}</b>", styles["BodyText"]))
+            story.append(Paragraph(f"<b>{X(h.name)}</b>", styles["BodyText"]))
             if h.address or h.phone:
-                story.append(Paragraph(f"{h.address or ''}{' — ' if h.address and h.phone else ''}{h.phone or ''}",
+                story.append(Paragraph(X(f"{h.address or ''}{' — ' if h.address and h.phone else ''}{h.phone or ''}"),
                                        styles["BodyText"]))
             if h.notes:
-                story.append(Paragraph(f"<i>{h.notes}</i>", styles["BodyText"]))
+                story.append(Paragraph(f"<i>{X(h.notes)}</i>", styles["BodyText"]))
             story.append(Spacer(1, 6))
 
             if h.rooms:
@@ -4731,7 +4742,7 @@ def admin_call_sheet_pdf(eid):
     # Notes
     # -------------------------------------------------------------------
     story.append(Paragraph("Notes", styles["SectionHeader"]))
-    story.append(Paragraph(ev.notes or "—", styles["BodyText"]))
+    story.append(Paragraph(X(ev.notes or "—"), styles["BodyText"]))
 
     # -------------------------------------------------------------------
     # Watermark (logo + faint DRAFT)
@@ -4780,14 +4791,21 @@ def admin_call_sheet_pdf(eid):
     # -------------------------------------------------------------------
     # Build and return PDF
     # -------------------------------------------------------------------
-    doc.build(story, onFirstPage=draw_watermark, onLaterPages=draw_watermark)
+    try:
+        doc.build(story, onFirstPage=draw_watermark, onLaterPages=draw_watermark)
+    except Exception:
+        app.logger.exception("Call sheet PDF build failed for event %s", eid)
+        flash("Sorry, the PDF could not be generated. The error has been logged.")
+        return redirect(url_for('call_sheet', eid=eid))
     pdf_bytes = buffer.getvalue()
     buffer.close()
 
     from flask import make_response
     response = make_response(pdf_bytes)
     response.headers["Content-Type"] = "application/pdf"
-    response.headers["Content-Disposition"] = f"inline; filename=call_sheet_{ev.city or 'event'}.pdf"
+    slug = re.sub(r'[^A-Za-z0-9]+', '_', ev.city or 'event').strip('_') or 'event'
+    disposition = 'attachment' if request.args.get('download') else 'inline'
+    response.headers["Content-Disposition"] = f'{disposition}; filename="call_sheet_{slug}.pdf"'
     return response
 
 # -----------------------------------------------------------------------------
