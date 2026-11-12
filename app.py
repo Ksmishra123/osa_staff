@@ -809,6 +809,32 @@ def t_short(v):
         return ''
     return v.strftime('%-I:%M %p')
 
+# Timestamps recorded by the app (ack_at, callsheet_seen_at, uploaded_at, ...)
+# are stored as naive UTC via datetime.utcnow(). Convert them for display.
+# Event/schedule times entered by admins are already local and must NOT go
+# through this filter.
+from zoneinfo import ZoneInfo
+from datetime import timezone as _tz
+
+DISPLAY_TIMEZONE = os.getenv("DISPLAY_TIMEZONE", "America/New_York")
+try:
+    DISPLAY_TZ = ZoneInfo(DISPLAY_TIMEZONE)
+except Exception:
+    app.logger.error("Unknown DISPLAY_TIMEZONE %r; falling back to America/New_York", DISPLAY_TIMEZONE)
+    DISPLAY_TZ = ZoneInfo("America/New_York")
+
+def utc_to_display(v):
+    if not v:
+        return None
+    if v.tzinfo is None:
+        v = v.replace(tzinfo=_tz.utc)
+    return v.astimezone(DISPLAY_TZ)
+
+@app.template_filter('utc_local')  # e.g., 11/12/2026 11:50 AM EST
+def utc_local_filter(v, fmt='%m/%d/%Y %I:%M %p %Z'):
+    lv = utc_to_display(v)
+    return lv.strftime(fmt) if lv else ''
+
 @app.template_filter('datetime_local')
 def datetime_local(v):
     """Format a datetime for <input type='datetime-local'> (YYYY-MM-DDTHH:MM)."""

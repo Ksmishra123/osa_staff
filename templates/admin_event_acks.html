@@ -67,7 +67,7 @@
           <td>
             {% if a.ack %}
               <span style="background:#10b981; color:#fff; border-radius:4px; padding:2px 8px; font-size:0.85em; font-weight:600;"
-                    title="{{ a.ack_at or '' }}">✓ Acknowledged{% if a.ack_at %} {{ a.ack_at.strftime('%m/%d') }}{% endif %}</span>
+                    title="{{ a.ack_at | utc_local }}">✓ Acknowledged{% if a.ack_at %} {{ a.ack_at | utc_local('%m/%d') }}{% endif %}</span>
             {% else %}
               <span style="background:#ef4444; color:#fff; border-radius:4px; padding:2px 8px; font-size:0.85em; font-weight:600;">Not acknowledged</span>
             {% endif %}

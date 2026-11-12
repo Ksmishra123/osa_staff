@@ -24,7 +24,7 @@
         <td>{{ a.seen_at.strftime('%m/%d/%Y %I:%M %p') if a.seen_at else '—' }}</td>
         <td>
           {% if a.ack_at %}
-            {{ a.ack_at.strftime('%m/%d/%Y %I:%M %p') }}
+            {{ a.ack_at | utc_local }}
           {% elif a.ack %}
             (legacy: acknowledged)
           {% else %}
@@ -32,7 +32,7 @@
           {% endif %}
         </td>
         <td>{{ a.ack_ip or '—' }}</td>
-        <td>{{ a.callsheet_seen_at.strftime('%m/%d/%Y %I:%M %p') if a.callsheet_seen_at else '—' }}</td>
+        <td>{{ a.callsheet_seen_at | utc_local if a.callsheet_seen_at else '—' }}</td>
       </tr>
       {% endfor %}
     </tbody>
