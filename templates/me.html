@@ -3,6 +3,15 @@
 
 <h1>My Assignments</h1>
 
+{% set _me = current_user.person if current_user.is_authenticated else None %}
+{% if _me and _me.travel_info_missing %}
+  <div style="margin:8px 0 14px; padding:10px 14px; border:1px solid #f59e0b; background:rgba(245,158,11,.12); border-radius:8px;">
+    ✈️ <strong>Please complete your travel information</strong> so we can book your flights:
+    {{ _me.travel_info_missing | join(', ') }}.
+    <a href="{{ url_for('account_profile') }}">Update my profile &raquo;</a>
+  </div>
+{% endif %}
+
 <div style="margin: 8px 0 16px 0; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
   {% if show_past %}
     <a href="{{ url_for('me') }}" class="btn btn-sm btn-outline-secondary">👁 Hide past assignments</a>

@@ -11,8 +11,9 @@
   </p>
   <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
 
-    <label>Name<br>
+    <label>Name you go by (nickname)<br>
       <input name="name" value="{{ form.get('name','') }}" required>
+      <small class="hint">Shown on call sheets, emails and pages.</small>
     </label>
 
     <label>Email (login)<br>
@@ -65,6 +66,9 @@
     <label>Headshot (png/jpg/jpeg/gif)<br>
       <input type="file" name="headshot" accept=".png,.jpg,.jpeg,.gif">
     </label>
+    {% set tv = form %}{% set legal_required = true %}
+    {% include '_travel_fields.html' %}
+
     <label>Bio (short professional bio)<br>
       <textarea name="bio" rows="5" placeholder="Emcee/Judge with 10+ years, specialties, awards, etc.">{{ form.get('bio','') }}</textarea>
     </label>

@@ -139,6 +139,7 @@
             <a href='{{ url_for('admin_assign', eid=e.id) }}' class="action-btn">👥 Assign</a>
             <a href="{{ url_for('admin_event_lodging', eid=e.id) }}" class="action-btn">🏨 Lodging</a>
             <a href="{{ url_for('admin_event_days', eid=e.id) }}" class="action-btn">📅 Days</a>
+            <a href="{{ url_for('admin_travel_info', event=e.id) }}" class="action-btn">✈️ Travel Info</a>
 
             <div class="action-divider"></div>
 

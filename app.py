@@ -135,6 +135,71 @@ def ensure_assignment_itinerary_columns():
 
 ensure_assignment_itinerary_columns()
 
+def ensure_person_travel_columns():
+    """Compatibility migration: legal name / gender / KTN columns on people."""
+    try:
+        from sqlalchemy import inspect as sa_inspect
+        inspector = sa_inspect(engine)
+        if "people" not in inspector.get_table_names():
+            return
+        existing = {col["name"] for col in inspector.get_columns("people")}
+        needed = {
+            "legal_first_name": "VARCHAR(255)",
+            "legal_middle_name": "VARCHAR(255)",
+            "legal_last_name": "VARCHAR(255)",
+            "gender": "VARCHAR(20)",
+            "known_traveler_number": "VARCHAR(32)",
+        }
+        with engine.begin() as conn:
+            for col, coltype in needed.items():
+                if col not in existing:
+                    conn.exec_driver_sql(f"ALTER TABLE people ADD COLUMN {col} {coltype}")
+    except Exception:
+        app.logger.exception("Could not auto-migrate people travel columns.")
+
+ensure_person_travel_columns()
+
+# Gender values as used by TSA Secure Flight when booking airline tickets.
+GENDER_CHOICES = [
+    ("M", "Male"),
+    ("F", "Female"),
+    ("X", "Unspecified (X)"),
+    ("U", "Undisclosed"),
+]
+GENDER_LABELS = dict(GENDER_CHOICES)
+
+def apply_travel_fields(p, form, require_legal_name: bool):
+    """Copy legal name / gender / KTN from a submitted form onto a Person.
+
+    Returns a list of error messages (empty when everything is valid).
+    """
+    errors = []
+    first = (form.get('legal_first_name') or '').strip()
+    middle = (form.get('legal_middle_name') or '').strip()
+    last = (form.get('legal_last_name') or '').strip()
+    if require_legal_name and not (first and last):
+        errors.append("Please enter your first and last name exactly as they appear on your travel ID.")
+    p.legal_first_name = first or None
+    p.legal_middle_name = middle or None
+    p.legal_last_name = last or None
+
+    gender = (form.get('gender') or '').strip().upper()
+    if gender and gender not in GENDER_LABELS:
+        errors.append("Please choose a valid gender option.")
+    else:
+        p.gender = gender or None
+
+    ktn = re.sub(r'[\s-]+', '', form.get('known_traveler_number') or '').upper()
+    if ktn and (not ktn.isalnum() or len(ktn) > 25):
+        errors.append("Known Traveler Number should contain only letters and numbers.")
+    else:
+        p.known_traveler_number = ktn or None
+    return errors
+
+@app.context_processor
+def inject_gender_choices():
+    return {"GENDER_CHOICES": GENDER_CHOICES, "GENDER_LABELS": GENDER_LABELS}
+
 def ensure_assignment_notification_columns():
     """Compatibility migration for assignment email tracking.
 
@@ -1483,6 +1548,9 @@ def register():
             if db.query(Person).filter(Person.email == email).first():
                 errors.append("An account with that email already exists. Try logging in.")
 
+            travel = Person()  # scratch object to validate/collect the travel fields
+            errors.extend(apply_travel_fields(travel, form, require_legal_name=True))
+
             # Optional headshot upload
             headshot_path = None
             file = request.files.get('headshot')
@@ -1508,6 +1576,11 @@ def register():
                 willing_to_drive=willing_to_drive, car_or_rental=car_or_rental,
                 dietary_preference=dietary_preference, dob=dob,
                 headshot_path=headshot_path, bio=bio,
+                legal_first_name=travel.legal_first_name,
+                legal_middle_name=travel.legal_middle_name,
+                legal_last_name=travel.legal_last_name,
+                gender=travel.gender,
+                known_traveler_number=travel.known_traveler_number,
                 is_approved=False,  # admin must approve before this account can log in
             )
             db.add(person); db.commit()
@@ -1556,6 +1629,13 @@ def account_profile():
         p.car_or_rental = form.get('car_or_rental','').strip() if p.willing_to_drive else None
         p.dietary_preference = form.get('dietary_preference','').strip()
         p.bio = form.get('bio','').strip()
+
+        travel_errors = apply_travel_fields(p, form, require_legal_name=True)
+        if travel_errors:
+            for e in travel_errors:
+                flash(e)
+            db.rollback()
+            return render_template('profile.html', person=p)
 
         # DOB
         dob_str = form.get('dob','').strip()
@@ -3539,6 +3619,13 @@ def admin_edit_person(pid):
             except Exception:
                 flash("Could not parse Date of Birth (use YYYY-MM-DD).")
 
+        travel_errors = apply_travel_fields(p, form, require_legal_name=False)
+        if travel_errors:
+            for e in travel_errors:
+                flash(e)
+            db.rollback()
+            return render_template('edit_person.html', person=p)
+
         # Name & email with uniqueness check
         if new_name:
             p.name = new_name
@@ -4028,6 +4115,68 @@ def admin_delete_room(rid):
     return redirect(url_for('admin_event_lodging', eid=event_id))
 
 # -----------------------------------------------------------------------------
+# Admin: Travel info (legal name, DOB, gender, KTN...) for booking flights
+# -----------------------------------------------------------------------------
+@app.route('/admin/travel-info')
+@login_required
+def admin_travel_info():
+    if not is_admin():
+        abort(403)
+    db = SessionLocal()
+
+    events = db.query(Event).order_by(Event.date.desc()).all()
+    eid = request.args.get('event', type=int)
+    ev = db.get(Event, eid) if eid else None
+
+    positions_by_person = {}
+    if ev:
+        rows = (
+            db.query(Assignment)
+              .options(joinedload(Assignment.person), joinedload(Assignment.position))
+              .filter(Assignment.event_id == ev.id)
+              .all()
+        )
+        people_by_id = {}
+        for a in rows:
+            if not a.person:
+                continue
+            people_by_id[a.person.id] = a.person
+            if a.position and a.position.name:
+                positions_by_person.setdefault(a.person.id, []).append(a.position.name)
+        people = list(people_by_id.values())
+    else:
+        people = db.query(Person).filter(Person.is_approved.is_(True)).all()
+
+    people.sort(key=lambda p: ((p.legal_last_name or p.name or '').lower(),
+                               (p.legal_first_name or '').lower()))
+
+    if request.args.get('format') == 'csv':
+        out = io.StringIO()
+        w = csv.writer(out)
+        w.writerow(["Legal First Name", "Legal Middle Name", "Legal Last Name", "Goes By",
+                    "Date of Birth", "Gender", "Known Traveler Number", "Email", "Phone",
+                    "Preferred Airport"] + (["Position"] if ev else []))
+        for p in people:
+            w.writerow([p.legal_first_name or '', p.legal_middle_name or '', p.legal_last_name or '',
+                        p.name or '', p.dob.strftime('%m/%d/%Y') if p.dob else '',
+                        GENDER_LABELS.get(p.gender or '', ''), p.known_traveler_number or '',
+                        p.email or '', p.phone or '', p.preferred_airport or '']
+                       + ([", ".join(positions_by_person.get(p.id, []))] if ev else []))
+        slug = re.sub(r'[^A-Za-z0-9]+', '_', ev.city if ev else 'all_staff').strip('_') or 'staff'
+        resp = make_response(out.getvalue())
+        resp.headers["Content-Type"] = "text/csv; charset=utf-8"
+        resp.headers["Content-Disposition"] = f'attachment; filename="travel_info_{slug}.csv"'
+        resp.headers["Cache-Control"] = "no-store"
+        return resp
+
+    resp = make_response(render_template(
+        'admin_travel_info.html', people=people, events=events, ev=ev,
+        positions_by_person=positions_by_person,
+    ))
+    resp.headers["Cache-Control"] = "no-store"  # contains DOB / KTN
+    return resp
+
+# -----------------------------------------------------------------------------
 # Admin: Rooming list export (Excel) to send to the hotel
 # -----------------------------------------------------------------------------
 @app.route('/admin/hotel/<int:hid>/rooming-list.xlsx')
@@ -4088,7 +4237,8 @@ def admin_hotel_rooming_list(hid):
         cell.border = border
 
     for r_i, room in enumerate(rooms, start=header_row + 1):
-        names = [rm.person.name for rm in room.occupants if rm.person]
+        # Hotels check guests in against their ID, so use the legal name.
+        names = [rm.person.travel_name for rm in room.occupants if rm.person]
         nights = ((room.check_out - room.check_in).days
                   if room.check_in and room.check_out else None)
         row = ([room.room_number or ''] + names + [''] * (guest_cols - len(names))

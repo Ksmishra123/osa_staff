@@ -1,0 +1,31 @@
+{# Travel identity fields. Expects `tv` (a Person or a submitted form dict)
+   and `legal_required` (bool). #}
+<fieldset class="travel-fields" style="grid-column: 1 / -1; border:1px solid var(--osa-border, #1f1f27); border-radius:8px; padding:12px 14px;">
+  <legend style="font-size:1rem; padding:0 6px; width:auto; float:none; margin:0;">✈️ Travel information (used only for bookings)</legend>
+  <p class="hint" style="margin:0 0 10px;">
+    Enter your name <strong>exactly as it appears on the ID you travel with</strong> (driver's license or passport).
+    We use it only to book flights and hotels. Everywhere else, we use the name you go by above.
+  </p>
+  <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:12px;">
+    <label>Legal first name{% if legal_required %} *{% endif %}<br>
+      <input name="legal_first_name" value="{{ tv.legal_first_name or '' }}" autocomplete="given-name" {% if legal_required %}required{% endif %}>
+    </label>
+    <label>Legal middle name<br>
+      <input name="legal_middle_name" value="{{ tv.legal_middle_name or '' }}" autocomplete="additional-name">
+    </label>
+    <label>Legal last name{% if legal_required %} *{% endif %}<br>
+      <input name="legal_last_name" value="{{ tv.legal_last_name or '' }}" autocomplete="family-name" {% if legal_required %}required{% endif %}>
+    </label>
+    <label>Gender (as on your ID)<br>
+      <select name="gender">
+        <option value="">—</option>
+        {% for code, label in GENDER_CHOICES %}
+          <option value="{{ code }}" {% if (tv.gender or '') == code %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Known Traveler Number (TSA PreCheck / Global Entry)<br>
+      <input name="known_traveler_number" value="{{ tv.known_traveler_number or '' }}" placeholder="Optional" autocomplete="off">
+    </label>
+  </div>
+</fieldset>

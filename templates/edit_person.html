@@ -6,7 +6,7 @@
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
 
-    <label>Name<br>
+    <label>Name they go by (nickname)<br>
       <input name="name" value="{{ person.name or '' }}" required>
     </label>
 
@@ -98,6 +98,9 @@
         </div>
       {% endif %}
     </div>
+    {% set tv = person %}{% set legal_required = false %}
+    {% include '_travel_fields.html' %}
+
     <div>
        <label>Bio<br>
               <textarea name="bio" rows="6">{{ person.bio or '' }}</textarea>

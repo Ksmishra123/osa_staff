@@ -76,9 +76,42 @@ class Person(Base):
     rating = Column(Integer)                 # 1-5; nullable when not rated
     rating_reason = Column(Text)             # required when rating <= 3
 
+    # Travel identity. `name` above is the name the person goes by (nickname)
+    # and is what every page, email and call sheet shows. The legal fields
+    # must match the person's travel ID and are used only for bookings
+    # (flights, hotel rooming lists).
+    legal_first_name = Column(String)
+    legal_middle_name = Column(String)
+    legal_last_name = Column(String)
+    gender = Column(String(20))              # 'M' | 'F' | 'X' | 'U' (TSA Secure Flight codes)
+    known_traveler_number = Column(String(32))
+
     # Relationships
     assignments = relationship("Assignment", back_populates="person", cascade="all, delete-orphan")
     availabilities = relationship("Availability", back_populates="person", cascade="all, delete-orphan")
+
+    @property
+    def legal_full_name(self):
+        parts = [self.legal_first_name, self.legal_middle_name, self.legal_last_name]
+        full = " ".join(p.strip() for p in parts if p and p.strip())
+        return full or None
+
+    @property
+    def travel_name(self):
+        """Name for bookings: legal name when on file, else the display name."""
+        return self.legal_full_name or self.name
+
+    @property
+    def travel_info_missing(self):
+        """Fields needed to book a flight that the person has not filled in."""
+        missing = []
+        if not (self.legal_first_name and self.legal_last_name):
+            missing.append("legal name")
+        if not self.dob:
+            missing.append("date of birth")
+        if not self.gender:
+            missing.append("gender")
+        return missing
 
     def __repr__(self) -> str:
         return f"<Person id={self.id} name={self.name!r} email={self.email!r}>"

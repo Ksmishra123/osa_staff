@@ -1,0 +1,79 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>✈️ Travel Info{% if ev %} — {{ ev.city }}{% endif %}</h1>
+<p class="hint">Official details for booking flights. Names are exactly as entered from each person's travel ID.
+  Rows marked <span class="ti-missing">missing</span> still need information before a ticket can be booked.</p>
+
+<form method="get" class="ti-toolbar">
+  <label>Show
+    <select name="event" onchange="this.form.submit()">
+      <option value="">All approved staff</option>
+      {% for e in events %}
+        <option value="{{ e.id }}" {% if ev and ev.id == e.id %}selected{% endif %}>
+          {{ e.city }}{% if e.date %} — {{ e.date.strftime('%m/%d/%Y') }}{% endif %}
+        </option>
+      {% endfor %}
+    </select>
+  </label>
+  <noscript><button type="submit" class="btn btn-sm btn-outline-primary">Show</button></noscript>
+  <a class="btn btn-sm btn-outline-success"
+     href="{{ url_for('admin_travel_info', event=ev.id if ev else None, format='csv') }}">⬇ Download CSV (Excel)</a>
+  <span class="hint" style="margin-left:auto;">{{ people|length }} {{ 'person' if people|length == 1 else 'people' }}</span>
+</form>
+
+{% if not people %}
+  <p><em>{% if ev %}Nobody is assigned to this event yet.{% else %}No approved staff yet.{% endif %}</em></p>
+{% else %}
+<div class="ti-scroll">
+<table class="table table-sm ti-table">
+  <thead>
+    <tr>
+      <th>Legal Name (First / Middle / Last)</th>
+      <th>Goes By</th>
+      <th>Date of Birth</th>
+      <th>Gender</th>
+      <th>KTN</th>
+      <th>Email</th>
+      <th>Phone</th>
+      <th>Airport</th>
+      {% if ev %}<th>Position</th>{% endif %}
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for p in people %}
+    {% set missing = p.travel_info_missing %}
+    <tr>
+      <td>
+        {% if p.legal_first_name or p.legal_last_name %}
+          <strong>{{ p.legal_first_name or '' }}</strong>
+          {% if p.legal_middle_name %} {{ p.legal_middle_name }}{% endif %}
+          <strong>{{ p.legal_last_name or '' }}</strong>
+        {% else %}
+          <span class="ti-missing">missing</span>
+        {% endif %}
+      </td>
+      <td>{{ p.name }}</td>
+      <td>{% if p.dob %}{{ p.dob.strftime('%m/%d/%Y') }}{% else %}<span class="ti-missing">missing</span>{% endif %}</td>
+      <td>{% if p.gender %}{{ GENDER_LABELS.get(p.gender, p.gender) }}{% else %}<span class="ti-missing">missing</span>{% endif %}</td>
+      <td style="font-family:monospace;">{{ p.known_traveler_number or '—' }}</td>
+      <td><a href="mailto:{{ p.email }}">{{ p.email }}</a></td>
+      <td style="white-space:nowrap;">{{ p.phone or '—' }}</td>
+      <td>{{ p.preferred_airport or '—' }}</td>
+      {% if ev %}<td>{{ positions_by_person.get(p.id, []) | join(', ') }}</td>{% endif %}
+      <td><a class="btn btn-sm btn-outline-primary" href="{{ url_for('admin_edit_person', pid=p.id) }}">Edit</a></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+
+<style>
+  .ti-toolbar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:12px 0; }
+  .ti-toolbar select { max-width: 100%; }
+  .ti-scroll { overflow-x:auto; }
+  .ti-table td, .ti-table th { vertical-align: middle; }
+  .ti-missing { color:#b45309; background:rgba(245, 158, 11, .15); border-radius:4px; padding:1px 6px; font-size:.85em; font-weight:600; }
+</style>
+{% endblock %}

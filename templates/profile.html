@@ -6,8 +6,9 @@
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
 
-    <label>Name<br>
+    <label>Name you go by (nickname)<br>
       <input name="name" value="{{ person.name or '' }}" required>
+      <small class="hint">Shown on call sheets, emails and pages.</small>
     </label>
 
     <label>Email (login)<br>
@@ -63,6 +64,9 @@
       
         {% endif %}
     </div>
+    {% set tv = person %}{% set legal_required = true %}
+    {% include '_travel_fields.html' %}
+
     <div>
     <label>Bio (short professional bio)<br>
                 <textarea name="bio" rows="5" placeholder="Emcee/Judge with 10+ years, specialties, awards, etc.">{{ person.bio or '' }}</textarea>
